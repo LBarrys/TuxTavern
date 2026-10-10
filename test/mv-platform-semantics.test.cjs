@@ -283,7 +283,9 @@ test('guest OS identity queries reach Node while filesystem paths remain virtual
       return {
         hostname: () => hostOs.hostname(),
         userInfo: options => hostOs.userInfo(options),
-        networkInterfaces: () => (network = hostOs.networkInterfaces())
+        networkInterfaces: () => (network = hostOs.networkInterfaces()),
+        release: () => hostOs.release(),
+        homedir: () => hostOs.homedir()
       };
     }
   });
@@ -294,6 +296,7 @@ test('guest OS identity queries reach Node while filesystem paths remain virtual
   assert.equal(os.userInfo().username, hostOs.userInfo().username);
   assert.equal(Buffer.isBuffer(os.userInfo({ encoding: 'buffer' }).username), true);
   assert.equal(os.homedir(), '/save');
+  assert.equal(os.release(), hostOs.release(), 'Drill_GlobalStorageManager reads os.release() when loading a save');
   assert.equal(context.process.execPath, '/game/pmjs');
   assert.equal(context.process.cwd(), '/game');
 });

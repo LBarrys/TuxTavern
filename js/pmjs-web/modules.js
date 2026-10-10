@@ -141,7 +141,7 @@ function requireModule(request, parentDirectory) {
   if (request === 'path') return pathModule;
   if (request === 'fs') return fsModule;
   if (request === 'os') {
-    return { platform: function() { return 'linux'; },
+    var os = { platform: function() { return 'linux'; },
              homedir: function() { return '/save'; },
              userInfo: function(options) {
                if (!globalThis.__pmjsBuiltinRequire) {
@@ -157,6 +157,11 @@ function requireModule(request, parentDirectory) {
                if (!globalThis.__pmjsBuiltinRequire) throw new Error('host network information is unavailable');
                return globalThis.__pmjsBuiltinRequire('os').networkInterfaces();
              } };
+    // NW.js gives plugins all of Node's os (release(), type(), cpus()...); the rest
+    // comes from the host, the paths above stay virtual.
+    var hostOs = globalThis.__pmjsBuiltinRequire ? globalThis.__pmjsBuiltinRequire('os') : null;
+    for (var key in hostOs || {}) if (!(key in os)) os[key] = hostOs[key];
+    return os;
   }
   if (Object.prototype.hasOwnProperty.call(registeredCommonJsModules, request)) {
     return registeredCommonJsModules[request];
