@@ -14,6 +14,28 @@ function ImageData(data, width, height) {
 }
 globalThis.ImageData = ImageData;
 
+// element.style keeps plain properties, plus the methods plugins call on it.
+function CSSStyleDeclaration() {}
+function cssStyleKey(name) {
+  // Custom properties (--x) keep their name; others become style.backgroundColor and so on.
+  name = String(name);
+  return name.indexOf('--') === 0 ? name :
+    name.replace(/-([a-z])/g, function(_, letter) { return letter.toUpperCase(); });
+}
+CSSStyleDeclaration.prototype.setProperty = function(name, value) {
+  this[cssStyleKey(name)] = value === null || value === undefined ? '' : String(value);
+};
+CSSStyleDeclaration.prototype.getPropertyValue = function(name) {
+  var value = this[cssStyleKey(name)];
+  return value === undefined || value === null ? '' : String(value);
+};
+CSSStyleDeclaration.prototype.removeProperty = function(name) {
+  var value = this.getPropertyValue(name);
+  delete this[cssStyleKey(name)];
+  return value;
+};
+globalThis.CSSStyleDeclaration = CSSStyleDeclaration;
+
 function base64Bytes(bytes) {
   var alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
   var encoded = '';
@@ -35,7 +57,7 @@ function CanvasElement() {
   this._width = 300;
   this._height = 150;
   this.__pmjsContentRevision = 0;
-  this.style = {};
+  this.style = new CSSStyleDeclaration();
   this.screencanvas = false;
   this._context2d = null;
   this._nativeCanvas = null;
@@ -119,7 +141,7 @@ Object.defineProperties(CanvasElement.prototype, {
 function GenericElement(tagName) {
   EventTarget.call(this);
   this.tagName = String(tagName).toUpperCase();
-  this.style = {};
+  this.style = new CSSStyleDeclaration();
   this.children = [];
   this.parentNode = null;
 }
