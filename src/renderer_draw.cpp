@@ -1990,15 +1990,32 @@ void Renderer::presentToDrawable() {
     glBlitFramebuffer(0, 0, 1, 1, 0, 0, drawableWidth, drawableHeight,
                       GL_COLOR_BUFFER_BIT, GL_NEAREST);
   }
-  glBindFramebuffer(GL_READ_FRAMEBUFFER,
-                    composePresentation ? filterTarget_.framebuffer : sceneTarget_.framebuffer);
+  std::uint32_t source = composePresentation ? filterTarget_.framebuffer : sceneTarget_.framebuffer;
+  int sourceWidth = width_, sourceHeight = height_;
+  if (presentation_.filter == PresentFilter::sharp) {
+    // Enlarge by whole pixels first, so the linear pass blends only where pixels meet:
+    // 1280x720 on 1920x1080 stays crisp instead of blurring.
+    const int scale = static_cast<int>(std::ceil(std::max(
+      static_cast<double>(destWidth) / width_, static_cast<double>(destHeight) / height_)));
+    if (scale > 1 && width_ * scale <= maxTextureSize_ && height_ * scale <= maxTextureSize_) {
+      ensureTarget(presentPrescaleTarget_, width_ * scale, height_ * scale);
+      glBindFramebuffer(GL_READ_FRAMEBUFFER, source);
+      glBindFramebuffer(GL_DRAW_FRAMEBUFFER, presentPrescaleTarget_.framebuffer);
+      glBlitFramebuffer(0, 0, width_, height_, 0, 0, width_ * scale, height_ * scale,
+                        GL_COLOR_BUFFER_BIT, GL_NEAREST);
+      source = presentPrescaleTarget_.framebuffer;
+      sourceWidth = width_ * scale;
+      sourceHeight = height_ * scale;
+    }
+  }
+  glBindFramebuffer(GL_READ_FRAMEBUFFER, source);
   glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
   PresentationPhaseTimer windowWrite(presentationTimings_.enabled && fullWindow, presentationTimings_.phases[3]);
-  glBlitFramebuffer(0, 0, width_, height_, destX, destY,
+  glBlitFramebuffer(0, 0, sourceWidth, sourceHeight, destX, destY,
                     destX + destWidth, destY + destHeight,
                     GL_COLOR_BUFFER_BIT,
-                    presentation_.filter == PresentFilter::linear ?
-                      GL_LINEAR : GL_NEAREST);
+                    presentation_.filter == PresentFilter::nearest ?
+                      GL_NEAREST : GL_LINEAR);
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 

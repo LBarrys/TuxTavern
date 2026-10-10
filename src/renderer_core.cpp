@@ -54,8 +54,12 @@ bool Renderer::presentFilterOverrideFromEnvironment(PresentFilter* filter) {
     *filter = PresentFilter::linear;
     return true;
   }
+  if (text == "sharp") {
+    *filter = PresentFilter::sharp;
+    return true;
+  }
   throw std::runtime_error(
-    "PMJS_PRESENT_FILTER must be auto, nearest, or linear "
+    "PMJS_PRESENT_FILTER must be auto, nearest, linear, or sharp "
     "(area/hermite need the phase-2 presentation shader)");
 }
 

@@ -116,7 +116,8 @@ struct FramePacket {
 // `integer` falls back to `fit` when shrinking (floor of sub-1 is zero).
 enum class PresentScaleMode : std::uint8_t { fit, integer };
 
-enum class PresentFilter : std::uint8_t { nearest, linear };
+// sharp: a whole-pixel enlargement, then linear to the window (PMJS_PRESENT_FILTER=sharp).
+enum class PresentFilter : std::uint8_t { nearest, linear, sharp };
 
 struct PresentationGeometry {
   int sourceWidth = 0;
@@ -637,6 +638,7 @@ class Renderer {
   RenderTarget offscreenTarget_;
   RenderTarget effectTarget_;
   RenderTarget filterTarget_;
+  RenderTarget presentPrescaleTarget_;
   RenderTarget toneOverlayTarget_;
   RenderTarget bloomTarget_;
   std::array<RenderTarget, scene_packet::maxFilterDepth> groupTargets_{};

@@ -625,6 +625,7 @@ Renderer::~Renderer() {
   destroyTarget(offscreenTarget_);
   destroyTarget(effectTarget_);
   destroyTarget(filterTarget_);
+  destroyTarget(presentPrescaleTarget_);
   destroyTarget(toneOverlayTarget_);
   destroyTarget(bloomTarget_);
   for (auto& target : groupTargets_) destroyTarget(target);

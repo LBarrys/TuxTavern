@@ -674,8 +674,8 @@ napi_value presentationGeometry(napi_env env, napi_callback_info) try {
     string(env, geometry.scaleMode == PresentScaleMode::integer ?
       "integer" : "fit")), "cannot set scale mode");
   check(env, napi_set_named_property(env, result, "filter",
-    string(env, geometry.filter == PresentFilter::linear ?
-      "linear" : "nearest")), "cannot set present filter");
+    string(env, geometry.filter == PresentFilter::linear ? "linear" :
+      geometry.filter == PresentFilter::sharp ? "sharp" : "nearest")), "cannot set present filter");
   const bool letterboxed = geometry.viewportWidth < geometry.drawableWidth ||
       geometry.viewportHeight < geometry.drawableHeight;
   check(env, napi_set_named_property(env, result, "letterboxed",
