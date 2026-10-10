@@ -98,6 +98,8 @@ struct AsyncImageLoad {
   bool prepareCpuPixels = false, tileValidationFailed = false;
   std::shared_ptr<pmjs::ImageStore::PreparedLoad> prepared;
   std::optional<pmjs::ImagePixels> pixels;
+  bool deferrable = false;
+  std::optional<std::pair<int, int>> deferredSize;
 };
 
 napi_status queueImageWork(napi_env env, AsyncImageLoad& load);
@@ -178,6 +180,8 @@ void executeImageLoad(napi_env, void* opaque) noexcept {
     load->tileValidationFailed = !load->tileSet.empty();
     load->prepared.reset();
   }
+  if (load->deferrable && !load->fallbackSource &&
+      (load->deferredSize = pmjs::ImageStore::imageSize(*load->source))) return;
   try {
     load->pixels = pmjs::ImageStore::decodeFile(load->fallbackSource ? *load->fallbackSource : *load->source);
   } catch (...) {
@@ -203,7 +207,23 @@ void completeImageLoad(napi_env env, napi_status status, void* opaque) {
     if (load->tileValidationFailed) state->images.noteTileLoadFallback();
   }
   napi_value result;
-  if (status == napi_ok && (load->prepared || load->pixels)) {
+  if (status == napi_ok && load->deferredSize && !load->prepared) {
+    std::shared_ptr<pmjs::ImageFileSource> source(std::move(load->source));
+    if (auto installed = state->images.installDeferred(source,
+          load->deferredSize->first, load->deferredSize->second)) {
+      // A coalesced caller may have asked for CPU pixels after the load was queued.
+      bool ok = !load->retainCpuPixels || state->images.retainCpuPixels(installed->handle);
+      std::size_t ownerships = 1;
+      for (std::size_t index = 1; ok && index < load->deferreds.size(); ++index, ++ownerships)
+        ok = state->images.retain(installed->handle);
+      if (ok) {
+        for (const auto deferred : load->deferreds)
+          napi_resolve_deferred(env, deferred, imageInfo(env, installed->handle, installed->width, installed->height));
+        return;
+      }
+      while (ownerships-- > 0) state->images.release(installed->handle);
+    }
+  } else if (status == napi_ok && (load->prepared || load->pixels)) {
     const bool preparedAttempt = static_cast<bool>(load->prepared);
     auto installed = load->prepared ? state->images.installPreparedLoad(
       *load->source, std::move(load->prepared), load->retainCpuPixels) :
@@ -302,6 +322,7 @@ napi_value queueImageLoad(napi_env env, const std::filesystem::path& path,
   load->prepareCpuPixels = retainCpuPixels;
   load->prepared = state->images.capturePrepared(*load->source, tileSet);
   if (load->prepared) load->fallbackSource = pmjs::ImageStore::capturePreparedFallback(*load->prepared);
+  load->deferrable = tileSet.empty() && !retainCpuPixels && state->images.defersImages();
   load->deferreds.push_back(deferred);
   state->pendingImageLoads.emplace(key, load.get());
   const auto queued = queueImageWork(env, *load);

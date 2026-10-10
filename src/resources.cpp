@@ -294,6 +294,8 @@ struct ImageStore::PreparedLoad {
 ImageStore::ImageStore() {
   const char* diagnostics = std::getenv("PMJS_GRAPHICS_DIAGNOSTICS");
   tileDiagnostics_ = diagnostics && std::string(diagnostics) == "1";
+  const char* defer = std::getenv("PMJS_DEFER_IMAGES");
+  deferImages_ = defer && std::string(defer) == "1";
 }
 
 ImageStore::~ImageStore() {
@@ -379,6 +381,92 @@ std::optional<ImagePixels> ImageStore::decodeFile(const ImageFileSource& source,
   return pmjs::decodeMemory(bytes.data(), bytes.size(), maxDecodedBytes);
 }
 
+std::optional<std::pair<int, int>> ImageStore::imageSize(const ImageFileSource& source) {
+  static constexpr std::uint8_t signature[] = {137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 'I', 'H', 'D', 'R'};
+  std::uint8_t header[24];
+  if (pread(source.descriptor_, header, sizeof header, 0) != static_cast<ssize_t>(sizeof header)) return std::nullopt;
+  const auto word = [&](int at) {
+    return static_cast<std::uint32_t>(header[at]) << 24U | static_cast<std::uint32_t>(header[at + 1]) << 16U |
+      static_cast<std::uint32_t>(header[at + 2]) << 8U | header[at + 3];
+  };
+  std::uint32_t width = 0, height = 0;
+  if (std::equal(std::begin(signature), std::end(signature), header)) {
+    width = word(16); height = word(20);
+  } else if (header[0] == 0xff && header[1] == 0xd8) {
+    // JPEG: skip segments (JFIF, Exif, ...) up to the frame header, SOF0-SOF15.
+    off_t at = 2;
+    for (int segments = 0; !width && segments < 64; ++segments) {
+      std::uint8_t marker[9];
+      if (pread(source.descriptor_, marker, sizeof marker, at) != static_cast<ssize_t>(sizeof marker) ||
+          marker[0] != 0xff) return std::nullopt;
+      const int type = marker[1], length = marker[2] << 8 | marker[3];
+      if (type >= 0xc0 && type <= 0xcf && type != 0xc4 && type != 0xc8 && type != 0xcc) {
+        height = static_cast<std::uint32_t>(marker[5] << 8 | marker[6]);
+        width = static_cast<std::uint32_t>(marker[7] << 8 | marker[8]);
+        if (!width) return std::nullopt;
+      } else if (type == 0xda || type == 0xd9 || length < 2) {
+        return std::nullopt;
+      } else {
+        at += 2 + length;
+      }
+    }
+  }
+  if (!width || width > 8192 || height > 8192) return std::nullopt;
+  if (!checkedImageExtent(static_cast<int>(width), static_cast<int>(height), 8192, 128U*1024U*1024U)) return std::nullopt;
+  return std::make_pair(static_cast<int>(width), static_cast<int>(height));
+}
+
+std::optional<ImageInfo> ImageStore::installDeferred(std::shared_ptr<ImageFileSource> source,
+                                                     int width, int height) {
+  if (auto cached = acquireCached(*source)) return cached;
+  auto created = createImage(width, height, nullptr, false, 4, true);
+  if (!created) return std::nullopt;
+  auto& slot = slots_[(created->handle & indexMask) - 1U];
+  slot.cacheKey = source->key();
+  slot.sourcePath = source->path();
+  slot.deferred = true;
+  if (deferredFiles_ < deferredFileLimit) {
+    slot.deferredSource = std::move(source);
+    ++deferredFiles_;
+  }
+  pathCache_.emplace(slot.cacheKey, created->handle);
+  return created;
+}
+
+std::optional<ImagePixels> ImageStore::decodeDeferred(const Slot& slot) {
+  const std::shared_ptr<ImageFileSource> source = slot.deferredSource ? slot.deferredSource :
+    std::shared_ptr<ImageFileSource>(openFile(slot.sourcePath));
+  auto pixels = source ? decodeFile(*source) : std::nullopt;
+  if (!pixels || pixels->width != slot.width || pixels->height != slot.height) {
+    fprintf(stderr, "[pmjs] cannot decode %s\n", slot.sourcePath.c_str());
+    return std::nullopt;
+  }
+  return pixels;
+}
+
+bool ImageStore::undefer(Slot& slot) {
+  if (!slot.deferred) return true;
+  auto pixels = slot.cachedPixels ? slot.cachedPixels : decodeDeferred(slot);
+  // A file that cannot be decoded stays without a texture rather than retrying every frame.
+  slot.deferred = false;
+  if (slot.deferredSource) --deferredFiles_;
+  slot.deferredSource.reset();
+  if (!pixels) return false;
+  const int channels = grayscaleChannels(*pixels);
+  const auto texture = uploadTexture(slot.width, slot.height, pixels->rgba.data(), channels);
+  if (!texture) return false;
+  slot.texture = texture;
+  slot.channels = channels;
+  slot.knownAllZero = allZeroRgba(pixels->rgba.data(), slot.width, slot.height, slot.width);
+  ++textureCreates_;
+  ++textureEpoch_;
+  const auto bytes = static_cast<std::size_t>(slot.width) * slot.height * channels;
+  textureUploadBytes_ += bytes;
+  gpuBytes_ += bytes;
+  peakGpuBytes_ = std::max(peakGpuBytes_, gpuBytes_);
+  return true;
+}
+
 std::optional<ImageInfo> ImageStore::loadPng(const std::filesystem::path& path,
                                              bool retainCpuPixels, const std::string& tileSet) {
   auto source = openFile(path);
@@ -446,7 +534,8 @@ bool ImageStore::retainCpuPixels(ImageHandle handle) {
     return true;
   }
   if (slot.cacheKey.empty() && !slot.tiles) return false;
-  slot.cachedPixels = (slot.prepared || slot.tiles) ? readPixelsRegion(handle, 0, 0, info->width, info->height) : readTexturePixels(*info, slot.channels);
+  slot.cachedPixels = slot.deferred ? decodeDeferred(slot) : (slot.prepared || slot.tiles) ?
+    readPixelsRegion(handle, 0, 0, info->width, info->height) : readTexturePixels(*info, slot.channels);
   if (!slot.cachedPixels) return false;
   slot.retainCpuPixels = true;
   slot.cpuPixelFrames = 0;
@@ -488,7 +577,8 @@ const ImagePixels* ImageStore::readPixels(ImageHandle handle) const {
     return &*slot.cachedPixels;
   }
   if (slot.cacheKey.empty() && !slot.tiles) return nullptr;
-  slot.cachedPixels = (slot.prepared || slot.tiles) ? readPixelsRegion(handle, 0, 0, info->width, info->height) : readTexturePixels(*info, slot.channels);
+  slot.cachedPixels = slot.deferred ? decodeDeferred(slot) : (slot.prepared || slot.tiles) ?
+    readPixelsRegion(handle, 0, 0, info->width, info->height) : readTexturePixels(*info, slot.channels);
   if (!slot.retainCpuPixels) slot.cpuPixelFrames = 60;
   return slot.cachedPixels ? &*slot.cachedPixels : nullptr;
 }
@@ -508,12 +598,12 @@ std::optional<ImageInfo> ImageStore::createDecoded(const ImagePixels& pixels) {
 }
 
 std::optional<ImageInfo> ImageStore::createImage(int width, int height,
-    const void* pixels, bool premultiplied, int channels) {
+    const void* pixels, bool premultiplied, int channels, bool deferred) {
   const auto extent = checkedImageExtent(width, height);
   if (!extent) return std::nullopt;
-  const auto texture = uploadTexture(width, height, pixels, channels);
-  if (!texture) return std::nullopt;
-  ++textureCreates_;
+  const auto texture = deferred ? 0U : uploadTexture(width, height, pixels, channels);
+  if (!texture && !deferred) return std::nullopt;
+  if (!deferred) ++textureCreates_;
   ++textureEpoch_;
   if (pixels) {
     textureUploadBytes_ += static_cast<std::uint64_t>(width) *
@@ -544,13 +634,13 @@ std::optional<ImageInfo> ImageStore::createImage(int width, int height,
   slot.cacheKey.clear();
   slot.sourcePath.clear();
   slot.cachedPixels.reset();
-  slot.gpuOnly = pixels == nullptr;
+  slot.gpuOnly = pixels == nullptr && !deferred;
   slot.renderTarget = false;
   slot.premultiplied = premultiplied;
   slot.knownAllZero = pixels && allZeroRgba(pixels, width, height, width);
   slot.live = true;
   ++liveCount_;
-  gpuBytes_ += static_cast<std::size_t>(width) * height * channels;
+  if (!deferred) gpuBytes_ += static_cast<std::size_t>(width) * height * channels;
   peakGpuBytes_ = std::max(peakGpuBytes_, gpuBytes_);
   return ImageInfo{makeHandle(index, slot.generation), width, height, texture,
                    premultiplied, slot.knownAllZero};
@@ -613,6 +703,7 @@ std::size_t ImageStore::warmFileCount() const {
         slot.inFlight.load(std::memory_order_acquire) != 0) continue;
     if (slot.prepared) for (const auto& page : slot.prepared->pages)
       if (page.source) files.insert(page.source.get());
+    if (slot.deferredSource) files.insert(slot.deferredSource.get());
     collectTileFiles(slot, files);
   }
   return files.size();
@@ -793,6 +884,10 @@ bool ImageStore::isRenderTarget(ImageHandle handle) const {
 std::optional<ImageInfo> ImageStore::lookupPremultiplied(ImageHandle handle) {
   auto info = inspect(handle);
   if (!info) return info;
+  if (slots_[(handle & indexMask) - 1U].deferred) {
+    if (!undefer(slots_[(handle & indexMask) - 1U])) return std::nullopt;
+    info = inspect(handle);
+  }
   if (info->premultiplied) return info->texture ? info : lookup(handle);
   auto& slot = slots_[(handle & indexMask) - 1U];
   if (slot.prepared || slot.tiles) {
@@ -938,6 +1033,9 @@ void ImageStore::destroySlot(std::size_t index) {
   slot.cachedPixels.reset();
   slot.prepared.reset();
   slot.tiles.reset();
+  if (slot.deferredSource) --deferredFiles_;
+  slot.deferredSource.reset();
+  slot.deferred = false;
   slot.live = false;
   slot.knownAllZero = false;
   slot.generation = static_cast<std::uint16_t>((slot.generation + 1U) & generationMask);
@@ -1485,8 +1583,11 @@ void ImageStore::notePreparedFallback(ImageHandle handle, const std::string& rea
 
 std::optional<ImageInfo> ImageStore::lookup(ImageHandle handle) const {
   auto info = inspect(handle);
-  if (!info || info->texture || (!slots_[(handle & indexMask)-1U].prepared && !slots_[(handle & indexMask)-1U].tiles)) return info;
+  if (!info || info->texture) return info;
   auto& self = *const_cast<ImageStore*>(this);
+  if (slots_[(handle & indexMask)-1U].deferred)
+    return self.undefer(self.slots_[(handle & indexMask)-1U]) ? inspect(handle) : std::nullopt;
+  if (!slots_[(handle & indexMask)-1U].prepared && !slots_[(handle & indexMask)-1U].tiles) return info;
   if (!self.materialize(self.slots_[(handle & indexMask)-1U], false)) return std::nullopt;
   return inspect(handle);
 }

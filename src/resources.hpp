@@ -130,6 +130,8 @@ class ImageStore {
   static std::optional<ImagePixels> decodeMemory(const void* data, std::size_t size);
   static std::optional<ImagePixels> decodePngFromMemory(const void* data, std::size_t size);
   static std::optional<ImagePixels> decodeJpegFromMemory(const void* data, std::size_t size);
+  // Width and height from a PNG or JPEG header, without decoding it.
+  static std::optional<std::pair<int, int>> imageSize(const ImageFileSource& source);
   bool installTileSet(PreparedTileSet descriptor,
       const std::vector<std::string>* pageIdentities = nullptr,
       const std::vector<std::string>* snapshotIdentities = nullptr,
@@ -179,6 +181,12 @@ class ImageStore {
                                           bool retainCpuPixels = false);
   std::optional<ImageInfo> installDecodedMemory(ImagePixels pixels,
                                                 bool retainCpuPixels = false);
+  // PMJS_DEFER_IMAGES=1: a PNG or JPEG is decoded and uploaded when first drawn, as browsers
+  // do, so a game preloading thousands of images neither waits for nor fills GPU
+  // memory with all of them. The first deferredFileLimit keep their file open and so
+  // the version that was loaded; later ones reopen it by path.
+  bool defersImages() const { return deferImages_; }
+  std::optional<ImageInfo> installDeferred(std::shared_ptr<ImageFileSource> source, int width, int height);
   std::optional<ImageInfo> createRgba(int width, int height, const void* pixels, bool premultiplied = false);
   // GPU-only image storage. readPixels() intentionally returns no CPU copy.
   std::optional<ImageInfo> createRenderTarget(int width, int height,
@@ -215,6 +223,7 @@ class ImageStore {
   std::size_t warmBytes() const;
   std::size_t warmCount() const;
   std::size_t warmFileCount() const;
+  static constexpr std::size_t deferredFileLimit = 256;
   std::size_t pinnedBytes() const;
   std::size_t pinnedCount() const;
   std::uint64_t cacheHits() const { return cacheHits_; }
@@ -268,6 +277,8 @@ class ImageStore {
     std::string cacheKey;
     std::filesystem::path sourcePath;
     mutable std::optional<ImagePixels> cachedPixels;
+    bool deferred = false;
+    std::shared_ptr<ImageFileSource> deferredSource;
     bool live = false;
   };
 
@@ -294,6 +305,10 @@ class ImageStore {
   std::unordered_map<std::string, std::uint64_t> tileFallbacks_, tileRegionSets_;
   void clearPrepared(Slot& slot);
   bool materialize(Slot& slot, bool premultiplied);
+  static std::optional<ImagePixels> decodeDeferred(const Slot& slot);
+  bool undefer(Slot& slot);
+  bool deferImages_ = false;
+  std::size_t deferredFiles_ = 0;
   static ImagePixels* preparedPixels(PreparedBacking& backing, std::size_t page);
   static std::optional<ImagePixels> readPreparedRegion(PreparedBacking& backing,
       int x, int y, int width, int height);
@@ -306,7 +321,7 @@ class ImageStore {
   void clearPremultipliedTexture(Slot& slot);
   std::optional<ImageInfo> createDecoded(const ImagePixels& pixels);
   std::optional<ImageInfo> createImage(int width, int height, const void* pixels,
-                                     bool premultiplied, int channels);
+                                     bool premultiplied, int channels, bool deferred = false);
   bool promoteToRgba(Slot& slot, const void* replacement = nullptr);
   std::deque<Slot> slots_;
   std::unordered_map<std::string, ImageHandle> pathCache_;
