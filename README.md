@@ -7,6 +7,7 @@ Differences from upstream:
 
 - Builds with distribution tools: Skia65 off by default, CMake 4 accepted ([Alpine](docs/building.md#alpine)).
 - Images are decoded when first drawn, as in a browser; `PMJS_DEFER_IMAGES=0` decodes them on load.
+- The window opens at `package.json`'s size, as in NW.js, instead of filling the screen.
 - `pmjs prepare --adapter FILE` adds a launcher's adapter (rpgm's F8 cheat menu, `RPGM_PMJS_SKIP`).
 - `PMJS_PRESENT_FILTER=sharp`: whole-pixel enlargement, then smooth to the window.
 - Fixes for games that stopped: Node's `os`, `MouseEvent`, `style.setProperty`, MZ's `Main`, audio fades,

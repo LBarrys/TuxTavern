@@ -101,6 +101,17 @@ test('validation auto-detects title and dimensions from config or package.json',
   assert.equal(v5.title, 'Only Package Name');
 });
 
+test('the window is the one NW.js would open: package.json, beside an MV www folder too', () => {
+  const game = temporaryDirectory('pmjs-runner-window-');
+  fs.mkdirSync(path.join(game, 'www'));
+  fs.writeFileSync(path.join(game, 'package.json'), JSON.stringify({ window: { width: 1280, height: 720 } }));
+  const mv = validate({ addon: 'a', gameRoot: path.join(game, 'www'), bootstrap: 'b', saveRoot: 's' });
+  assert.deepEqual([mv.width, mv.height, mv.windowSize], [1280, 720, '1280x720']);
+  fs.writeFileSync(path.join(game, 'package.json'), JSON.stringify({ window: { fullscreen: true } }));
+  assert.equal(validate({ addon: 'a', gameRoot: game, bootstrap: 'b', saveRoot: 's' }).windowSize, null,
+    'a game that asks for full screen fills it');
+});
+
 test('validation rejects missing or malformed explicit config', () => {
   assert.throws(() => validate({
     addon: 'a', gameRoot: 'g', bootstrap: 'b', saveRoot: 's',

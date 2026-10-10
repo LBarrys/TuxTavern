@@ -16,6 +16,7 @@ function resolveDefaults(input) {
   let assetPreparation = {};
   let preparationFonts = [];
   let configDirectory = process.cwd();
+  let fullscreen = false;
 
   if (input.config) {
     const configPath = path.resolve(input.config);
@@ -50,10 +51,15 @@ function resolveDefaults(input) {
         } catch (_) {}
       }
     }
-    const pkgPath = path.join(rootPath, 'package.json');
+    // MV games keep package.json beside www/, the folder that is run.
+    let pkgPath = path.join(rootPath, 'package.json');
+    if (!fs.existsSync(pkgPath) && path.basename(rootPath).toLowerCase() === 'www') {
+      pkgPath = path.join(path.dirname(rootPath), 'package.json');
+    }
     if (fs.existsSync(pkgPath)) {
       try {
         const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+        fullscreen = !!(pkg.window && pkg.window.fullscreen);
         if (title === undefined && pkg.window && pkg.window.title) title = pkg.window.title;
         if (title === undefined && pkg.name) title = pkg.name;
         if (width === undefined && pkg.window && pkg.window.width) width = Number(pkg.window.width);
@@ -96,7 +102,9 @@ function resolveDefaults(input) {
     assetPreparation.recipes = JSON.parse(fs.readFileSync(assetPreparation.recipes, 'utf8'));
   }
   assetPreparation.recipes = validRecipes(assetPreparation.recipes || []);
-  return { ...input, width, height, title, assetPreparation, preparationFonts };
+  // The window NW.js would open: filling the screen instead stretches and blurs the game.
+  const windowSize = fullscreen ? null : width + 'x' + height;
+  return { ...input, width, height, title, windowSize, assetPreparation, preparationFonts };
 }
 
 function assertDisableOptimizationsShape(value, configPath) {
@@ -265,6 +273,9 @@ async function run(input) {
   if (swapDefault !== null) {
     hostProcess.env.PMJS_SWAP_INTERVAL = swapDefault;
     console.log('[pmjs] uncapped render: defaulting PMJS_SWAP_INTERVAL=0 (was unset)');
+  }
+  if (!hostProcess.env.PMJS_WINDOW_SIZE && options.windowSize) {
+    hostProcess.env.PMJS_WINDOW_SIZE = options.windowSize;
   }
   const native = require(options.addon);
   native.initialize({ gameRoot: options.gameRoot, assetRoot: options.assetRoot,
