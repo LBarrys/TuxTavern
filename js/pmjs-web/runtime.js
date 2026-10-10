@@ -146,18 +146,29 @@ function dispatchNativeKey(source) {
   document.dispatchEvent(event);
 }
 var nativePointerDownTarget = null;
+// PixiJS 4's interaction code tests `event instanceof MouseEvent` without checking that
+// MouseEvent exists, so native mouse events are made instances of one.
+if (typeof globalThis.MouseEvent !== 'function') {
+  globalThis.MouseEvent = function MouseEvent(type, init) {
+    if (init) for (var key in init) this[key] = init[key];
+    this.type = String(type);
+  };
+  globalThis.MouseEvent.prototype.preventDefault = function() { this.defaultPrevented = true; };
+  globalThis.MouseEvent.prototype.stopPropagation = function() { this._pmjsPropagationStopped = true; };
+}
 function dispatchNativePointer(source) {
   if (!globalThis.document) return;
   var target = PMJS.web.presentation ?
     PMJS.web.presentation.pointerTarget(source.x, source.y) : document;
   target = target || document;
   function dispatch(type) {
-    var event = { type: type, target: target, bubbles: true,
+    var event = Object.assign(Object.create(globalThis.MouseEvent.prototype), {
+      type: type, target: target, bubbles: true,
       pageX: source.x, pageY: source.y, clientX: source.x, clientY: source.y,
       button: source.button || 0, buttons: source.buttons || 0,
       deltaX: source.deltaX || 0, deltaY: source.deltaY || 0, deltaMode: 0,
       preventDefault: function() { this.defaultPrevented = true; },
-      stopPropagation: function() { this._pmjsPropagationStopped = true; } };
+      stopPropagation: function() { this._pmjsPropagationStopped = true; } });
     var current = target;
     while (current && current !== document && !event._pmjsPropagationStopped) {
       current.dispatchEvent(event); current = current.parentNode;
