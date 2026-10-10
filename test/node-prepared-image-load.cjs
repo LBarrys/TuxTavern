@@ -1,5 +1,8 @@
 'use strict';
 
+// Checks images that are uploaded on load, so deferral (on by default) is off.
+process.env.PMJS_DEFER_IMAGES = '0';
+
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');

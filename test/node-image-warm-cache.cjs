@@ -1,5 +1,8 @@
 'use strict';
 
+// Checks images that are uploaded on load, so deferral (on by default) is off.
+process.env.PMJS_DEFER_IMAGES = '0';
+
 const path = require('node:path');
 const native = require(path.resolve(process.argv[2]));
 native.initialize({ gameRoot: path.resolve(process.argv[3]), assetRoot: '',

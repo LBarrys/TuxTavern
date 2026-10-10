@@ -295,7 +295,7 @@ ImageStore::ImageStore() {
   const char* diagnostics = std::getenv("PMJS_GRAPHICS_DIAGNOSTICS");
   tileDiagnostics_ = diagnostics && std::string(diagnostics) == "1";
   const char* defer = std::getenv("PMJS_DEFER_IMAGES");
-  deferImages_ = defer && std::string(defer) == "1";
+  deferImages_ = !defer || std::string(defer) != "0";
 }
 
 ImageStore::~ImageStore() {

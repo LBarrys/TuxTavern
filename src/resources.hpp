@@ -181,7 +181,7 @@ class ImageStore {
                                           bool retainCpuPixels = false);
   std::optional<ImageInfo> installDecodedMemory(ImagePixels pixels,
                                                 bool retainCpuPixels = false);
-  // PMJS_DEFER_IMAGES=1: a PNG or JPEG is decoded and uploaded when first drawn, as browsers
+  // Unless PMJS_DEFER_IMAGES=0, a PNG or JPEG is decoded and uploaded when first drawn, as browsers
   // do, so a game preloading thousands of images neither waits for nor fills GPU
   // memory with all of them. The first deferredFileLimit keep their file open and so
   // the version that was loaded; later ones reopen it by path.
