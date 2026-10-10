@@ -773,6 +773,33 @@ function submitNativeScene(stage, backgroundColor = null) {
       ? PMJS.web.video.diagnostics() : [];
     console.error('[pmjs-scene] submit failed resources=' +
       JSON.stringify(resources) + ' videos=' + JSON.stringify(videos));
+    // Name what the renderer most often refuses: filters (from plugins) and non-finite numbers.
+    var onScreen = [];
+    (function walk(node, depth) {
+      if (!node || depth > 64) return;
+      var filters = node.filters;
+      if (filters && filters.length) {
+        onScreen.push((node.constructor && node.constructor.name || 'node') + ': ' +
+          filters.map(function(filter) {
+            return filter && filter.constructor && filter.constructor.name || String(filter);
+          }).join(', '));
+      }
+      var children = node.children || [];
+      for (var child = 0; child < children.length; child++) walk(children[child], depth + 1);
+    })(globalThis.SceneManager && SceneManager._scene, 0);
+    if (onScreen.length) console.error('[pmjs-scene] filters on screen: ' + onScreen.join('; '));
+    for (var check = 0; check < packet.count; check++) {
+      var checkMetadata = check * nativeSceneMetadataStride;
+      var checkValues = check * nativeSceneValueStride;
+      var parent = packet.metadata[checkMetadata + 1];
+      for (var slot = 0; slot < nativeSceneValueStride; slot++) {
+        if (isFinite(packet.values[checkValues + slot])) continue;
+        console.error('[pmjs-scene] record ' + check + ' (kind ' + packet.metadata[checkMetadata] +
+          ', parent ' + parent + ') has value ' + packet.values[checkValues + slot] + ' in slot ' + slot);
+        check = packet.count;
+        break;
+      }
+    }
     throw error;
   }
   if (submitStarted) {
