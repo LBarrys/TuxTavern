@@ -748,8 +748,33 @@ function encodeNativeScene(stage, backgroundColor = null) {
     count: nativeSceneCount, customFilterPlans: nativeCustomFilterPlans };
 }
 
+// A browser draws nothing for an object whose numbers are NaN or infinite (a plugin dividing
+// by zero, say), while the renderer refuses the whole frame. Such drawable records are made
+// fully transparent, which hides their children too, and their non-finite numbers zeroed.
+var nativeSceneHiddenKinds = { 0: true, 1: true, 2: true, 4: true, 8: true };
+function hideNonFiniteSceneRecords(packet) {
+  var hidden = 0;
+  for (var record = 0; record < packet.count; record++) {
+    var offset = record * nativeSceneValueStride;
+    var finite = true;
+    for (var slot = 0; slot < nativeSceneValueStride; slot++) {
+      if (isFinite(packet.values[offset + slot])) continue;
+      packet.values[offset + slot] = 0;
+      finite = false;
+    }
+    if (finite) continue;
+    if (nativeSceneHiddenKinds[packet.metadata[record * nativeSceneMetadataStride]]) {
+      packet.values[offset + 6] = 0;
+    }
+    hidden++;
+  }
+  if (hidden && PMJS.compat) PMJS.compat.hit('render.scene', 'non-finite-record');
+  return hidden;
+}
+
 function submitNativeScene(stage, backgroundColor = null) {
   var packet = encodeNativeScene(stage, backgroundColor);
+  hideNonFiniteSceneRecords(packet);
   if (!NativeHost.scene) {
     throw new Error('native scene was not rendered: scene service unavailable');
   }
