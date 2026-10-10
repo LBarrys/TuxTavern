@@ -38,7 +38,8 @@
           });
         } catch (error) {
           var failed = PMJS.plugins.dump().guest.some(function(entry) {
-            return entry.key === loadedName.toLowerCase() && entry.state === 'failed';
+            return entry.key === loadedName.split('/').pop().toLowerCase() &&
+              entry.state === 'failed';
           });
           if (!failed) throw error;
           if (!NativeHost.fs.exists(this._path + file)) {

@@ -58,6 +58,31 @@ test('MZ engine loader preserves the authored script order', () => {
   assert.equal(loaded.length, 8, 'a stand-in Main loads no scripts again');
 });
 
+test('MZ plugins in a subfolder are reported loaded, under their file name', () => {
+  const context = vm.createContext({
+    console: { log() {}, warn() {}, error() {} }, globalThis: null,
+    NativeHost: { runtime: { loadScript(script) {
+      if (script === 'js/plugins.js') {
+        context.$plugins = [{ name: 'MOD/Sub', status: true, parameters: {} }];
+      }
+    } } },
+    PluginManager: { _scripts: [], setParameters() {} },
+    Utils: { extractFileName(name) { return name.split('/').pop(); } },
+    nativeBootPhase() {},
+  });
+  context.globalThis = context;
+  for (const module of ['js/pmjs-rpgmaker/lifecycle.js', 'js/pmjs-core/methods.js',
+    'js/pmjs-rpgmaker/plugins.js', 'js/pmjs-core/config.js', 'js/pmjs-core/optimizations.js',
+    'js/pmjs-rpgmaker/bootstrap.js', 'js/pmjs-mz/plugin-loader.js']) runModule(context, module);
+  let adapter = false;
+  context.PMJS.plugins.onLoaded('Sub', () => { adapter = true; });
+  context.pmjsMzLoadPluginManifest();
+  context.pmjsMzInitializePlugins();
+  const dump = context.PMJS.plugins.dump();
+  assert.deepEqual([dump.counts.loaded, dump.counts.unloaded], [1, 0]);
+  assert.equal(adapter, true, 'an adapter for Sub finds it in MOD/');
+});
+
 test('MZ plugin and boot lifecycle runs synchronously without main.js or Effekseer', () => {
   const events = [];
   const context = vm.createContext({

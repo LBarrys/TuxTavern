@@ -12,8 +12,9 @@
   var bootError = null;
   var optimizationRequirements = [];
 
+  // By file name: MZ loads js/plugins/MOD/X.js as X, while the manifest says MOD/X.
   function key(name) {
-    return String(name).replace(/\.js$/i, '').toLowerCase();
+    return String(name).replace(/\.js$/i, '').split('/').pop().toLowerCase();
   }
 
   function copyManifest(records) {
