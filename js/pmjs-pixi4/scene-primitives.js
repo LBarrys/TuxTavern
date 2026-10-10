@@ -209,6 +209,26 @@ function nativeBlankTile() {
   return native.handle;
 }
 
+var nativeShadowTileCanvases = Object.create(null);
+// Large enough that a half tile of any common size samples inside it.
+function nativeShadowTile(color) {
+  var c = color && color.length === 4 ? color : [0, 0, 0, 0.5];
+  var key = Array.prototype.join.call(c, ',');
+  var canvas = nativeShadowTileCanvases[key];
+  if (!canvas) {
+    canvas = new CanvasElement();
+    canvas.width = 128;
+    canvas.height = 128;
+    var context = canvas.getContext('2d');
+    context.fillStyle = 'rgba(' + Math.round(c[0] * 255) + ',' + Math.round(c[1] * 255) + ',' +
+      Math.round(c[2] * 255) + ',' + c[3] + ')';
+    context.fillRect(0, 0, 128, 128);
+    nativeShadowTileCanvases[key] = canvas;
+  }
+  var native = canvas._ensureNativeCanvas();
+  return native ? native.handle : 0;
+}
+
 function nativeRotatedTexturePoint(rotation, x, y) {
   if (rotation === 1) return [1 - y, x];
   if (rotation === 2) return [1 - x, 1 - y];
@@ -370,6 +390,25 @@ function ensureNativeRectTileLayer(layer) {
     }
     handles.push(textureHandle);
   }
+  // Texture index -1 is a shadow (ShaderTilemap._drawShadow), which pixi-tilemap paints in
+  // its shadowColor; it gets a texture of that colour. A tile naming a slot the layer lacks
+  // draws nothing in WebGL, so missing slots get a blank texture.
+  var highestSlot = -1, shadowSlot = -1;
+  for (var record = 8; record < points.length; record += 9) {
+    if (points[record] > highestSlot) highestSlot = points[record];
+    if (points[record] < 0) shadowSlot = 0;
+  }
+  while (handles.length <= highestSlot) {
+    var blankHandle = nativeBlankTile();
+    if (!blankHandle) return 0;
+    handles.push(blankHandle);
+  }
+  if (shadowSlot === 0) {
+    var shadowHandle = nativeShadowTile(layer.shadowColor);
+    if (!shadowHandle) return 0;
+    shadowSlot = handles.length;
+    handles.push(shadowHandle);
+  }
   var textureSignature = handles.join(':');
 
   var usePersistentCache = PMJS.optimizations.isEnabled('tilemap.persistent-layer-cache');
@@ -395,6 +434,12 @@ function ensureNativeRectTileLayer(layer) {
           staging[pointIndex] = points[pointIndex];
         }
         transferredPoints = staging;
+      }
+      if (shadowSlot >= 0) {
+        if (transferredPoints === points) transferredPoints = Float32Array.from(points);
+        for (var shadowRecord = 8; shadowRecord < transferredPoints.length; shadowRecord += 9) {
+          if (transferredPoints[shadowRecord] < 0) transferredPoints[shadowRecord] = shadowSlot;
+        }
       }
       var nativeLayer = NativeHost.render.createTileLayer(transferredPoints, handles);
       pmjsAdoptNativeGeometry(layer, 'tile', nativeLayer);
