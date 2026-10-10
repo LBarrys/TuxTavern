@@ -279,7 +279,9 @@
       }
     }
 
-    var gameFontEntry = registeredFamilies.gamefont;
+    // MV registers GameFont. MZ has none and its Bitmaps default to sans-serif, so text
+    // in an unknown family uses MZ's main font rather than a missing fonts/gamefont.ttf.
+    var gameFontEntry = registeredFamilies.gamefont || registeredFamilies['rmmz-mainfont'];
     if (!matchedFaces.length && gameFontEntry && ensureFaceReady(gameFontEntry)) {
       matchedFaces.push({ family: gameFontEntry.family, path: gameFontEntry.path });
     }

@@ -224,6 +224,12 @@ test('PMJS.fonts registers initial config, allows dynamic overwrite, and tests r
   assert.equal(fonts.getRegisteredFaces().gamefont.path, 'fonts/initial.ttf');
 });
 
+test('MZ text in an unknown family, such as Bitmap\'s default sans-serif, uses the main font', () => {
+  const { context } = createFontSandbox({ existingFiles: ['fonts/mplus-1m-regular.woff'] });
+  context.PMJS.fonts.registerFace('rmmz-mainfont', 'fonts/mplus-1m-regular.woff');
+  assert.equal(context.PMJS.fonts.resolveDescriptor('22px sans-serif').faces[0].path, 'fonts/mplus-1m-regular.woff');
+});
+
 test('Unregistered GameFont returns false even when fonts/gamefont.ttf exists', () => {
   const { context } = createFontSandbox({
     existingFiles: ['fonts/gamefont.ttf']
