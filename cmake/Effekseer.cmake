@@ -75,6 +75,10 @@ function(pmjs_build_effekseer)
     set(pmjs_had_warn_deprecated FALSE)
   endif()
   set(CMAKE_WARN_DEPRECATED OFF CACHE BOOL "" FORCE)
+  # CMake 4 refuses Effekseer's cmake_minimum_required below 3.5.
+  if(NOT DEFINED CMAKE_POLICY_VERSION_MINIMUM)
+    set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
+  endif()
   if(PMJS_OFFLINE AND PMJS_EFFEKSEER_ARCHIVE)
     # Fully disconnected skips even local extraction on the first configuration.
     set(FETCHCONTENT_FULLY_DISCONNECTED OFF)

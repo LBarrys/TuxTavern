@@ -1,8 +1,6 @@
-set(pmjs_skia65_supported_default OFF)
-if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64|x86_64|amd64|AMD64)$")
-  set(pmjs_skia65_supported_default ON)
-endif()
-option(PMJS_ENABLE_SKIA65 "Link the shared Skia65 text backend" ${pmjs_skia65_supported_default})
+# Off by default: Skia65 needs exactly Clang 20.1.2, which distributions such as Alpine
+# do not ship; text then uses FreeType.
+option(PMJS_ENABLE_SKIA65 "Link the shared Skia65 text backend" OFF)
 option(PMJS_BUILD_SKIA65_COMPONENT "Build the checksum-pinned private Skia65 component" ${PMJS_ENABLE_SKIA65})
 set(PMJS_SKIA65_ARM64_SDK "" CACHE PATH "Prepared portable SDK for the Skia65 ARM64 component")
 set(PMJS_SKIA65_COMPONENT_DIR "${CMAKE_CURRENT_BINARY_DIR}/skia65" CACHE PATH "Private Skia65 artifact directory")
