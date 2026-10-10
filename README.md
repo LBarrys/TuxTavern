@@ -1,3 +1,20 @@
+# PMJS for rpgm
+
+A fork of [PMJS](https://github.com/bbbreaddd/pmjs) for [rpgm](https://github.com/LBarrys/rpgm), which runs
+RPG Maker MV/MZ games on Alpine Linux (musl) and Wayland: `RPGM_PMJS=1 rpgm GAME`.
+
+Differences from upstream:
+
+- Builds with distribution tools: Skia65 off by default, CMake 4 accepted ([Alpine](docs/building.md#alpine)).
+- Images are decoded when first drawn, as in a browser; `PMJS_DEFER_IMAGES=0` decodes them on load.
+- `pmjs prepare --adapter FILE` adds a launcher's adapter (rpgm's F8 cheat menu, `RPGM_PMJS_SKIP`).
+- `PMJS_PRESENT_FILTER=sharp`: whole-pixel enlargement, then smooth to the window.
+- Fixes for games that stopped: Node's `os`, `MouseEvent`, `style.setProperty`, MZ's `Main`, audio fades,
+  MV shadow tiles, sprites at NaN or with a released image, MZ fonts, plugins in subfolders.
+- A scene stuck on Now Loading says after 10 s what it waits for.
+
+Upstream's README follows.
+
 # PMJS: Native Runtime for RPG Maker MV/MZ
 
 Run RPG Maker MV/MZ games natively on Linux handhelds without NW.js or a browser. PMJS runs the game's original JavaScript through Node/V8 while native C++ handles rendering, audio, input, canvas operations, and storage.

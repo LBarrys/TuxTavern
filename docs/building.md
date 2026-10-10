@@ -18,11 +18,25 @@ sudo apt-get install build-essential cmake ninja-build pkg-config git python3 \
   libavformat-dev libavcodec-dev libavutil-dev libswresample-dev libswscale-dev
 ```
 
+## Alpine
+
+```sh
+doas apk add build-base cmake samurai pkgconf git python3 nodejs-dev linux-headers \
+  sdl2-dev mesa-dev libpng-dev libwebp-dev zlib-dev libjpeg-turbo-dev \
+  freetype-dev harfbuzz-dev ffmpeg-dev
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
+cmake --build build --target pmjs_native
+cmake --install build --prefix /usr/lib/pmjs
+```
+
+`/usr/lib/pmjs/bin/pmjs` finds its files from its own path: put it on `PATH` with a small
+script (`exec /usr/lib/pmjs/bin/pmjs "$@"`), not a symlink. Do not strip the installed files.
+
 ## Get the source
 
 ```sh
-git clone https://github.com/bbbreaddd/pmjs.git
-cd pmjs
+git clone https://github.com/LBarrys/pmjs-rpgm.git
+cd pmjs-rpgm
 ```
 
 ## Build
