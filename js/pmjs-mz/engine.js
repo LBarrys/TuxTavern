@@ -31,5 +31,28 @@
       typeof PluginManager === 'undefined' || typeof Scene_Boot !== 'function') {
     throw new Error('RPG Maker MZ engine did not initialize');
   }
+
+  // main.js declares Main and main, and plugins load after it, so some use them
+  // (LoadingSpinnerCustomize: new Main()). PMJS boots MZ itself: these stand in,
+  // drawing no HTML and never loading the engine or starting the game again.
+  if (typeof Main === 'undefined') {
+    var StandInMain = function Main() {
+      this.xhrSucceeded = true;
+      this.loadCount = 0;
+      this.error = null;
+    };
+    ['run', 'showLoadingSpinner', 'eraseLoadingSpinner', 'testXhr', 'loadMainScripts',
+      'onScriptLoad', 'onScriptError', 'onWindowLoad', 'onWindowError',
+      'initEffekseerRuntime', 'onEffekseerLoad', 'onEffekseerError'].forEach(function(name) {
+      StandInMain.prototype[name] = function() {};
+    });
+    StandInMain.prototype.printError = function(name, message) {
+      console.error(name + ': ' + message);
+    };
+    StandInMain.prototype.makeErrorHtml = function() { return ''; };
+    StandInMain.prototype.isPathRandomized = function() { return false; };
+    globalThis.Main = StandInMain;
+    globalThis.main = new StandInMain();
+  }
   nativeBootPhase('rpg-core-loaded');
 })();

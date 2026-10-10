@@ -43,6 +43,19 @@ test('MZ engine loader preserves the authored script order', () => {
     'js/rmmz_windows.js',
   ]);
   assert.deepEqual(phases, ['rpg-core-loaded']);
+
+  // As LoadingSpinnerCustomize.js does: replace the spinner, then make and run a Main.
+  const main = vm.runInContext(`(() => {
+    Main.prototype.showLoadingSpinner = function() { this.custom = true; };
+    const main = new Main();
+    main.showLoadingSpinner();
+    main.run();
+    main.eraseLoadingSpinner();
+    return main;
+  })()`, context);
+  assert.equal(main.custom, true);
+  assert.equal(typeof context.main.run, 'function', "main.js's global main exists too");
+  assert.equal(loaded.length, 8, 'a stand-in Main loads no scripts again');
 });
 
 test('MZ plugin and boot lifecycle runs synchronously without main.js or Effekseer', () => {
