@@ -3,6 +3,7 @@
 
 #include <cstdlib>
 #include <iostream>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -77,11 +78,21 @@ bool RuntimeCore::submitScene(std::uint32_t version,
         kind != scene_packet::NodeKind::tilingSprite) continue;
     const auto image = resolveImage(sceneMetadataScratch_[offset + 2]);
     if (!image) {
-      std::cerr << "[pmjs-scene] invalid sprite image handle="
-                << sceneMetadataScratch_[offset + 2]
-                << " node=" << index
-                << " kind=" << static_cast<std::uint32_t>(kind) << '\n';
-      return false;
+      // A browser draws nothing for a destroyed texture and keeps the frame: the
+      // sprite becomes a container, so its children still draw.
+      static std::unordered_set<std::uint32_t> reported;
+      if (reported.insert(sceneMetadataScratch_[offset + 2]).second) {
+        std::cerr << "[pmjs-scene] invalid sprite image handle="
+                  << sceneMetadataScratch_[offset + 2]
+                  << " node=" << index
+                  << " kind=" << static_cast<std::uint32_t>(kind) << " (not drawn)\n";
+      }
+      sceneMetadataScratch_[offset] = static_cast<std::uint32_t>(scene_packet::NodeKind::container);
+      sceneMetadataScratch_[offset + 2] = 0;
+      // Only what applies to its children stays; sprite-only flags would refuse the frame.
+      sceneMetadataScratch_[offset + 5] &= scene_packet::NodeFlags::hasClipRectangle |
+        scene_packet::NodeFlags::hasBlurFilter | scene_packet::NodeFlags::hasAlphaMask;
+      continue;
     }
     sceneMetadataScratch_[offset + 2] = *image;
   }
