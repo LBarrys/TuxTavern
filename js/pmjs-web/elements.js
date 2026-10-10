@@ -143,6 +143,9 @@ GenericElement.prototype.removeChild = function(child) {
   child.parentNode = null;
   return child;
 };
+GenericElement.prototype.remove = function() {
+  if (this.parentNode) this.parentNode.removeChild(this);
+};
 GenericElement.prototype.setAttribute = function(name, value) { this[name] = String(value); };
 GenericElement.prototype.getAttribute = function(name) { return this[name] || null; };
 GenericElement.prototype.removeAttribute = function(name) {

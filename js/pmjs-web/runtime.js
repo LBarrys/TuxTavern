@@ -140,7 +140,9 @@ function dispatchNativeKey(source) {
     altKey: !!source.alt, ctrlKey: !!source.ctrl, shiftKey: !!source.shift,
     metaKey: !!source.meta,
     getModifierState: function(name) { return name === 'CapsLock' && !!source.capsLock; },
-    preventDefault: function() { this.defaultPrevented = true; } };
+    preventDefault: function() { this.defaultPrevented = true; },
+    stopPropagation: function() {},
+    stopImmediatePropagation: function() {} };
   document.dispatchEvent(event);
 }
 var nativePointerDownTarget = null;
