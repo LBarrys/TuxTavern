@@ -13,7 +13,7 @@ const args = process.argv.slice(3);
 const command = args.shift();
 const help = `PMJS ${info.version} (${info.source.commit.slice(0, 12)}${info.source.dirty ? ', modified' : ''})
 Usage:
-  pmjs prepare --game DIR [--state DIR] [--config FILE] [--manifest FILE]
+  pmjs prepare --game DIR [--state DIR] [--config FILE] [--manifest FILE] [--adapter FILE]
   pmjs run --game DIR [--state DIR] [--save-root DIR]
   pmjs self-test [--graphics]
   pmjs --version
@@ -53,7 +53,7 @@ async function main() {
   }
   if (!['prepare', 'run'].includes(command)) throw new Error(`unknown command: ${command}`);
   const options = parse(args, command === 'prepare' ?
-    ['--game', '--state', '--config', '--manifest'] : ['--game', '--state', '--save-root']);
+    ['--game', '--state', '--config', '--manifest', '--adapter'] : ['--game', '--state', '--save-root']);
   const game = fs.realpathSync(options['--game']);
   if (!fs.statSync(game).isDirectory()) throw new Error('game must be a directory');
   const id = crypto.createHash('sha256').update(game).digest('hex').slice(0, 24);
@@ -66,6 +66,7 @@ async function main() {
     const buildArgs = ['--game', game, '--output', temporary];
     if (options['--config']) buildArgs.push('--config', options['--config']);
     if (options['--manifest']) buildArgs.push('--manifest', options['--manifest']);
+    if (options['--adapter']) buildArgs.push('--adapter', options['--adapter']);
     try {
       invoke(path.join(share, 'tools/build-js-runtime.mjs'), buildArgs);
       if (JSON.stringify(inputs) !== JSON.stringify(preparationInputs(game, options['--config'], options['--manifest']))) {
