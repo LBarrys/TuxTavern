@@ -505,6 +505,25 @@ test('MV gain reads and interrupted ramps preserve instantaneous gain and engine
   assert.equal(audio.volume, 0.5);
 });
 
+test('MV cancelScheduledValues holds the gain a fade had reached, as OcRam_Audio_EX expects', () => {
+  let now = 0;
+  const clock = class extends Date { static now() { return now; } };
+  const context = contextFor({ hasEncryptedAudio: false }, undefined, clock);
+  context.NativeHost.media.loadAudio = () => ({ handle: 5, duration: 4 });
+  const ramps = [];
+  context.NativeHost.media.fadeAudio = (...args) => ramps.push(args);
+  const audio = new context.WebAudio('audio/bgm/ramp.ogg');
+  const gain = audio._gainNode.gain;
+  gain.setValueAtTime(1, 0);
+  gain.linearRampToValueAtTime(0, 2);
+  now = 1000;
+  gain.cancelScheduledValues(context.WebAudio._context.currentTime);
+  assert.deepEqual(ramps.at(-1), [5, 0.5, 0.5, 0, false, true]);
+  now = 2000;
+  assert.equal(gain.value, 0.5);
+  context.WebAudio._masterGainNode.gain.cancelScheduledValues(0);
+});
+
 test('MV pending fade-in uses engine volume after asynchronous loading', async () => {
   const context = contextFor({ hasEncryptedAudio: false });
   const ramps = [];

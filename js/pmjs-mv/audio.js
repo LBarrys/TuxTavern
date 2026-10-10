@@ -117,6 +117,13 @@ MvNativeWebAudio.prototype.linearRampToValueAtTime = function(value, endTime) {
   this._rampGain(this.value, value, duration);
 };
 
+// Plugins such as OcRam_Audio_EX cancel a fade before starting their own; the gain
+// stays where the fade had got to.
+MvNativeWebAudio.prototype.cancelScheduledValues = function() {
+  this._rampGain(this.value, this.value, 0);
+};
+MvNativeWebAudio.prototype.cancelAndHoldAtTime = MvNativeWebAudio.prototype.cancelScheduledValues;
+
 MvNativeWebAudio.prototype.isReady = function() {
   return !this._voice.loading && !this._voice.error &&
     (!!this._voice.handle || !NativeHost.media);
@@ -211,7 +218,9 @@ MvNativeWebAudio._context = pmjsAudio.clock;
 MvNativeWebAudio._masterGainNode = {
   gain: {
     setValueAtTime: function() {},
-    linearRampToValueAtTime: function() {}
+    linearRampToValueAtTime: function() {},
+    cancelScheduledValues: function() {},
+    cancelAndHoldAtTime: function() {}
   }
 };
 MvNativeWebAudio._cacheSize = 48000 * 2 * 4;
