@@ -73,8 +73,11 @@ if (typeof ImageCache !== 'undefined' && ImageCache.prototype._truncateCache) {
           try {
             var items = this._items;
             var sizeLeft = ImageCache.limit;
-            var sorted = Object.keys(items).map(function(k){ return items[k]; }).sort(function(a,b){ return b.touch - a.touch; });
             var self = this;
+            // Held images stay whatever their order: while a game preloads thousands, this
+            // runs after every load and sorting them each time took seconds.
+            if (Object.keys(items).every(function(k){ return self._mustBeHeld(items[k]); })) return;
+            var sorted = Object.keys(items).map(function(k){ return items[k]; }).sort(function(a,b){ return b.touch - a.touch; });
             sorted.forEach(function(item){
               if (sizeLeft > 0 || self._mustBeHeld(item)) {
                 var bmp = item.bitmap;

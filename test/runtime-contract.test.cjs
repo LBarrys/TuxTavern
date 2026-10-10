@@ -127,6 +127,14 @@ test('MV image cache retrims completed loads without destroying bitmap backing',
   cache._truncateCache();
   assert.deepEqual(Object.keys(cache._items).sort(), ['held', 'recent']);
   assert.equal(retainedSource.src, 'retained.png');
+  const items = cache._items;
+  let measured = 0;
+  const preload = Object.fromEntries(Array.from({ length: 3 }, (_, i) => [i, { key: i, touch: i, held: true,
+    bitmap: { get width() { measured++; return 8; }, height: 8 } }]));
+  cache._items = preload;
+  cache._truncateCache();
+  assert.deepEqual([Object.keys(cache._items).length, measured], [3, 0], 'a cache of held images is left as it is');
+  cache._items = items;
   cache.trimCount = 0;
 
   const first = new Bitmap();
