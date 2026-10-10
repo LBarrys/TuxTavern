@@ -220,7 +220,7 @@ test('Canvas native text resolves fonts and preserves outline/body alpha without
   assert.equal(drawing.fillStyle, '#123456');
 });
 
-test('ordinary Canvas text preserves fractional placement, font size, stroke and synthetic styles', () => {
+test('ordinary Canvas text keeps fractional placement and synthetic styles, with whole-pixel size and stroke', () => {
   const context = harness();
   const calls = [];
   context.PMJS.fonts = { resolveDescriptor() {
@@ -230,8 +230,8 @@ test('ordinary Canvas text preserves fractional placement, font size, stroke and
   const drawing = new context.CanvasElement().getContext('2d');
   drawing.lineWidth = 2.75; drawing.lineJoin = 'bevel'; drawing.lineCap = 'square'; drawing.miterLimit = 3.5;
   drawing.strokeText('AV', 4.25, 35.875);
-  assert.deepEqual(calls[0].slice(2, 6), ['AV', 4.25, 35.875, 24.375]);
-  assert.equal(calls[0][7], 2.75);
+  assert.deepEqual(calls[0].slice(2, 6), ['AV', 4.25, 35.875, 24]);
+  assert.equal(calls[0][7], 3);
   assert.deepEqual(JSON.parse(JSON.stringify(calls[0][8])),
     { bold: true, italic: true, lineJoin: 'bevel', lineCap: 'square', miterLimit: 3.5 });
 });
@@ -250,7 +250,7 @@ test('invalid Canvas line widths retain the previous stroke through save, restor
     drawing.lineWidth = invalid;
     drawing.strokeText('A', 0, 20);
     assert.equal(drawing.lineWidth, 2.75);
-    assert.equal(calls.at(-1)[7], 2.75);
+    assert.equal(calls.at(-1)[7], 3);
   }
   drawing.lineWidth = '3.5';
   assert.equal(drawing.lineWidth, 3.5);

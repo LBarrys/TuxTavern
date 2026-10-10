@@ -15,7 +15,7 @@ test('legacy FreeType layout stays within the historical explicit-font reference
   { timeout: 60000 }, () => {
     const probe = spawnSync('xvfb-run', ['-a', process.execPath,
       path.join(__dirname, 'node-text-layout.cjs'), addon, assets, '--report'],
-    { encoding: 'utf8', env: { ...process.env, LIBGL_ALWAYS_SOFTWARE: '1', PMJS_TEXT_BACKEND: 'freetype' } });
+    { encoding: 'utf8', env: { ...process.env, LIBGL_ALWAYS_SOFTWARE: '1' } });
     assert.equal(probe.status, 0, probe.stdout + probe.stderr);
     const lines = probe.stdout.trim().split('\n');
     const native = JSON.parse(lines.at(-1));

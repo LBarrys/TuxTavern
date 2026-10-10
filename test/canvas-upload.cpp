@@ -71,8 +71,6 @@ int main() {
     const auto* expected = pixel==7 ? raw.data() : pixel==8 ? raw.data()+4 : before.data()+pixel*4;
     assert(std::equal(texture.data()+pixel*4,texture.data()+pixel*4+4,expected));
   }
-  const auto stats=canvases.textBackendStats();
-  assert(stats.scratchBytes==0);
 
   const std::vector<uint8_t> zeros(2*2*4,0);
   const auto empty=images.createRgba(2,2,zeros.data(),true); assert(empty);

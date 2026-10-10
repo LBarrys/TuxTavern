@@ -23,17 +23,8 @@ export default [
   {
     files: [
       'tools/generate-*-reference.cjs',
-      'tools/skia65/reference-readback.cjs',
       'test/helpers/title-canvas-scenario.cjs',
     ],
     languageOptions: { globals: { ...globals.browser, __titleReadCanvas: 'readonly' } },
-  },
-  {
-    files: ['example/**/*.js'],
-    languageOptions: {
-      ecmaVersion: 2022,
-      globals: { ...globals.node, NativeHost: 'readonly' },
-    },
-    rules: { ...safetyRules, 'no-undef': 'error' },
   },
 ];

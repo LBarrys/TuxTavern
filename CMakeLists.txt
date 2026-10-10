@@ -8,37 +8,17 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-set(PMJS_DEPENDENCY_PREFIX "" CACHE PATH "Prefix containing target runtime dependencies")
-set(PMJS_DEPENDENCY_LOCK "" CACHE FILEPATH "CMake file with exact target pkg-config versions")
-set(PMJS_PKG_CONFIG_DIRS "" CACHE STRING "Explicit target pkg-config directories, separated by semicolons")
 option(BUILD_TESTING "Configure native and JavaScript tests" OFF)
 option(PMJS_OFFLINE "Require prepared third-party inputs without downloads" OFF)
 message(STATUS "PMJS compiler: ${CMAKE_CXX_COMPILER} (${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION})")
 message(STATUS "PMJS target: ${CMAKE_SYSTEM_NAME}/${CMAKE_SYSTEM_PROCESSOR}; cross=${CMAKE_CROSSCOMPILING}; sysroot=${CMAKE_SYSROOT}")
-message(STATUS "PMJS dependencies: prefix=${PMJS_DEPENDENCY_PREFIX}; lock=${PMJS_DEPENDENCY_LOCK}")
 find_path(PMJS_NODE_API_HEADERS NAMES node_api.h PATH_SUFFIXES node nodejs/src)
 if(NOT PMJS_NODE_API_HEADERS OR NOT EXISTS "${PMJS_NODE_API_HEADERS}/node_api.h")
   message(FATAL_ERROR "Set PMJS_NODE_API_HEADERS to the selected Node SDK's include/node directory (Node-API 8 or newer)")
 endif()
 message(STATUS "PMJS Node-API headers: ${PMJS_NODE_API_HEADERS}; addon ABI=8")
 
-if(PMJS_DEPENDENCY_PREFIX AND NOT PMJS_DEPENDENCY_LOCK)
-  message(FATAL_ERROR "PMJS_DEPENDENCY_PREFIX requires PMJS_DEPENDENCY_LOCK")
-endif()
-
 find_package(PkgConfig REQUIRED)
-if(PMJS_DEPENDENCY_PREFIX)
-  if(NOT IS_DIRECTORY "${PMJS_DEPENDENCY_PREFIX}")
-    message(FATAL_ERROR "PMJS_DEPENDENCY_PREFIX does not exist: ${PMJS_DEPENDENCY_PREFIX}")
-  endif()
-  set(ENV{PKG_CONFIG_PATH} "")
-  if(NOT PMJS_PKG_CONFIG_DIRS)
-    set(PMJS_PKG_CONFIG_DIRS "${PMJS_DEPENDENCY_PREFIX}/lib/pkgconfig;${PMJS_DEPENDENCY_PREFIX}/share/pkgconfig")
-  endif()
-  list(JOIN PMJS_PKG_CONFIG_DIRS ":" pmjs_pkg_config_libdir)
-  set(ENV{PKG_CONFIG_LIBDIR} "${pmjs_pkg_config_libdir}")
-endif()
-message(STATUS "PMJS pkg-config: ${PKG_CONFIG_EXECUTABLE}; directories=$ENV{PKG_CONFIG_LIBDIR}")
 pkg_check_modules(SDL2 REQUIRED IMPORTED_TARGET sdl2)
 pkg_check_modules(EGL REQUIRED IMPORTED_TARGET egl)
 pkg_check_modules(GLES REQUIRED IMPORTED_TARGET glesv2)
@@ -54,38 +34,11 @@ pkg_check_modules(AVUTIL REQUIRED IMPORTED_TARGET libavutil)
 pkg_check_modules(SWRESAMPLE REQUIRED IMPORTED_TARGET libswresample)
 pkg_check_modules(SWSCALE REQUIRED IMPORTED_TARGET libswscale)
 
-if(PMJS_DEPENDENCY_LOCK)
-  if(NOT EXISTS "${PMJS_DEPENDENCY_LOCK}")
-    message(FATAL_ERROR "PMJS_DEPENDENCY_LOCK does not exist: ${PMJS_DEPENDENCY_LOCK}")
-  endif()
-  include("${PMJS_DEPENDENCY_LOCK}")
-  foreach(dependency IN ITEMS SDL2 EGL GLES PNG WEBP ZLIB JPEG FREETYPE HARFBUZZ AVFORMAT AVCODEC AVUTIL SWRESAMPLE SWSCALE)
-    set(lockVariable "PMJS_LOCK_${dependency}")
-    if(NOT DEFINED ${lockVariable} OR NOT "${${lockVariable}}" STREQUAL "${${dependency}_VERSION}")
-      message(FATAL_ERROR "${dependency} pkg-config version ${${dependency}_VERSION} does not match ${lockVariable}=${${lockVariable}}")
-    endif()
-  endforeach()
-endif()
-if(PMJS_LINUX_ARM64_BUILD)
-  foreach(dependency IN ITEMS SDL2 EGL GLES PNG WEBP ZLIB JPEG FREETYPE HARFBUZZ AVFORMAT AVCODEC AVUTIL SWRESAMPLE SWSCALE)
-    foreach(input IN LISTS ${dependency}_INCLUDE_DIRS ${dependency}_LIBRARY_DIRS ${dependency}_LINK_LIBRARIES)
-      if(IS_ABSOLUTE "${input}")
-        file(REAL_PATH "${input}" resolved_input)
-        string(FIND "${resolved_input}" "${PMJS_SDK_ROOT}/" input_prefix)
-        if(NOT input_prefix EQUAL 0)
-          message(FATAL_ERROR "${dependency} resolved outside the target SDK: ${input}")
-        endif()
-      endif()
-    endforeach()
-  endforeach()
-endif()
-
 message(STATUS "PMJS dependency versions: SDL2=${SDL2_VERSION} EGL=${EGL_VERSION} GLES=${GLES_VERSION} PNG=${PNG_VERSION} WEBP=${WEBP_VERSION} JPEG=${JPEG_VERSION} FREETYPE=${FREETYPE_VERSION} HARFBUZZ=${HARFBUZZ_VERSION} AVFORMAT=${AVFORMAT_VERSION} AVCODEC=${AVCODEC_VERSION} AVUTIL=${AVUTIL_VERSION} SWRESAMPLE=${SWRESAMPLE_VERSION} SWSCALE=${SWSCALE_VERSION}")
 
 set(PMJS_PLATFORM_LIBS PkgConfig::SDL2 PkgConfig::EGL PkgConfig::GLES ${CMAKE_DL_LIBS})
 set(PMJS_MEDIA_LIBS PkgConfig::AVFORMAT PkgConfig::AVCODEC PkgConfig::AVUTIL PkgConfig::SWRESAMPLE PkgConfig::SWSCALE)
 include(cmake/Effekseer.cmake)
-include(cmake/Skia65.cmake)
 set(PMJS_RUNTIME_SOURCES
   src/runtime_core.cpp
   src/platform.cpp
@@ -104,7 +57,6 @@ set(PMJS_RUNTIME_SOURCES
   src/canvas.cpp
   src/canvas_composite.cpp
   src/canvas_paint.cpp
-  src/text_backend.cpp
   src/text_layout.cpp
   src/vfs.cpp
   src/media_decoder.cpp
@@ -124,10 +76,6 @@ target_include_directories(pmjs_runtime PUBLIC src)
 target_compile_options(pmjs_runtime PRIVATE ${PMJS_BASE_COMPILE_OPTIONS})
 target_link_libraries(pmjs_runtime PUBLIC ${PMJS_PLATFORM_LIBS} PkgConfig::PNG PkgConfig::WEBP PkgConfig::ZLIB
   PkgConfig::JPEG PkgConfig::FREETYPE PkgConfig::HARFBUZZ ${PMJS_MEDIA_LIBS} EffekseerRendererGL m dl pthread)
-if(PMJS_ENABLE_SKIA65)
-  target_compile_definitions(pmjs_runtime PRIVATE PMJS_HAS_SKIA65)
-  target_link_libraries(pmjs_runtime PRIVATE pmjs_skia65)
-endif()
 
 add_library(pmjs_native MODULE
   src/node_addon.cpp
@@ -169,9 +117,6 @@ if(BUILD_TESTING)
   find_program(XVFB_RUN xvfb-run REQUIRED)
   find_program(NODE_EXECUTABLE node REQUIRED)
   find_package(Python3 REQUIRED COMPONENTS Interpreter)
-  add_test(NAME build-sdk-cache COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test/sdk-cache.py")
-  add_test(NAME build-node-sdk COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test/node-sdk.py")
-  add_test(NAME build-provenance COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test/build-provenance.py")
 
   function(pmjs_add_cpp_test TARGET TEST_NAME)
     add_executable(${TARGET} ${ARGN})
@@ -214,15 +159,6 @@ if(BUILD_TESTING)
     add_test(NAME native-tile-allocation-failure COMMAND ${XVFB_RUN} -a $<TARGET_FILE:pmjs-tile-allocation-failure-test>)
     set_tests_properties(native-tile-allocation-failure PROPERTIES ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;SDL_AUDIODRIVER=dummy")
   endif()
-  if(PMJS_ENABLE_SKIA65)
-    pmjs_add_cpp_test(pmjs-text-backend-default-test native-text-backend-default test/text-backend-default.cpp)
-    target_link_libraries(pmjs-text-backend-default-test PRIVATE pmjs_runtime)
-    target_compile_definitions(pmjs-text-backend-default-test PRIVATE
-      PMJS_TEST_FONT="${CMAKE_CURRENT_SOURCE_DIR}/test/assets/text-shaping.ttf")
-  endif()
-  add_executable(pmjs-text-backend-unavailable-test test/text-backend-unavailable.cpp src/text_backend.cpp)
-  target_include_directories(pmjs-text-backend-unavailable-test PRIVATE src)
-  add_test(NAME native-text-backend-unavailable COMMAND pmjs-text-backend-unavailable-test)
   add_test(NAME node-writable-filesystem COMMAND ${XVFB_RUN} -a ${CMAKE_COMMAND} -E env
     SDL_AUDIODRIVER=dummy LIBGL_ALWAYS_SOFTWARE=1
     PMJS_NATIVE_ADDON=$<TARGET_FILE:pmjs_native>
@@ -315,10 +251,7 @@ if(BUILD_TESTING)
   target_link_libraries(pmjs-canvas-upload-test PRIVATE pmjs_runtime)
   target_compile_options(pmjs-canvas-upload-test PRIVATE -UNDEBUG)
   add_test(NAME native-canvas-upload COMMAND pmjs-canvas-upload-test)
-  foreach(PMJS_NODE_TEST IN ITEMS node-identity-filter-shader node-nearest-tile-shader node-scene node-sprite-byte-precision node-pixi4-clear node-mask-pixels node-renderer-stats node-empty-sprite node-released-sprite-image node-sharp-presentation node-preparation-progress node-derived-sprite node-uniform-inline-matrix node-filter-coordinates node-filter-input node-bitmap-region-batching node-bitmap-region-flash node-mv-bitmap-filtering node-tile-edge-filtering node-four-texture-tiles node-yed-retained-tiles node-presentation-byte-precision node-render-to-image node-render-to-canvas node-render-target-filters node-image-coalesce node-image-retention node-image-warm-cache node-image-no-warm-cache node-deferred-images node-image-fallback node-image-bytes node-audio-bytes node-video-texture node-video-color node-canvas-deferred node-canvas-pixels node-canvas-webp node-canvas-radial-gradient node-primitive-surface node-filter-bounds node-tone-boundary-pixels node-mz-color-pixels node-pixi5-zoom-pixels node-pixi5-tiling-pixels node-pixi5-sprite-rounding-pixels node-mz-host-contracts node-mz-canvas-pixels node-mz-sampling-pixels node-mesh-post-tint-overlay node-glyph-cache node-text-layout node-text-layout-cache node-text-upload node-freetype-facade node-primitive-canvas)
-    if(NOT PMJS_ENABLE_SKIA65 AND PMJS_NODE_TEST STREQUAL "node-mz-canvas-pixels")
-      continue()
-    endif()
+  foreach(PMJS_NODE_TEST IN ITEMS node-identity-filter-shader node-nearest-tile-shader node-scene node-sprite-byte-precision node-pixi4-clear node-mask-pixels node-renderer-stats node-empty-sprite node-released-sprite-image node-sharp-presentation node-preparation-progress node-derived-sprite node-uniform-inline-matrix node-filter-coordinates node-filter-input node-bitmap-region-batching node-bitmap-region-flash node-mv-bitmap-filtering node-tile-edge-filtering node-four-texture-tiles node-yed-retained-tiles node-presentation-byte-precision node-render-to-image node-render-to-canvas node-render-target-filters node-image-coalesce node-image-retention node-image-warm-cache node-image-no-warm-cache node-deferred-images node-image-fallback node-image-bytes node-audio-bytes node-video-texture node-video-color node-canvas-deferred node-canvas-pixels node-canvas-webp node-canvas-radial-gradient node-primitive-surface node-filter-bounds node-tone-boundary-pixels node-mz-color-pixels node-pixi5-zoom-pixels node-pixi5-tiling-pixels node-pixi5-sprite-rounding-pixels node-mz-host-contracts node-mz-sampling-pixels node-mesh-post-tint-overlay node-glyph-cache node-text-layout node-text-layout-cache node-text-upload node-freetype-facade node-primitive-canvas)
     add_test(NAME ${PMJS_NODE_TEST} COMMAND ${XVFB_RUN} -a ${NODE_EXECUTABLE}
       "${CMAKE_CURRENT_SOURCE_DIR}/test/${PMJS_NODE_TEST}.cjs" $<TARGET_FILE:pmjs_native> "${CMAKE_CURRENT_BINARY_DIR}/test-assets")
     set_tests_properties(${PMJS_NODE_TEST} PROPERTIES ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1")
@@ -335,11 +268,6 @@ if(BUILD_TESTING)
     "${CMAKE_CURRENT_SOURCE_DIR}/test/node-pixi4-tiling-pixels.cjs" $<TARGET_FILE:pmjs_native> "${CMAKE_CURRENT_BINARY_DIR}/test-assets")
   set_tests_properties(node-pixi4-tiling-pixels PROPERTIES ENVIRONMENT
     "SDL_VIDEODRIVER=offscreen;SDL_AUDIODRIVER=dummy;PMJS_WINDOW_SIZE=32x24")
-  if(PMJS_ENABLE_SKIA65)
-    add_test(NAME node-canvas-composite COMMAND ${XVFB_RUN} -a ${NODE_EXECUTABLE}
-      "${CMAKE_CURRENT_SOURCE_DIR}/test/node-canvas-composite.cjs" $<TARGET_FILE:pmjs_native> "${CMAKE_CURRENT_BINARY_DIR}/test-assets")
-    set_tests_properties(node-canvas-composite PROPERTIES ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;SDL_AUDIODRIVER=dummy")
-  endif()
   add_test(NAME node-mv-blur COMMAND ${XVFB_RUN} -a ${NODE_EXECUTABLE}
     "${CMAKE_CURRENT_SOURCE_DIR}/test/node-mv-blur.cjs" $<TARGET_FILE:pmjs_native> "${CMAKE_CURRENT_BINARY_DIR}/test-assets")
   set_tests_properties(node-mv-blur PROPERTIES ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;SDL_AUDIODRIVER=dummy")
@@ -364,21 +292,6 @@ if(BUILD_TESTING)
   target_compile_options(pmjs-filter-target-lifetime-test PRIVATE -UNDEBUG)
   add_test(NAME native-filter-target-lifetime COMMAND ${XVFB_RUN} -a $<TARGET_FILE:pmjs-filter-target-lifetime-test>)
   set_tests_properties(native-filter-target-lifetime PROPERTIES ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;SDL_AUDIODRIVER=dummy")
-  set_tests_properties(node-glyph-cache node-text-layout-cache PROPERTIES ENVIRONMENT
-    "LIBGL_ALWAYS_SOFTWARE=1;PMJS_TEXT_BACKEND=freetype")
-  if(PMJS_ENABLE_SKIA65)
-    add_executable(pmjs-skia65-strided-test test/skia65-strided.cpp)
-    target_include_directories(pmjs-skia65-strided-test PRIVATE src)
-    target_compile_options(pmjs-skia65-strided-test PRIVATE -UNDEBUG)
-    target_link_libraries(pmjs-skia65-strided-test PRIVATE pmjs_skia65)
-    add_test(NAME native-skia65-strided COMMAND pmjs-skia65-strided-test)
-    foreach(PMJS_SKIA_TEST IN ITEMS node-skia65-text node-skia65-canvas node-skia65-cache node-skia65-primitives)
-      add_test(NAME ${PMJS_SKIA_TEST} COMMAND ${XVFB_RUN} -a ${NODE_EXECUTABLE}
-        "${CMAKE_CURRENT_SOURCE_DIR}/test/${PMJS_SKIA_TEST}.cjs" $<TARGET_FILE:pmjs_native> "${CMAKE_CURRENT_BINARY_DIR}/test-assets")
-      set_tests_properties(${PMJS_SKIA_TEST} PROPERTIES ENVIRONMENT
-        "LIBGL_ALWAYS_SOFTWARE=1;SDL_AUDIODRIVER=dummy;PMJS_TEXT_BACKEND=skia65")
-    endforeach()
-  endif()
   set_tests_properties(node-tone-boundary-pixels PROPERTIES ENVIRONMENT
     "LIBGL_ALWAYS_SOFTWARE=1;PMJS_WINDOW_SIZE=64x64")
   add_test(NAME node-filter-bounds-fullscreen COMMAND ${XVFB_RUN} -a ${NODE_EXECUTABLE}

@@ -5,7 +5,9 @@ RPG Maker MV/MZ games on Alpine Linux (musl) and Wayland: `RPGM_PMJS=1 rpgm GAME
 
 Differences from upstream:
 
-- Builds with distribution tools: Skia65 off by default, CMake 4 accepted ([Alpine](docs/building.md#alpine)).
+- Builds with distribution tools ([Alpine](docs/building.md#alpine)): CMake 4 accepted; text uses FreeType.
+- Leaves out upstream's handheld parts: the Skia65 text backend (exactly Clang 20.1.2), ARM64 release
+  packaging and PortMaster.
 - Images are decoded when first drawn, as in a browser; `PMJS_DEFER_IMAGES=0` decodes them on load.
 - The window opens at `package.json`'s size, as in NW.js, instead of filling the screen.
 - `pmjs prepare --adapter FILE` adds a launcher's adapter (rpgm's F8 cheat menu, `RPGM_PMJS_SKIP`).
@@ -37,8 +39,6 @@ The MZ reference is stock RPG Maker MZ 1.10.0, PixiJS 5.3.12 and NW.js 0.48.4, w
 - Node.js and Node API headers
 - pkg-config
 - Git and Python 3.12 or newer
-- Default x64 Skia65 build: Clang/LLVM 20.1.2 (`clang-20`, `clang++-20`, `llvm-ar-20`, `llvm-strip-20`)
-- ARM64 Skia65 build: `PMJS_SKIA65_ARM64_SDK` pointing to the prepared Zig 0.15.2 SDK, plus `llvm-strip-20` 20.1.2
 - SDL2, EGL, and OpenGL ES 3.0 or newer
 - libpng, zlib, libjpeg, FreeType, and HarfBuzz
 - FFmpeg libraries: avformat, avcodec, avutil, swresample, and swscale
@@ -59,7 +59,6 @@ PMJS uses the following software
 - [HarfBuzz](https://harfbuzz.github.io/) for text shaping
 - [FFmpeg](https://ffmpeg.org/) for audio and video decoding
 - [Effekseer](https://effekseer.github.io/) for RPG Maker MZ animation effects
-- [Skia](https://skia.org/) and [ICU](https://icu.unicode.org/), with private FreeType/HarfBuzz builds, for the Skia65 text component
 
 The build and test workflow uses CMake, pkg-config, ESLint, and Xvfb.
 
@@ -67,4 +66,3 @@ The build and test workflow uses CMake, pkg-config, ESLint, and Xvfb.
 
 - [Building](docs/building.md)
 - [Using PMJS](docs/using.md): prepare and run games, saves and troubleshooting.
-- [Releases](docs/releases.md): install, verify and package the runtime.

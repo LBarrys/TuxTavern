@@ -2,7 +2,7 @@
   "name": "pmjs-native-runtime",
   "private": true,
   "scripts": {
-    "lint": "eslint js runner tools test example",
+    "lint": "eslint js runner tools test",
     "licensing": "node tools/check-provenance.cjs",
     "test": "node tools/test-js.cjs"
   },

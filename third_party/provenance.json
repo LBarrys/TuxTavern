@@ -206,20 +206,6 @@
       "license": "MIT",
       "notice": "test/assets/pixi5/LICENSE"
     },
-    "test/assets/skia65/arm-parity-source.json": {
-      "origin": "permissive",
-      "source": "Pinned components in tools/skia65/sources.lock.json",
-      "revision": "bd0dafbc8112f6cfa92a8096d8cb5696d8535ef9",
-      "license": "BSD-3-Clause",
-      "notice": "third_party/skia65/Skia.LICENSE"
-    },
-    "test/assets/skia65/arm-parity-source.tar.gz": {
-      "origin": "permissive",
-      "source": "Pinned components in tools/skia65/sources.lock.json",
-      "revision": "bd0dafbc8112f6cfa92a8096d8cb5696d8535ef9",
-      "license": "BSD-3-Clause",
-      "notice": "third_party/skia65/Skia.LICENSE"
-    },
     "test/assets/testfont.LICENSE": {
       "origin": "permissive",
       "source": "https://github.com/liberationfonts/liberation-fonts/releases/tag/2.1.5",
@@ -275,55 +261,6 @@
       "revision": "Host build dependent; copyright list in notice",
       "license": "MIT",
       "notice": "third_party/harfbuzz.LICENSE"
-    },
-    "third_party/skia65-arm-parity.patch": {
-      "origin": "permissive",
-      "source": "Pinned components in tools/skia65/sources.lock.json",
-      "revision": "bd0dafbc8112f6cfa92a8096d8cb5696d8535ef9",
-      "license": "BSD-3-Clause",
-      "notice": "third_party/skia65/Skia.LICENSE"
-    },
-    "third_party/skia65-mask-tail.patch": {
-      "origin": "permissive",
-      "source": "Pinned components in tools/skia65/sources.lock.json",
-      "revision": "bd0dafbc8112f6cfa92a8096d8cb5696d8535ef9",
-      "license": "BSD-3-Clause",
-      "notice": "third_party/skia65/Skia.LICENSE"
-    },
-    "third_party/skia65/FreeType.GPLv2": {
-      "origin": "permissive",
-      "source": "Pinned components in tools/skia65/sources.lock.json",
-      "revision": "bd0dafbc8112f6cfa92a8096d8cb5696d8535ef9",
-      "license": "FTL OR GPL-2.0-only",
-      "notice": "third_party/skia65/FreeType.LICENSE"
-    },
-    "third_party/skia65/FreeType.LICENSE": {
-      "origin": "permissive",
-      "source": "Pinned components in tools/skia65/sources.lock.json",
-      "revision": "bd0dafbc8112f6cfa92a8096d8cb5696d8535ef9",
-      "license": "FTL OR GPL-2.0-only",
-      "notice": "third_party/skia65/FreeType.LICENSE"
-    },
-    "third_party/skia65/HarfBuzz.LICENSE": {
-      "origin": "permissive",
-      "source": "Pinned components in tools/skia65/sources.lock.json",
-      "revision": "bd0dafbc8112f6cfa92a8096d8cb5696d8535ef9",
-      "license": "MIT",
-      "notice": "third_party/skia65/HarfBuzz.LICENSE"
-    },
-    "third_party/skia65/ICU.LICENSE": {
-      "origin": "permissive",
-      "source": "Pinned components in tools/skia65/sources.lock.json",
-      "revision": "bd0dafbc8112f6cfa92a8096d8cb5696d8535ef9",
-      "license": "ICU",
-      "notice": "third_party/skia65/ICU.LICENSE"
-    },
-    "third_party/skia65/Skia.LICENSE": {
-      "origin": "permissive",
-      "source": "Pinned components in tools/skia65/sources.lock.json",
-      "revision": "bd0dafbc8112f6cfa92a8096d8cb5696d8535ef9",
-      "license": "BSD-3-Clause",
-      "notice": "third_party/skia65/Skia.LICENSE"
     },
     "third_party/terrax.LICENSE": {
       "origin": "permissive",

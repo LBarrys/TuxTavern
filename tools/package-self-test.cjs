@@ -51,7 +51,7 @@ function selfTest(root, graphics) {
       const shot = native.canvas.captureSceneRawPremultiplied();
       assert.deepEqual(Array.from(shot.slice(0, 4)), [255, 0, 0, 255], 'rendered pixel');
       textBackend = native.canvas.glyphStats().backend;
-      assert.equal(textBackend, info.skia65 === 'ON' ? 'skia65' : 'freetype', 'configured text backend');
+      assert.equal(textBackend, 'freetype', 'text backend');
       native.swapFrame();
       gpu = native.render.graphicsInfo();
     } finally {

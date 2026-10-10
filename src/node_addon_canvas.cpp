@@ -422,17 +422,12 @@ napi_value canvasMemory(napi_env env, napi_callback_info) try {
   check(env, napi_set_named_property(env, result, "deferredCommandBytes",
     number(env, canvases.deferredCommandBytes())), "cannot set deferred command bytes");
   check(env, napi_set_named_property(env, result, "textBackend",
-    string(env, canvases.textBackendName())), "cannot set text backend");
-  if (std::string(canvases.textBackendName()) == "skia65") {
-    check(env, napi_set_named_property(env, result, "textCacheBytes",
-      number(env, canvases.textBackendStats().cacheBytes)), "cannot set Skia cache bytes");
-  } else {
-    const auto gStats = canvases.glyphCacheStats();
-    check(env, napi_set_named_property(env, result, "glyphEntries",
-      number(env, gStats.glyphEntries)), "cannot set glyph entries");
-    check(env, napi_set_named_property(env, result, "glyphBytes",
-      number(env, gStats.glyphBytes)), "cannot set glyph bytes");
-  }
+    string(env, "freetype")), "cannot set text backend");
+  const auto gStats = canvases.glyphCacheStats();
+  check(env, napi_set_named_property(env, result, "glyphEntries",
+    number(env, gStats.glyphEntries)), "cannot set glyph entries");
+  check(env, napi_set_named_property(env, result, "glyphBytes",
+    number(env, gStats.glyphBytes)), "cannot set glyph bytes");
   syncExternalMemory(env);
   return result;
 } catch (const std::exception& error) {
@@ -441,25 +436,6 @@ napi_value canvasMemory(napi_env env, napi_callback_info) try {
 }
 
 napi_value canvasGlyphStats(napi_env env, napi_callback_info) try {
-  auto& canvases = host(env).canvases;
-  if (std::string(canvases.textBackendName()) == "skia65") {
-    const auto stats = canvases.textBackendStats();
-    napi_value result; check(env, napi_create_object(env, &result), "cannot create text stats");
-    check(env, napi_set_named_property(env, result, "backend", string(env, "skia65")), "cannot set backend");
-    check(env, napi_set_named_property(env, result, "identity", string(env, stats.identity)), "cannot set identity");
-    check(env, napi_set_named_property(env, result, "libraryPath", string(env, stats.libraryPath)), "cannot set library path");
-    const auto set = [&](const char* name, double value) {
-      check(env, napi_set_named_property(env, result, name, number(env, value)), "cannot set text statistic");
-    };
-    set("cacheBytes", stats.cacheBytes); set("cacheLimit", stats.cacheLimit);
-    set("cacheEntries", stats.cacheEntries); set("fontStacks", stats.fontStacks);
-    set("scratchPeakBytes", stats.scratchPeakBytes); set("scratchBytes", stats.scratchBytes);
-    set("layoutCacheBytes", stats.layoutCacheBytes); set("layoutCacheEntries", stats.layoutCacheEntries);
-    set("metricCacheBytes", stats.metricCacheBytes);
-    set("layoutRequests", stats.layoutRequests); set("layoutHits", stats.layoutHits);
-    set("drawCalls", stats.drawCalls); set("shapeNs", stats.shapeNs); set("drawNs", stats.drawNs);
-    return result;
-  }
   const auto stats = host(env).canvases.glyphCacheStats();
   napi_value result;
   check(env, napi_create_object(env, &result), "cannot create glyph stats object");

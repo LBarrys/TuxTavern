@@ -14,7 +14,6 @@ native.initialize({ gameRoot: path.resolve(process.argv[3]), width: 32, height: 
 const handles = [];
 const create = (w, h) => { const c = native.canvas.create(w, h); handles.push(c.handle); return c; };
 const read = (c, w = c.width, h = c.height) => Buffer.from(native.canvas.readPremultipliedPixels(c.handle, 0, 0, w, h));
-const skia = native.canvas.glyphStats().backend === 'skia65';
 try {
   const all = create(256, 256), input = new Uint8Array(256 * 256 * 4);
   for (let alpha = 0; alpha < 256; alpha++) for (let color = 0; color < 256; color++)
@@ -32,27 +31,6 @@ try {
     for (let x = 0; x < item.width; x++) bytes.set(item.rgba, x * 4);
     native.canvas.writePremultipliedPixels(source.handle, 0,0,item.width,1,bytes);
     assert.deepEqual(read(source), Buffer.from(item.source), 'raw browser source bytes survive transport');
-    // The portable fallback has its own compositor, rather than Skia's row batches.
-    if (!skia) continue;
-    const destination = create(item.width, 1);
-    if (item.background) native.canvas.fillRect(destination.handle,0,0,item.width,1,0x00ff0080);
-    native.canvas.drawImage(destination.handle,source.handle,0,0,item.width,1,0,0,item.width,1,1);
-    assert.deepEqual(read(destination), Buffer.from(item.pixels), 'over-alpha browser drawing, width=' + item.width);
-    const copy = create(item.width,1);
-    if (item.background) native.canvas.fillRect(copy.handle,0,0,item.width,1,0x00ff0080);
-    native.canvas.drawImage(copy.handle,destination.handle,0,0,item.width,1,0,0,item.width,1,1);
-    assert.deepEqual(read(copy), Buffer.from(item.copy), 'over-alpha browser Canvas copy, width=' + item.width);
-  }
-  if (skia) for (const item of reference.mixedAlpha) {
-    const source = create(item.width, 1), destination = create(item.width, 1);
-    native.canvas.writePremultipliedPixels(source.handle, 0,0,item.width,1, Uint8Array.from(item.source));
-    if (item.background) native.canvas.fillRect(destination.handle,0,0,item.width,1,0x00ff0080);
-    native.canvas.drawImage(destination.handle,source.handle,0,0,item.width,1,0,0,item.width,1,1);
-    assert.deepEqual(read(destination), Buffer.from(item.pixels), 'mixed alpha browser source-over, width=' + item.width);
-    const copy = create(item.width,1);
-    if (item.background) native.canvas.fillRect(copy.handle,0,0,item.width,1,0x00ff0080);
-    native.canvas.drawImage(copy.handle,destination.handle,0,0,item.width,1,0,0,item.width,1,1);
-    assert.deepEqual(read(copy), Buffer.from(item.copy), 'mixed alpha browser repeated copy, width=' + item.width);
   }
   const odd = create(5, 3);
   native.canvas.writePremultipliedPixels(odd.handle, -1, 1, 3, 1, Uint8Array.of(9,8,7,6, 255,127,0,0, 128,0,0,127));

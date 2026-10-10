@@ -1,21 +1,17 @@
 # Using PMJS
 
-Check the archive checksum, then unpack it:
-
-```sh
-sha256sum -c pmjs-linux-arm64.tar.gz.sha256
-tar -xzf pmjs-linux-arm64.tar.gz
-```
+[rpgm](https://github.com/LBarrys/rpgm) runs games on PMJS with `RPGM_PMJS=1 rpgm GAME`.
+Directly, after [building and installing](building.md):
 
 ## Run a game
 
 Use a game directory containing its original MV/MZ engine and plugin scripts:
 
 ```sh
-./pmjs-linux-arm64/bin/pmjs --version
-./pmjs-linux-arm64/bin/pmjs self-test
-./pmjs-linux-arm64/bin/pmjs prepare --game /path/to/game
-./pmjs-linux-arm64/bin/pmjs run --game /path/to/game
+pmjs --version
+pmjs self-test
+pmjs prepare --game /path/to/game
+pmjs run --game /path/to/game
 ```
 
 Preparation creates a bootstrap in your cache and leaves the game files unchanged.
@@ -37,21 +33,14 @@ with a separate directory for each game. If unset, these use `~/.cache` and
 
 ## System requirements
 
-ARM64 packages include Node and nongraphics libraries. The system must provide
-SDL2, EGL and GLES 3.0 or newer, with glibc 2.28 or newer. The bundled Node 22
-targets Linux 4.18 or newer; older kernels need separate testing.
-x64 installations use system Node and the native libraries used to build them,
-unless Node was explicitly bundled.
-
-The compatibility references are MV 1.6.2/Pixi 4.5.4 and MZ 1.10.0/Pixi 5.3.12.
-Game and plugin support is still experimental. Test each device and firmware.
+Node with Node-API 8 or newer, SDL2, EGL and GLES 3.0 or newer, and the libraries
+PMJS was built with. The compatibility references are MV 1.6.2/Pixi 4.5.4 and
+MZ 1.10.0/Pixi 5.3.12. Game and plugin support is still experimental.
 
 ## Troubleshooting
 
 `self-test` checks package files and addon loading. `self-test --graphics` also
-checks startup, rendering and shutdown. Run graphics tests in the firmware's
-normal display session. Stop its menu through the normal lifecycle before testing,
-then restore it afterward. The test needs exclusive use of the display.
+checks startup, rendering and shutdown.
 
 For additional logging:
 
@@ -60,7 +49,5 @@ For additional logging:
 - `PMJS_COMPAT_VERBOSE=1`: log unsupported operations.
 - `PMJS_STRICT_COMPAT=1`: stop at the first unsupported operation.
 
-When reporting a problem, include `--version`, the log, firmware and kernel
-versions, self-test output, and the game's engine and plugin versions.
-Missing shared libraries must be supplied by the supported system environment;
-keep graphics drivers matched to the firmware.
+When reporting a problem, include `--version`, the log, self-test output, and the
+game's engine and plugin versions.

@@ -3,7 +3,6 @@
 #include "resources.hpp"
 #include "canvas_pixels.hpp"
 #include "canvas_composite.hpp"
-#include "text_backend.hpp"
 
 #include <array>
 #include <cstddef>
@@ -28,6 +27,13 @@ struct CanvasInfo {
   int height;
 };
 
+struct CanvasTextStyle {
+  bool bold = false;
+  bool italic = false;
+  int join = 0;
+  int cap = 0;
+  float miterLimit = 10;
+};
 struct CanvasTextMetrics {
   double width = 0;
   double actualLeft = 0;
@@ -171,8 +177,6 @@ class CanvasStore {
   std::size_t deferredCommandCount() const;
   std::size_t deferredCommandBytes() const;
   CanvasTextStats glyphCacheStats() const;
-  const char* textBackendName() const { return textBackend_.name(); }
-  TextBackendStats textBackendStats() const { return textBackend_.stats(); }
   void setGlyphCacheLimits(std::size_t maxBytes, std::size_t maxEntries);
 
  private:
@@ -293,7 +297,6 @@ class CanvasStore {
   static void markDirty(Content& surface, int x, int y, int width, int height);
 
   ImageStore& images_;
-  TextBackend textBackend_;
   std::unique_ptr<FontState> fonts_;
   // Non-owning registry includes versions kept alive only by queued draws.
   std::unordered_set<Content*> contents_;

@@ -1,9 +1,6 @@
 #include "canvas_pixels.hpp"
 #include "renderer.hpp"
 #include "checked_bounds.hpp"
-#ifdef PMJS_HAS_SKIA65
-#include "skia65/pmjs_skia65.h"
-#endif
 #include <GLES3/gl3.h>
 
 #include <algorithm>
@@ -851,40 +848,6 @@ std::uint32_t Renderer::createMesh(
       static_cast<float>(uvs[offset]) * static_cast<float>(info->width),
       static_cast<float>(uvs[offset + 1]) * static_cast<float>(info->height), 0, 0});
   }
-#ifdef PMJS_HAS_SKIA65
-  if (const auto* triangle = std::get_if<TriangleBitmapMaterial>(&material);
-      triangle && triangle->rasterRule == TriangleBitmapMaterial::RasterRule::canvasFourSample) {
-    const auto& p = triangle->coefficients;
-    const float width = std::ceil(p[8] - p[6]), height = std::ceil(p[9] - p[7]);
-    if (width <= 0 || height <= 0 || width > 8192 || height > 8192) {
-      images_.release(image);
-      return 0;
-    }
-    const auto extent = checkedImageExtent(static_cast<int>(width), static_cast<int>(height));
-    if (!extent) {
-      images_.release(image);
-      return 0;
-    }
-    try {
-      mesh.images.reserve(2);
-      std::vector<std::uint8_t> coverage(extent->rgbaBytes);
-      if (!pmjs_skia65_triangle_coverage(p.data(), p[14], p[15], p[13], p[6], p[7],
-          static_cast<int>(width), static_cast<int>(height), coverage.data())) {
-        throw std::runtime_error("triangle bitmap rasterization failed");
-      }
-      const auto mask = images_.createRgba(static_cast<int>(width), static_cast<int>(height), coverage.data());
-      if (!mask) {
-        images_.release(image);
-        return 0;
-      }
-      mesh.triangleCoverage = mask->handle;
-      mesh.images.push_back(mask->handle);
-    } catch (...) {
-      images_.release(image);
-      throw;
-    }
-  }
-#endif
   glGenVertexArrays(1, &mesh.vertexArray);
   glGenBuffers(1, &mesh.vertexBuffer);
   glBindVertexArray(mesh.vertexArray);

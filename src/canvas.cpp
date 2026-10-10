@@ -1,9 +1,6 @@
 #include "canvas.hpp"
 #include "checked_bounds.hpp"
 #include "text_layout.hpp"
-#ifdef PMJS_HAS_SKIA65
-#include "skia65/pmjs_skia65.h"
-#endif
 #include <hb-ft.h>
 
 #include <ft2build.h>
@@ -34,13 +31,6 @@ std::vector<std::uint8_t> CanvasStore::circleCoverage(float x, float y, float ra
       }))
     throw std::invalid_argument("invalid circle coverage geometry");
   std::vector<std::uint8_t> coverage(extent->rgbaBytes / 4, 0);
-#ifdef PMJS_HAS_SKIA65
-  std::vector<float> clipValues;
-  for (const auto& clip : clips) clipValues.insert(clipValues.end(), clip.begin(), clip.end());
-  if (!pmjs_skia65_circle_coverage(x, y, radius, transform.data(), left, top, width, height, coverage.data(),
-      clipValues.data(), clips.size()))
-    throw std::runtime_error("circle rasterization failed");
-#else
   const double determinant = transform[0] * transform[3] - transform[1] * transform[2];
   if (determinant == 0) return coverage;
   // Portable builds use bounded subpixel coverage instead of binary polygons.
@@ -58,27 +48,9 @@ std::vector<std::uint8_t> CanvasStore::circleCoverage(float x, float y, float ra
     }
     coverage[static_cast<size_t>(row) * width + column] = (inside * 255 + 128) / 256;
   }
-#endif
   return coverage;
 }
 namespace {
-#ifdef PMJS_HAS_SKIA65
-template<class Draw>
-std::array<int, 4> rasterCanvasRegion(std::vector<uint8_t>& pixels, int width, int height,
-    const std::array<float, 4>& bounds, Draw draw) {
-  // Four-pixel crop alignment retains the rasterizer's gradient dither phase.
-  const int left = std::clamp<double>(std::floor(bounds[0] / 4.0) * 4, 0, width);
-  const int top = std::clamp<double>(std::floor(bounds[1] / 4.0) * 4, 0, height);
-  const int right = std::clamp<double>(std::ceil(static_cast<double>(bounds[0]) + bounds[2]), 0, width);
-  const int bottom = std::clamp<double>(std::ceil(static_cast<double>(bounds[1]) + bounds[3]), 0, height);
-  if (right <= left || bottom <= top) return {left, top, 0, 0};
-  const size_t stride = static_cast<size_t>(width) * 4;
-  auto* origin = pixels.data() + top * stride + left * 4;
-  if (!draw(origin, right - left, bottom - top, stride, left, top))
-    throw std::runtime_error("canvas rasterization failed");
-  return {left, top, right - left, bottom - top};
-}
-#endif
 }
 
 namespace {
@@ -712,9 +684,7 @@ struct CanvasStore::FontState {
 };
 
 CanvasStore::CanvasStore(ImageStore& images)
-    : images_(images), fonts_(std::make_unique<FontState>()) {
-  if (textBackend_.skia()) fonts_->telemetryEnabled = false;
-}
+    : images_(images), fonts_(std::make_unique<FontState>()) {}
 
 CanvasStore::~CanvasStore() {
   for (auto& surface : surfaces_) {
@@ -867,21 +837,6 @@ bool CanvasStore::drawImageNow(Content& destinationSurface, const DrawImageCmd& 
     }
   }
 
-#ifdef PMJS_HAS_SKIA65
-  const std::array<float, 4> src = {sourceX, sourceY, sourceWidth, sourceHeight};
-  const std::array<float, 4> dst = {destinationX, destinationY, destinationWidth, destinationHeight};
-  const auto region = rasterCanvasRegion(destinationSurface.pixels, destinationSurface.width,
-    destinationSurface.height, dst, [&](uint8_t* pixels, int width, int height, size_t stride, int left, int top) {
-      const auto draw = sourcePixels.encoding == PixelEncoding::PremultipliedBGRA8 ?
-        pmjs_skia65_image_bgra_strided : pmjs_skia65_image_rgba_strided;
-      return draw(pixels, width, height, stride, left, top, sourcePixels.rgba,
-        sourcePixels.width, sourcePixels.height, static_cast<size_t>(sourcePixels.width) * 4,
-        src.data(), dst.data(), alpha, smoothing);
-    });
-  destinationSurface.mayHaveOverAlpha |= sourcePixels.mayHaveOverAlpha;
-  markDirty(destinationSurface, region[0], region[1], region[2], region[3]);
-  return true;
-#else
   (void)smoothing;
   const auto coverage = static_cast<std::uint8_t>(std::clamp(
       static_cast<int>(alpha * 255.0F + 0.5F), 0, 255));
@@ -911,20 +866,11 @@ bool CanvasStore::drawImageNow(Content& destinationSurface, const DrawImageCmd& 
   markDirty(destinationSurface, destinationX, destinationY,
             destinationWidth, destinationHeight);
   return true;
-#endif
 }
 
 bool CanvasStore::drawTextNow(Content& surface, const std::vector<std::filesystem::path>& fontPaths,
                               const std::string& text, float x, float y, float pixelSize,
-                              std::uint32_t rgba, float strokeWidth, const CanvasTextStyle& style) {
-  if (textBackend_.skia()) {
-    int bounds[4];
-    if (!textBackend_.draw(fontPaths, text, x, y, pixelSize, rgba, strokeWidth, style,
-        surface.pixels, surface.width, surface.height, bounds)) return false;
-    if (bounds[2] > bounds[0] && bounds[3] > bounds[1])
-      markDirty(surface, bounds[0], bounds[1], bounds[2] - bounds[0], bounds[3] - bounds[1]);
-    return true;
-  }
+                              std::uint32_t rgba, float strokeWidth, const CanvasTextStyle&) {
   // The legacy web facade rounded font sizes/positions/widths before this
   // integer backend. MV's shortcut also rounded its outline before the helper
   // floored it. Preserve those effective contracts explicitly at this boundary.
@@ -1360,21 +1306,8 @@ bool CanvasStore::paintRect(CanvasHandle handle, const std::array<float, 4>& rec
       (!colors.empty() && std::all_of(colors.begin(), colors.end(), [](uint32_t c) { return !(c & 255); }))) return lookup(handle) != nullptr;
   auto* surface = writableContent(handle);
   if (!surface || !realizeContent(*surface)) return false;
-#ifdef PMJS_HAS_SKIA65
-  const float padding = stroke / 2 + 1;
-  const std::array<float, 4> bounds = {rect[0] - padding, rect[1] - padding,
-    rect[2] + 2 * padding, rect[3] + 2 * padding};
-  const auto region = rasterCanvasRegion(surface->pixels, surface->width, surface->height, bounds,
-    [&](uint8_t* pixels, int width, int height, size_t stride, int left, int top) {
-      return pmjs_skia65_rect_bgra_strided(pixels, width, height, stride, left, top, rect.data(), color, stroke,
-        gradient.data(), offsets.data(), colors.data(), offsets.size());
-    });
-  markDirty(*surface, region[0], region[1], region[2], region[3]);
-  return true;
-#else
   (void)color;
   return false;
-#endif
 }
 
 bool CanvasStore::drawImage(CanvasHandle destination, std::uint32_t source,
@@ -1487,11 +1420,7 @@ bool CanvasStore::drawText(CanvasHandle handle,
 
 std::optional<double> CanvasStore::measureText(
     const std::vector<std::filesystem::path>& fontPaths, const std::string& text,
-    float pixelSize, const CanvasTextStyle& style) const {
-  if (textBackend_.skia()) {
-    auto metrics = const_cast<TextBackend&>(textBackend_).measure(fontPaths, text, pixelSize, style);
-    return metrics ? std::optional<double>(metrics->width) : std::nullopt;
-  }
+    float pixelSize, const CanvasTextStyle&) const {
   if (!std::isfinite(pixelSize) || pixelSize <= 0 || pixelSize > 256) return std::nullopt;
   auto layout = fonts_->layoutText(fontPaths, text, static_cast<int>(std::floor(pixelSize + 0.5f)));
   if (!layout) return std::nullopt;
@@ -1500,9 +1429,7 @@ std::optional<double> CanvasStore::measureText(
 
 std::optional<CanvasTextMetrics> CanvasStore::measureTextMetrics(
     const std::vector<std::filesystem::path>& fontPaths, const std::string& text,
-    float pixelSize, const CanvasTextStyle& style) const {
-  if (textBackend_.skia())
-    return const_cast<TextBackend&>(textBackend_).measure(fontPaths, text, pixelSize, style);
+    float pixelSize, const CanvasTextStyle&) const {
   if (!std::isfinite(pixelSize) || pixelSize <= 0 || pixelSize > 256) return std::nullopt;
   auto layout = fonts_->layoutText(fontPaths, text, static_cast<int>(std::floor(pixelSize + 0.5f)));
   if (!layout) return std::nullopt;
@@ -1510,7 +1437,6 @@ std::optional<CanvasTextMetrics> CanvasStore::measureTextMetrics(
 }
 
 bool CanvasStore::canLoadFont(const std::filesystem::path& fontPath) {
-  if (textBackend_.skia()) return textBackend_.canLoad(fontPath);
   return fonts_->face(fontPath, 16) != nullptr;
 }
 
@@ -1792,7 +1718,6 @@ CanvasTextStats CanvasStore::glyphCacheStats() const {
 }
 
 void CanvasStore::setGlyphCacheLimits(std::size_t maxBytes, std::size_t maxEntries) {
-  if (textBackend_.skia()) { textBackend_.limits(maxBytes, maxEntries); return; }
   fonts_->setLimits(maxBytes, maxEntries);
 }
 

@@ -602,16 +602,9 @@ function colorWithGlobalAlpha(color, globalAlpha) {
   return ((rgba & 0xffffff00) | alpha) >>> 0;
 }
 
-var canvasTextBackend;
-function usesLegacyText() {
-  if (canvasTextBackend === undefined) {
-    canvasTextBackend = typeof NativeHost.canvas.glyphStats === 'function' ?
-      NativeHost.canvas.glyphStats().backend : 'skia65';
-  }
-  return canvasTextBackend === 'freetype';
-}
+// FreeType text takes whole pixel sizes.
 function canvasFontSize(size) {
-  return usesLegacyText() ? Math.max(1, Math.round(size)) : size;
+  return Math.max(1, Math.round(size));
 }
 
 function contextFont(context) {
@@ -905,7 +898,7 @@ function drawCanvasText(context, text, x, y, stroke, maxWidth) {
   var t = context._transform;
   var style = stroke ? context.strokeStyle : context.fillStyle;
   var color = colorWithGlobalAlpha(style, context.globalAlpha);
-  var strokeWidth = stroke ? Math.max(0, usesLegacyText() ? Math.round(context.lineWidth) : Number(context.lineWidth)) : 0;
+  var strokeWidth = stroke ? Math.max(0, Math.round(context.lineWidth)) : 0;
   if (Math.abs(t[0] - 1) < 0.000001 && Math.abs(t[1]) < 0.000001 &&
       Math.abs(t[2]) < 0.000001 && Math.abs(t[3] - 1) < 0.000001 &&
       !context._clipPaths.length && horizontalScale === 1 &&

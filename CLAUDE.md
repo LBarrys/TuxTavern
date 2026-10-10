@@ -5,7 +5,7 @@ A fork of PMJS (github.com/bbbreaddd/pmjs) that rpgm (github.com/LBarrys/rpgm) r
 ## Goals
 
 - Run the games rpgm users have, on Alpine Linux (musl) and Wayland, as NW.js would.
-- Small changes over rewrites; stay close to upstream so its changes still merge.
+- Small changes over rewrites. Keep only what rpgm needs; upstream's handheld parts are left out.
 - Build with what distributions ship: no pinned compilers, no network at build time beyond sources.
 - Behaviour that departs from NW.js, or is costly, is opt-in through a `PMJS_*` variable.
 
@@ -19,7 +19,7 @@ A fork of PMJS (github.com/bbbreaddd/pmjs) that rpgm (github.com/LBarrys/rpgm) r
 ## Code
 
 - Match the surrounding style; comments only where the why isn't obvious.
-- Every change gets a test that fails without it: `npm test` and `npx eslint js runner tools test example`
+- Every change gets a test that fails without it: `npm test` and `npx eslint js runner tools test`
   for JavaScript, `ctest` (needs Xvfb) for native code. Both must pass.
 - A fix for one game names the plugin or game in its comment or test, so it can be traced.
 

@@ -1,5 +1,4 @@
 'use strict';
-process.env.PMJS_TEXT_BACKEND = 'freetype';
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
