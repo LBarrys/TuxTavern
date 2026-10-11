@@ -107,7 +107,8 @@ void Renderer::recomputePresentation() {
       viewportWidth / sourceWidth == viewportHeight / sourceHeight;
   presentation_.filter = hasFilterOverride_ ? filterOverride_
       : (integerMapping ? PresentFilter::nearest : PresentFilter::linear);
-  if (authoredPresentationFilter_) presentation_.filter = authoredPresentationFilter_ == 1 ?
+  // PMJS_PRESENT_FILTER is the user's choice; it wins over the page's image-rendering.
+  if (authoredPresentationFilter_ && !hasFilterOverride_) presentation_.filter = authoredPresentationFilter_ == 1 ?
     PresentFilter::nearest : PresentFilter::linear;
 }
 
