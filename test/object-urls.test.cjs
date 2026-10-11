@@ -229,3 +229,22 @@ test('failed and stale image loads do not notify completion listeners', async ()
   assert.ok(releases.includes(90));
   assert.equal(failed._pmjsLoadFailed, true);
 });
+
+test('images queued in a burst ask for deferred decoding; a scene\'s few do not', async () => {
+  const bursts = [];
+  const context = imageContext(null, async function(path, retain, tileSet, burst) {
+    bursts.push(burst);
+    return { handle: bursts.length, width: 1, height: 1 };
+  });
+  const drain = async () => {
+    while (!context.PMJS.tasks.idle()) context.PMJS.tasks.drain();
+    await settle();
+  };
+  for (let i = 0; i < 100; i++) new context.Image().src = 'img/seq/frame' + i + '.png';
+  await drain();
+  assert.deepEqual(bursts, Array(100).fill(true), 'SAO-like preload of 100 frames');
+  bursts.length = 0;
+  for (let i = 0; i < 3; i++) new context.Image().src = 'img/pictures/p' + i + '.png';
+  await drain();
+  assert.deepEqual(bursts, [false, false, false], 'a later scene decodes on load');
+});

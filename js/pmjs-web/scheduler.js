@@ -25,6 +25,7 @@
 
   PMJS.tasks = {
     enqueue: function(callback) { pendingTasks.push(callback); },
+    idle: function() { return pendingTaskHead >= pendingTasks.length; },
     drain: drainTasks
   };
 

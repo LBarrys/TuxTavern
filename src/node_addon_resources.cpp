@@ -287,7 +287,7 @@ napi_status queueImageWork(napi_env env, AsyncImageLoad& load) {
 }
 
 napi_value queueImageLoad(napi_env env, const std::filesystem::path& path,
-                          bool retainCpuPixels, const std::string& requestedTileSet = {}) {
+                          bool retainCpuPixels, const std::string& requestedTileSet = {}, bool burst = false) {
   auto source = pmjs::ImageStore::openFile(path);
   if (!source) throw std::runtime_error("cannot open image");
   const auto tileSet = state->images.effectiveTileSet(*source, requestedTileSet);
@@ -322,8 +322,9 @@ napi_value queueImageLoad(napi_env env, const std::filesystem::path& path,
   load->prepareCpuPixels = retainCpuPixels;
   load->prepared = state->images.capturePrepared(*load->source, tileSet);
   if (load->prepared) load->fallbackSource = pmjs::ImageStore::capturePreparedFallback(*load->prepared);
-  load->deferrable = tileSet.empty() && !retainCpuPixels &&
-    state->images.defersLoad(state->pendingImageLoads.size());
+  // The page knows a burst (it queues them all at once); natively it shows as many pending.
+  load->deferrable = tileSet.empty() && !retainCpuPixels && state->images.defersLoad(
+    burst || state->pendingImageLoads.size() >= pmjs::ImageStore::deferBurst);
   load->deferreds.push_back(deferred);
   state->pendingImageLoads.emplace(key, load.get());
   const auto queued = queueImageWork(env, *load);
@@ -337,12 +338,13 @@ napi_value queueImageLoad(napi_env env, const std::filesystem::path& path,
 }
 
 napi_value loadImageAsync(napi_env env, napi_callback_info info) try {
-  auto args = arguments(env, info, 3);
+  auto args = arguments(env, info, 4);
   State& value = host(env);
   auto path = value.vfs.resolve(asString(env, args.at(0)));
   if (!path) throw std::runtime_error("cannot resolve image");
   return queueImageLoad(env, *path,
-    args.size() > 1 && asBoolean(env, args.at(1)), args.size() > 2 ? asString(env, args[2]) : "");
+    args.size() > 1 && asBoolean(env, args.at(1)), args.size() > 2 ? asString(env, args[2]) : "",
+    args.size() > 3 && asBoolean(env, args[3]));
 } catch (const std::exception& error) {
   napi_throw_error(env, nullptr, error.what()); return nullptr;
 }

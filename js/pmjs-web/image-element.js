@@ -17,6 +17,10 @@ function NativeImage() {
 }
 
 var pendingNativeImageLoads = 0;
+// Images queued while earlier ones still wait: a game preloading many at once (SAO
+// reserves 1500 frames) defers their decoding to first draw; a scene's images do not.
+var imageBurst = null;
+var IMAGE_BURST = 64;
 
 NativeImage.prototype = Object.create(EventTarget.prototype);
 NativeImage.prototype.constructor = NativeImage;
@@ -51,6 +55,9 @@ Object.defineProperty(NativeImage.prototype, 'src', {
     image.complete = false;
     image._pmjsLoadFailed = false;
     image._pmjsLoadError = null;
+    if (!imageBurst || PMJS.tasks.idle()) imageBurst = { size: 0 };
+    var burst = imageBurst;
+    burst.size++;
     PMJS.tasks.enqueue(function() {
       if (objectUrl) {
         pendingNativeImageLoads++;
@@ -102,7 +109,7 @@ Object.defineProperty(NativeImage.prototype, 'src', {
       pendingNativeImageLoads++;
       new Promise(function(resolve) {
         resolve(typeof loadAsync === 'function'
-          ? loadAsync.call(loader, relativePath, retainCpuPixels, preparedTileSet)
+          ? loadAsync.call(loader, relativePath, retainCpuPixels, preparedTileSet, burst.size >= IMAGE_BURST)
           : load.call(loader, relativePath, retainCpuPixels, preparedTileSet));
       }).then(function(result) {
         var loaded = trackNativeResource(result, 'image');

@@ -188,8 +188,8 @@ class ImageStore {
   // The first deferredFileLimit keep their file open and so the version that was loaded;
   // later ones reopen it by path.
   static constexpr std::size_t deferBurst = 64;
-  bool defersLoad(std::size_t pendingLoads) const {
-    return deferMode_ == DeferMode::always || (deferMode_ == DeferMode::bursts && pendingLoads >= deferBurst);
+  bool defersLoad(bool burst) const {
+    return deferMode_ == DeferMode::always || (deferMode_ == DeferMode::bursts && burst);
   }
   std::optional<ImageInfo> installDeferred(std::shared_ptr<ImageFileSource> source, int width, int height);
   std::optional<ImageInfo> createRgba(int width, int height, const void* pixels, bool premultiplied = false);
