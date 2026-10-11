@@ -837,9 +837,62 @@ bool CanvasStore::drawImageNow(Content& destinationSurface, const DrawImageCmd& 
     }
   }
 
-  (void)smoothing;
   const auto coverage = static_cast<std::uint8_t>(std::clamp(
       static_cast<int>(alpha * 255.0F + 0.5F), 0, 255));
+  const bool aligned = sourceWidth == destinationWidth && sourceHeight == destinationHeight &&
+    std::all_of(geometry.begin(), geometry.end(), [](float value) { return value == std::floor(value); });
+  if (smoothing && !aligned) {
+    // A browser filters a scaled drawImage bilinearly, sampling inside the source
+    // rectangle only (MV stretches its window background this way).
+    const auto premultiplied = [&](int x, int y, int channel) {
+      std::uint8_t pixel[4];
+      convertPixel(sourcePixels.rgba + (static_cast<std::size_t>(y) * sourcePixels.width + x) * 4U,
+                   sourcePixels.encoding, pixel, PixelEncoding::PremultipliedBGRA8);
+      return static_cast<double>(pixel[channel]);
+    };
+    const double lowX = std::max(0.0, double(sourceX)), lowY = std::max(0.0, double(sourceY));
+    const double highX = std::min(double(sourcePixels.width), double(sourceX) + sourceWidth);
+    const double highY = std::min(double(sourcePixels.height), double(sourceY) + sourceHeight);
+    if (highX <= lowX || highY <= lowY) return true;
+    const int left = std::max(0, static_cast<int>(std::floor(destinationX)));
+    const int top = std::max(0, static_cast<int>(std::floor(destinationY)));
+    const int right = std::min(destinationSurface.width, static_cast<int>(std::ceil(destinationX + destinationWidth)));
+    const int bottom = std::min(destinationSurface.height, static_cast<int>(std::ceil(destinationY + destinationHeight)));
+    for (int targetY = top; targetY < bottom; ++targetY) {
+      const double centerY = targetY + 0.5;
+      if (centerY < destinationY || centerY >= destinationY + destinationHeight) continue;
+      const double v = std::clamp(sourceY + (centerY - destinationY) * sourceHeight / destinationHeight,
+                                  lowY + 0.5, std::max(lowY + 0.5, highY - 0.5)) - 0.5;
+      const int y0 = static_cast<int>(std::floor(v));
+      const int y1 = std::min(y0 + 1, static_cast<int>(std::ceil(highY)) - 1);
+      const double fy = v - y0;
+      for (int targetX = left; targetX < right; ++targetX) {
+        const double centerX = targetX + 0.5;
+        if (centerX < destinationX || centerX >= destinationX + destinationWidth) continue;
+        const double u = std::clamp(sourceX + (centerX - destinationX) * sourceWidth / destinationWidth,
+                                    lowX + 0.5, std::max(lowX + 0.5, highX - 0.5)) - 0.5;
+        const int x0 = static_cast<int>(std::floor(u));
+        const int x1 = std::min(x0 + 1, static_cast<int>(std::ceil(highX)) - 1);
+        const double fx = u - x0;
+        std::array<double, 4> sample{};
+        for (int channel = 0; channel < 4; ++channel) {
+          const double upper = premultiplied(x0, y0, channel) * (1 - fx) + premultiplied(x1, y0, channel) * fx;
+          const double lower = premultiplied(x0, y1, channel) * (1 - fx) + premultiplied(x1, y1, channel) * fx;
+          sample[channel] = std::round(upper * (1 - fy) + lower * fy);
+        }
+        if (!sample[3]) continue;
+        auto* target = destinationSurface.pixels.data() +
+          (static_cast<size_t>(targetY) * destinationSurface.width + targetX) * 4;
+        compositeCanvasPixel(target, {double(importCanvasChannel(unsigned(sample[2]), coverage)),
+          double(importCanvasChannel(unsigned(sample[1]), coverage)),
+          double(importCanvasChannel(unsigned(sample[0]), coverage)),
+          double(importCanvasChannel(unsigned(sample[3]), coverage))}, CanvasComposite::sourceOver, true);
+      }
+    }
+    destinationSurface.mayHaveOverAlpha |= sourcePixels.mayHaveOverAlpha;
+    markDirty(destinationSurface, left, top, right - left, bottom - top);
+    return true;
+  }
   for (int y = 0; y < destinationHeight; ++y) {
     const int targetY = destinationY + y;
     if (targetY < 0 || targetY >= destinationSurface.height) continue;
