@@ -1,5 +1,9 @@
 #include "media_decoder.hpp"
 
+extern "C" {
+#include <libavutil/log.h>
+}
+
 #include <filesystem>
 #include <cmath>
 #include <iostream>
@@ -18,6 +22,9 @@ int main(int argc, char** argv) {
     if (!error.empty()) { std::cerr << error << '\n'; return 1; }
     if (chunk.empty()) break;
     streamed.insert(streamed.end(), chunk.begin(), chunk.end());
+  }
+  if (av_log_get_level() != AV_LOG_ERROR) {
+    std::cerr << "FFmpeg warnings reach the terminal\n"; return 1;
   }
   if (!pcm || pcm->duration() < 0.09 || pcm->duration() > 0.15 ||
       pcm->samples.size() != streamed.size()) {

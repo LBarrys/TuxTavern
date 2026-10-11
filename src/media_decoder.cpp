@@ -7,6 +7,7 @@ extern "C" {
 #include <libavutil/channel_layout.h>
 #include <libavutil/error.h>
 #include <libavutil/imgutils.h>
+#include <libavutil/log.h>
 #include <libswresample/swresample.h>
 #include <libswscale/swscale.h>
 }
@@ -89,7 +90,11 @@ struct MemoryInput {
   AVIOContext* context = nullptr;
 };
 
+// FFmpeg warns on every play of many game Oggs (pre-skip timestamps, long tags); errors only.
+void quietLogs() { av_log_set_level(AV_LOG_ERROR); }
+
 Format open(const std::filesystem::path& path, std::string* error) {
+  quietLogs();
   AVFormatContext* raw = nullptr;
   const int result = avformat_open_input(&raw, path.c_str(), nullptr, nullptr);
   if (result < 0) {
@@ -106,6 +111,7 @@ Format open(const std::filesystem::path& path, std::string* error) {
 }
 
 Format open(MemoryInput& input, std::string* error) {
+  quietLogs();
   AVFormatContext* raw = avformat_alloc_context();
   if (!raw) { fail(error, "cannot allocate media context"); return nullptr; }
   raw->pb = input.context;

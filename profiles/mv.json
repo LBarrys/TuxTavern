@@ -29,6 +29,7 @@
     "js/pmjs-web/document.js",
     "js/pmjs-web/script-loader.js",
     "js/pmjs-web/requests.js",
+    "js/pmjs-pixi4/deprecations.js",
     "js/pmjs-pixi4/setup.js",
     "js/pmjs-mv/bitmap.js",
     "js/pmjs-mv/bitmap-mesh.js",
