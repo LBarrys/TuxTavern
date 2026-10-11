@@ -94,7 +94,7 @@ int main() {
     auto region=images.resolveSpriteRegion(image->handle,4,0,4,4,false);
     require(region&&region->source==std::array<float,4>{5,1,2,2}&&region->atlas==std::array<float,4>{5,1,2,2},"cell remapping failed");
     require(images.inspect(image->handle)->texture==0,"ordinary region forced full backing");
-    for(int tick=0;tick<61;++tick) images.update();
+    for(int tick=0;tick<=pmjs::ImageStore::cpuPixelLifetime;++tick) images.update();
     require(images.cpuBytes()==0,"on-demand compact CPU pages escaped expiry");
     require(images.resolveSpriteRegion(image->handle,4,0,4,4,false).has_value()&&images.cpuBytes()==0,
             "resident GPU page needlessly decoded CPU pixels after expiry");

@@ -33,7 +33,7 @@ int main() {
     if (!empty || !empty->knownAllZero || !emptyImages.readPixels(empty->handle)) {
       throw std::runtime_error("empty image upload or lazy readback failed");
     }
-    for (int frame = 0; frame < 65; ++frame) emptyImages.update();
+    for (int frame = 0; frame <= pmjs::ImageStore::cpuPixelLifetime; ++frame) emptyImages.update();
     if (emptyImages.cpuBytes() != 0 || !emptyImages.lookup(empty->handle)->knownAllZero) {
       throw std::runtime_error("CPU eviction invalidated live texture content proof");
     }
@@ -151,7 +151,7 @@ int main() {
   };
   checkView(*view, {255, 0, 0, 255, 0, 128, 0, 128,
                    0, 0, 64, 64, 0, 0, 0, 0});
-  for (int frame = 0; frame < 65; ++frame) images.update();
+  for (int frame = 0; frame <= pmjs::ImageStore::cpuPixelLifetime; ++frame) images.update();
   const auto straight = images.readPixels(image->handle);
   if (!straight || straight->rgba != std::vector<std::uint8_t>(rgba.begin(), rgba.end())) {
     throw std::runtime_error("rendering view damaged the lazy straight image snapshot");

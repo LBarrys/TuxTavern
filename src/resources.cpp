@@ -587,14 +587,14 @@ const ImagePixels* ImageStore::readPixels(ImageHandle handle) const {
   if (!info || encodedIndex == 0) return nullptr;
   const auto& slot = slots_[encodedIndex - 1U];
   if (slot.cachedPixels) {
-    if (!slot.retainCpuPixels && !slot.cacheKey.empty()) slot.cpuPixelFrames = 60;
+    if (!slot.retainCpuPixels && !slot.cacheKey.empty()) slot.cpuPixelFrames = cpuPixelLifetime;
     return &*slot.cachedPixels;
   }
   if (slot.cacheKey.empty() && !slot.tiles) return nullptr;
   if (!slot.deferred && !slot.prepared && !slot.tiles) ++textureReadbacks_;
   slot.cachedPixels = slot.deferred ? decodeDeferred(slot) : (slot.prepared || slot.tiles) ?
     readPixelsRegion(handle, 0, 0, info->width, info->height) : readTexturePixels(*info, slot.channels);
-  if (!slot.retainCpuPixels) slot.cpuPixelFrames = 60;
+  if (!slot.retainCpuPixels) slot.cpuPixelFrames = cpuPixelLifetime;
   return slot.cachedPixels ? &*slot.cachedPixels : nullptr;
 }
 
@@ -1373,7 +1373,7 @@ std::optional<ImagePixels> ImageStore::readPixelsRegion(ImageHandle handle,
       full = slot.cachedPixels ? &*slot.cachedPixels : nullptr;
     }
     if (!full) return std::nullopt;
-    if (!slot.retainCpuPixels) slot.cpuPixelFrames = 60;
+    if (!slot.retainCpuPixels) slot.cpuPixelFrames = cpuPixelLifetime;
     ImagePixels result{width, height, std::vector<std::uint8_t>(extent->rgbaBytes)};
     for (int row = 0; row < height; ++row)
       std::copy_n(full->rgba.data() + (static_cast<std::size_t>(y + row) * full->width + x) * 4,
@@ -1439,7 +1439,7 @@ ImagePixels* ImageStore::preparedPixels(PreparedBacking& backing, std::size_t in
         pixels->height != backing.descriptor.pages[index].height) return nullptr;
     page.pixels = std::move(pixels);
   }
-  page.cpuFrames = 60; page.lastCpuUse = ++backing.cpuClock;
+  page.cpuFrames = cpuPixelLifetime; page.lastCpuUse = ++backing.cpuClock;
   return &*page.pixels;
 }
 

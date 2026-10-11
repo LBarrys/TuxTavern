@@ -383,7 +383,7 @@ test('lazy image CPU pixels retain their upload after replacement, deletion and 
     assert.deepEqual(imagePixel(old), [255, 0, 0, 255]);
     assert.deepEqual(imagePixel(second, 1), [0, 0, 255, 255]);
     assert.deepEqual(imagePixel(current, 2), [0, 255, 0, 255]);
-    for (let frame = 0; frame < 62; frame++) { native.beginFrame(); native.renderScene(); }
+    for (let frame = 0; frame < 605; frame++) { native.beginFrame(); native.renderScene(); }
     assert.deepEqual(imagePixel(old), [255, 0, 0, 255], 'expiration of the CPU cache cannot reopen the replaced file');
   } finally { for (const image of [old, second, current]) native.images.release(image.handle); }
 });

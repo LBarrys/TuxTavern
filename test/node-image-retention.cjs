@@ -33,7 +33,7 @@ async function main() {
     throw new Error('expected retained CPU pixels after canvas draw');
   }
 
-  for (let i = 0; i < 65; i++) {
+  for (let i = 0; i < 605; i++) {
     native.beginFrame();
   }
 

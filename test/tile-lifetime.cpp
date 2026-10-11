@@ -108,7 +108,7 @@ int main() try {
     std::ofstream(root/"snapshot.png") << "invalid";
     for (int i = 0; i < 10; ++i) require(images.readPixelsRegion(image->handle, 5, 5, 1, 1).has_value(),
       "small fallback read decoded the full source again");
-    for (int i = 0; i < 62; ++i) images.update();
+    for (int i = 0; i <= pmjs::ImageStore::cpuPixelLifetime; ++i) images.update();
     require(!images.hasCpuPixels(image->handle), "temporary fallback snapshot failed to expire");
     images.release(image->handle); images.update();
     require(fileCount() == baseline, "catalog kept expired fallback file owners");

@@ -22,7 +22,7 @@ async function main() {
   const expected = native.images.load('fixture.png');
   native.canvas.drawImage(canvas.handle, expected.handle, 0, 0, 2, 2, 0, 0, 2, 2, 1);
   const expectedPixels = Array.from(native.canvas.readPixels(canvas.handle, 0, 0, 2, 2));
-  for (let frame = 0; frame < 65; frame++) native.beginFrame();
+  for (let frame = 0; frame < 605; frame++) native.beginFrame();
   for (const image of [sync, async]) {
     native.canvas.clear(canvas.handle);
     native.canvas.drawImage(canvas.handle, image.handle, 0, 0, 2, 2, 0, 0, 2, 2, 1);

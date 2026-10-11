@@ -316,7 +316,7 @@ std::optional<ImagePixels> ImageStore::readTileRegion(const Slot& slot, int x, i
       slot.cachedPixels = std::move(padded);
     } else slot.cachedPixels = std::move(ordinary);
   }
-  if (!slot.retainCpuPixels) slot.cpuPixelFrames = 60;
+  if (!slot.retainCpuPixels) slot.cpuPixelFrames = cpuPixelLifetime;
   const auto& ordinary = *slot.cachedPixels;
   ImagePixels result{width, height, std::vector<std::uint8_t>(static_cast<std::size_t>(width)*height*4)};
   // Fixed logical slots include transparent padding beyond the source image.

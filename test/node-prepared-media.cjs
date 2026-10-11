@@ -105,7 +105,7 @@ async function main() {
   assert.equal(native.assets.hasDecrypted('img/characters/!$actor.png'), true,
     'explicit plaintext replacements remain readable independently of encryption settings');
   fs.rmSync(options.cacheRoot, { recursive: true, force: true });
-  for (let frame = 0; frame < 61; ++frame) native.beginFrame();
+  for (let frame = 0; frame < 605; ++frame) native.beginFrame();
   native.canvas.clear(canvas.handle);
   native.canvas.drawImage(canvas.handle, prepared.handle, 0, 0, width, height, 0, 0, width, height, 1);
   assert.deepEqual(Buffer.from(native.canvas.readPixels(canvas.handle, 0, 0, width, height)), expected,

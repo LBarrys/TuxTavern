@@ -229,6 +229,9 @@ class ImageStore {
   std::size_t warmCount() const;
   std::size_t warmFileCount() const;
   static constexpr std::size_t deferredFileLimit = 256;
+  // Frames that decoded pixels kept for canvas drawing outlive their last use: about 10 s,
+  // so reopening a menu does not decode its IconSet or faces again.
+  static constexpr std::uint16_t cpuPixelLifetime = 600;
   std::size_t pinnedBytes() const;
   std::size_t pinnedCount() const;
   std::uint64_t cacheHits() const { return cacheHits_; }

@@ -109,7 +109,7 @@ int main() {
       std::filesystem::remove(path);
       const auto* read = images.readPixels(compact->handle);
       require(read && read->rgba == pixels.rgba, "grayscale GPU readback lost hidden RGB or alpha");
-      for (int frame = 0; frame < 65; ++frame) images.update();
+      for (int frame = 0; frame <= pmjs::ImageStore::cpuPixelLifetime; ++frame) images.update();
       require(!images.hasCpuPixels(compact->handle), "CPU snapshot failed to expire");
       require(images.readPixels(compact->handle)->rgba == pixels.rgba, "expired snapshot reconstructed incorrectly");
       const auto control = images.createRgba(256, 256, pixels.rgba.data());
@@ -144,7 +144,7 @@ int main() {
       require(images.lookup(cached->handle)->texture == images.lookup(compact->handle)->texture,
         "promotion detached shared owner");
       require(images.readPixels(cached->handle)->rgba == pixels.rgba, "promotion corrupted CPU RGBA contract");
-      for (int frame = 0; frame < 65; ++frame) images.update();
+      for (int frame = 0; frame <= pmjs::ImageStore::cpuPixelLifetime; ++frame) images.update();
       require(images.readPixels(compact->handle)->rgba == pixels.rgba, "promotion corrupted untouched GPU texels");
       require(images.updateRgba(control->handle, pixels.rgba.data()), "control update failed");
       require(images.lookup(compact->handle)->texture == textureBefore, "promotion changed retained texture name");

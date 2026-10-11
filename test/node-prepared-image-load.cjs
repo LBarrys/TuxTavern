@@ -144,7 +144,7 @@ async function main() {
     assert.equal(a.handle, b.handle);
     assert.equal(entry(a).cpuBytes, retained.pixels.length);
     assert.equal(entry(a).gpuBytes, 0);
-    for (let frame = 0; frame < 61; ++frame) native.beginFrame();
+    for (let frame = 0; frame < 605; ++frame) native.beginFrame();
     assert.equal(entry(a).cpuBytes, retained.pixels.length, 'explicit CPU retention expired');
     assertPixels(a, retained.pixels);
     native.images.release(a.handle); native.images.release(b.handle);
