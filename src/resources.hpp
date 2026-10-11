@@ -238,6 +238,7 @@ class ImageStore {
   std::uint64_t textureFullUpdates() const { return textureFullUpdates_; }
   std::uint64_t textureRegionUpdates() const { return textureRegionUpdates_; }
   std::uint64_t textureUploadBytes() const { return textureUploadBytes_; }
+  std::uint64_t textureReadbacks() const { return textureReadbacks_; }
   std::uint64_t preparedHits() const { return preparedHits_; }
   std::uint64_t preparedRegions() const { return preparedRegions_; }
   std::uint64_t preparedMaterializations() const { return preparedMaterializations_; }
@@ -311,7 +312,8 @@ class ImageStore {
   void clearPrepared(Slot& slot);
   bool materialize(Slot& slot, bool premultiplied);
   static std::optional<ImagePixels> decodeDeferred(const Slot& slot);
-  bool undefer(Slot& slot);
+  bool undefer(Slot& slot, bool premultiplied = false);
+  bool uploadPremultiplied(Slot& slot, ImagePixels pixels);
   enum class DeferMode { never, bursts, always };
   DeferMode deferMode_ = DeferMode::bursts;
   std::size_t deferredFiles_ = 0;
@@ -345,6 +347,7 @@ class ImageStore {
   std::uint64_t textureFullUpdates_ = 0;
   std::uint64_t textureRegionUpdates_ = 0;
   std::uint64_t textureUploadBytes_ = 0;
+  mutable std::uint64_t textureReadbacks_ = 0;
   std::uint64_t preparedHits_ = 0, preparedRegions_ = 0, preparedMaterializations_ = 0;
   mutable std::uint64_t preparedRegionReads_ = 0;
   std::unordered_map<std::string, std::uint64_t> preparedFallbacks_;

@@ -39,6 +39,17 @@ bool allZeroRgba(const void* pixels, int width, int height, int rowPixels) {
   return true;
 }
 
+// True when premultiplying changes no byte: the straight texture serves Pixi as well.
+bool premultipliedUnchanged(const std::uint8_t* rgba, std::size_t bytes) {
+  for (std::size_t i = 0; i < bytes; i += 4) {
+    const unsigned alpha = rgba[i + 3];
+    if (alpha == 255) continue;
+    for (std::size_t c = 0; c < 3; ++c)
+      if ((rgba[i + c] * alpha + 127) / 255 != rgba[i + c]) return false;
+  }
+  return true;
+}
+
 int grayscaleChannels(const ImagePixels& pixels) {
   // Keep the constant-pixel representation independent of channel compression.
   if (pixels.width == 1 && pixels.height == 1) return 4;
@@ -444,7 +455,7 @@ std::optional<ImagePixels> ImageStore::decodeDeferred(const Slot& slot) {
   return pixels;
 }
 
-bool ImageStore::undefer(Slot& slot) {
+bool ImageStore::undefer(Slot& slot, bool premultiplied) {
   if (!slot.deferred) return true;
   auto pixels = slot.cachedPixels ? slot.cachedPixels : decodeDeferred(slot);
   // A file that cannot be decoded stays without a texture rather than retrying every frame.
@@ -458,6 +469,8 @@ bool ImageStore::undefer(Slot& slot) {
   slot.texture = texture;
   slot.channels = channels;
   slot.knownAllZero = allZeroRgba(pixels->rgba.data(), slot.width, slot.height, slot.width);
+  if (premultipliedUnchanged(pixels->rgba.data(), pixels->rgba.size())) slot.premultipliedTexture = texture;
+  else if (premultiplied && !uploadPremultiplied(slot, *pixels)) return false;
   ++textureCreates_;
   ++textureEpoch_;
   const auto bytes = static_cast<std::size_t>(slot.width) * slot.height * channels;
@@ -534,6 +547,7 @@ bool ImageStore::retainCpuPixels(ImageHandle handle) {
     return true;
   }
   if (slot.cacheKey.empty() && !slot.tiles) return false;
+  if (!slot.deferred && !slot.prepared && !slot.tiles) ++textureReadbacks_;
   slot.cachedPixels = slot.deferred ? decodeDeferred(slot) : (slot.prepared || slot.tiles) ?
     readPixelsRegion(handle, 0, 0, info->width, info->height) : readTexturePixels(*info, slot.channels);
   if (!slot.cachedPixels) return false;
@@ -577,6 +591,7 @@ const ImagePixels* ImageStore::readPixels(ImageHandle handle) const {
     return &*slot.cachedPixels;
   }
   if (slot.cacheKey.empty() && !slot.tiles) return nullptr;
+  if (!slot.deferred && !slot.prepared && !slot.tiles) ++textureReadbacks_;
   slot.cachedPixels = slot.deferred ? decodeDeferred(slot) : (slot.prepared || slot.tiles) ?
     readPixelsRegion(handle, 0, 0, info->width, info->height) : readTexturePixels(*info, slot.channels);
   if (!slot.retainCpuPixels) slot.cpuPixelFrames = 60;
@@ -638,6 +653,10 @@ std::optional<ImageInfo> ImageStore::createImage(int width, int height,
   slot.renderTarget = false;
   slot.premultiplied = premultiplied;
   slot.knownAllZero = pixels && allZeroRgba(pixels, width, height, width);
+  if (pixels && !premultiplied &&
+      premultipliedUnchanged(static_cast<const std::uint8_t*>(pixels), extent->rgbaBytes)) {
+    slot.premultipliedTexture = texture;
+  }
   slot.live = true;
   ++liveCount_;
   if (!deferred) gpuBytes_ += static_cast<std::size_t>(width) * height * channels;
@@ -885,7 +904,7 @@ std::optional<ImageInfo> ImageStore::lookupPremultiplied(ImageHandle handle) {
   auto info = inspect(handle);
   if (!info) return info;
   if (slots_[(handle & indexMask) - 1U].deferred) {
-    if (!undefer(slots_[(handle & indexMask) - 1U])) return std::nullopt;
+    if (!undefer(slots_[(handle & indexMask) - 1U], true)) return std::nullopt;
     info = inspect(handle);
   }
   if (info->premultiplied) return info->texture ? info : lookup(handle);
@@ -898,35 +917,41 @@ std::optional<ImageInfo> ImageStore::lookupPremultiplied(ImageHandle handle) {
   // Render targets are already framebuffer pixels, not decoded straight images.
   if (slot.gpuOnly) return info;
   if (!slot.premultipliedTexture) {
-    auto pixels = readTexturePixels(*info, slot.channels);
-    if (!pixels) return std::nullopt;
-    bool changed = false;
-    for (std::size_t offset = 0; offset < pixels->rgba.size(); offset += 4) {
-      const unsigned alpha = pixels->rgba[offset + 3];
-      for (std::size_t channel = 0; channel < 3; ++channel) {
-        auto& value = pixels->rgba[offset + channel];
-        const auto converted = static_cast<std::uint8_t>((value * alpha + 127) / 255);
-        changed |= converted != value;
-        value = converted;
-      }
+    // Decoded pixels avoid a texture readback, which stalls the GPU.
+    auto pixels = slot.cachedPixels;
+    if (!pixels) {
+      ++textureReadbacks_;
+      pixels = readTexturePixels(*info, slot.channels);
     }
-    if (!changed) {
-      slot.premultipliedTexture = slot.texture;
-    } else {
-      const auto texture = uploadTexture(info->width, info->height, pixels->rgba.data(), slot.channels);
-      if (!texture) return std::nullopt;
-      const auto bytes = static_cast<std::size_t>(info->width) * info->height * slot.channels;
-      slot.premultipliedTexture = texture;
-      ++textureCreates_;
-      ++textureEpoch_;
-      textureUploadBytes_ += bytes;
-      gpuBytes_ += bytes;
-      peakGpuBytes_ = std::max(peakGpuBytes_, gpuBytes_);
-    }
+    if (!pixels || !uploadPremultiplied(slot, std::move(*pixels))) return std::nullopt;
   }
   info->texture = slot.premultipliedTexture;
   info->premultiplied = true;
   return info;
+}
+
+bool ImageStore::uploadPremultiplied(Slot& slot, ImagePixels pixels) {
+  if (premultipliedUnchanged(pixels.rgba.data(), pixels.rgba.size())) {
+    slot.premultipliedTexture = slot.texture;
+    return true;
+  }
+  for (std::size_t offset = 0; offset < pixels.rgba.size(); offset += 4) {
+    const unsigned alpha = pixels.rgba[offset + 3];
+    for (std::size_t channel = 0; channel < 3; ++channel) {
+      auto& value = pixels.rgba[offset + channel];
+      value = static_cast<std::uint8_t>((value * alpha + 127) / 255);
+    }
+  }
+  const auto texture = uploadTexture(slot.width, slot.height, pixels.rgba.data(), slot.channels);
+  if (!texture) return false;
+  const auto bytes = static_cast<std::size_t>(slot.width) * slot.height * slot.channels;
+  slot.premultipliedTexture = texture;
+  ++textureCreates_;
+  ++textureEpoch_;
+  textureUploadBytes_ += bytes;
+  gpuBytes_ += bytes;
+  peakGpuBytes_ = std::max(peakGpuBytes_, gpuBytes_);
+  return true;
 }
 
 bool ImageStore::ensureMipmaps(ImageHandle handle, bool premultiplied) {

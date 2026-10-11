@@ -464,6 +464,8 @@ napi_value imageMemory(napi_env env, napi_callback_info info) try {
     number(env, images.textureRegionUpdates())), "cannot set texture region updates");
   check(env, napi_set_named_property(env, result, "textureUploadBytes",
     number(env, images.textureUploadBytes())), "cannot set texture upload bytes");
+  check(env, napi_set_named_property(env, result, "textureReadbacks",
+    number(env, static_cast<double>(images.textureReadbacks()))), "cannot set texture readbacks");
   check(env, napi_set_named_property(env, result, "pendingDecodeJobs",
     number(env, value.pendingImageLoads.size())), "cannot set pending image jobs");
   check(env, napi_set_named_property(env, result, "decodeJobs",
