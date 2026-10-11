@@ -82,12 +82,19 @@ test('nested rendering restores transform preparation and root state', () => {
   following.x = 3;
   const nested = new sandbox.PIXI.Container();
   nested.addChild(sprite());
+  const bindings = [];
+  const outerRenderer = { bindTexture() { bindings.push('outer'); } };
+  const innerRenderer = { bindTexture() { bindings.push('inner'); } };
   const predecessor = sandbox.PIXI.Container.prototype.updateTransform;
   capturing.updateTransform = function() {
     predecessor.call(this);
-    sandbox.renderNativeStage(nested, { a: 1, b: 0, c: 0, d: 1, tx: 100, ty: 0 });
+    sandbox.renderNativeStage(nested, { a: 1, b: 0, c: 0, d: 1, tx: 100, ty: 0 },
+      1, false, false, null, { renderer: innerRenderer });
   };
-  sandbox.renderNativeStage(stage, { a: 1, b: 0, c: 0, d: 1, tx: 10, ty: 0 });
+  sandbox.renderNativeStage(stage, { a: 1, b: 0, c: 0, d: 1, tx: 10, ty: 0 },
+    1, false, false, null, { renderer: outerRenderer });
+  assert.deepEqual(bindings, ['inner', 'outer', 'outer']);
+  assert.equal(sandbox.nativeSceneRenderer, null);
   assert.equal(following.worldTransform.tx, 3);
   const packet = harness.submitted.at(-1);
   assert.equal(packet.values[2 * 41 + 4], 13, 'outer packet consumes the restored world state');

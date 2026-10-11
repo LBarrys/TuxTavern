@@ -530,8 +530,8 @@ test('MZ rejects later filter drawing overrides before submitting a scene', () =
 
 test('Pixi 5 refuses an older native packet contract', () => {
   const { context } = createContext();
-  context.NativeHost.scene.packetVersion = 27;
-  context.NativeHost.scene.schema.version = 27;
+  context.NativeHost.scene.packetVersion = 29;
+  context.NativeHost.scene.schema.version = 29;
   assert.throws(() => runModule(context, 'js/pmjs-pixi5/scene.js'), /scene schema/);
 });
 
