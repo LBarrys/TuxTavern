@@ -1,5 +1,6 @@
 #include "vfs.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -195,6 +196,31 @@ int main() try {
     rejectedCollision = true;
   }
   require(rejectedCollision, "ambiguous case collision was accepted");
+
+  // Indexing a large game costs little more than walking it (SAO ships 53,000 files).
+  TemporaryDirectory large("large");
+  const auto deep = large.path() / "img" / "pictures" / "a" / "b" / "c";
+  for (int folder = 0; folder < 20; ++folder) {
+    std::filesystem::create_directories(deep / std::to_string(folder));
+    for (int file = 0; file < 1000; ++file)
+      std::ofstream(deep / std::to_string(folder) / ("frame " + std::to_string(file) + ".png"));
+  }
+  const auto timed = [](auto&& work) {
+    const auto started = std::chrono::steady_clock::now();
+    work();
+    return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
+  };
+  std::size_t walked = 0;
+  double walk = 1e9;
+  for (int run = 0; run < 3; ++run) walk = std::min(walk, timed([&] {
+    walked = 0;
+    for (const auto& entry : std::filesystem::recursive_directory_iterator(large.path()))
+      walked += std::filesystem::is_regular_file(entry.symlink_status());
+  }));
+  const double index = timed([&] { pmjs::Vfs indexed(large.path()); });
+  require(walked == 20000, "large fixture was not written");
+  require(index < walk * 4.5, "indexing took " + std::to_string(index) + " ms against a " +
+          std::to_string(walk) + " ms walk");
   return 0;
 } catch (const std::exception& error) {
   std::cerr << error.what() << '\n';

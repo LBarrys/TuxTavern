@@ -78,10 +78,16 @@ void Vfs::indexPath(const std::filesystem::path& path) {
   if (!key) return;
 
   std::error_code error;
-  const auto target = std::filesystem::canonical(path, error);
-  if (error || !isContainedBy(root_, target)) return;
-  const auto status = std::filesystem::status(path, error);
+  // The walk does not follow directory links, so only a link itself can lead outside;
+  // resolving every path took over a second on a game with 53,000 files.
+  auto status = std::filesystem::symlink_status(path, error);
   if (error) return;
+  if (std::filesystem::is_symlink(status)) {
+    const auto target = std::filesystem::canonical(path, error);
+    if (error || !isContainedBy(root_, target)) return;
+    status = std::filesystem::status(path, error);
+    if (error) return;
+  }
 
   auto insert = [&](auto& entries) {
     const auto logicalPath = path.lexically_normal();
