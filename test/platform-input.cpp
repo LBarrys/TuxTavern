@@ -24,6 +24,12 @@ int main() {
     }
   }
   pmjs::Platform platform(64, 64, "pmjs input test");
+  // As an NW.js window: the user can resize it, and a scaled display gets full-resolution pixels.
+  const auto flags = SDL_GetWindowFlags(SDL_GetWindowFromID(platform.windowId()));
+  if (!(flags & SDL_WINDOW_RESIZABLE) || !(flags & SDL_WINDOW_ALLOW_HIGHDPI)) {
+    std::cerr << "window is not resizable and high-DPI aware\n";
+    return 1;
+  }
   if (platform.fullscreen()) return 1;
   platform.setFullscreen(true);
   if (!platform.fullscreen()) return 1;

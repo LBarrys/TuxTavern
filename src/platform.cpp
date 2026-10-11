@@ -380,6 +380,7 @@ Platform::Platform(int width, int height, std::string title) {
   SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 0);
 
   std::string creationErrors;
+  // Resizable as in NW.js; high-DPI aware so a scaled Wayland output is not blurred by the compositor.
   // Some native-window providers expose only RGB565. Offscreen targets retain RGBA8.
   constexpr int windowConfigs[][3] = {{8, 8, 8}, {5, 6, 5}};
   for (const auto& rgb : windowConfigs) {
@@ -389,7 +390,8 @@ Platform::Platform(int width, int height, std::string title) {
     SDL_ClearError();
     window_ = SDL_CreateWindow(title.c_str(), SDL_WINDOWPOS_CENTERED,
                                SDL_WINDOWPOS_CENTERED, windowWidth_, windowHeight_,
-                               SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN);
+                               SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN |
+                               SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
     if (window_) context_ = SDL_GL_CreateContext(window_);
     if (context_) break;
     const std::string error = std::string(window_ ? "SDL_GL_CreateContext" : "SDL_CreateWindow") +
