@@ -26,6 +26,8 @@ enum class NodeKind : std::uint32_t {
   mesh = 8,
   // Effect: viewport 0..3; projection 7..22; camera 23..38; reset size 39..40.
   effect = 9,
+  // A transparent rectangle cleared in the enclosing filter target (MV WindowLayer).
+  clearRect = 10,
 };
 
 enum class FilterKind : std::uint32_t {

@@ -1985,3 +1985,67 @@ test('root resolution invalidates cached Pixi world transforms and restores full
   render(1); assert.equal(resolvedX,100);
   assert.equal(root.parent,null);
 });
+
+test('an empty WindowLayer preserves non-window drawing without mask callbacks', () => {
+  const harness = makeHarness(), { sandbox, sprite } = harness;
+  const layer = new sandbox.WindowLayer();
+  layer._maskWindow = () => { throw new Error('empty window mask was called'); };
+  layer.filterArea = { x: 4, y: 6, width: 26, height: 26 };
+  layer.addChild(sprite());
+  const packet = submitOnly(harness, layer);
+  assert.deepEqual(packet.metadata.filter((_, index) => index % 7 === 0), [0, 1]);
+});
+
+test('WindowLayer invokes effective masks and composites before non-window children', () => {
+  const harness = makeHarness(), { sandbox, sprite } = harness;
+  sandbox.NativeHost.scene.schema.isolatedClearRect = true;
+  const layer = new sandbox.WindowLayer();
+  layer.filterArea = { x: 12, y: 8, width: 100, height: 100 };
+  layer._windowRect = {};
+  const calls = [];
+  layer._maskWindow = function(child, shift) {
+    calls.push([child.x, shift.x, shift.y]);
+    Object.assign(this._windowRect, { x: 12 + shift.x + child.x, y: 8 + shift.y,
+      width: child.width, height: child.height * child._openness / 255 });
+  };
+  for (const x of [0, 20]) {
+    const window = new sandbox.Window();
+    Object.assign(window, { _isWindow: true, _openness: 128, x, width: 40, height: 20 });
+    window.addChild(sprite()); layer.addChild(window);
+  }
+  layer.addChild(sprite());
+  const packet = submitOnly(harness, layer);
+  assert.deepEqual(calls, [[0, -12, -8], [20, -12, -8]]);
+  const kinds = packet.metadata.filter((_, index) => index % 7 === 0);
+  assert.deepEqual(kinds, [6, 0, 10, 0, 1, 10, 0, 1, 7, 1]);
+  assert.equal(packet.values[2 * 41 + 7], 12);
+  assert.equal(packet.values[5 * 41 + 7], 32);
+});
+
+for (const unavailable of ['clear capability', 'target depth']) {
+  test('WindowLayer retains drawing when isolated clears lack ' + unavailable, () => {
+    const harness = makeHarness(), { sandbox, sprite } = harness;
+    sandbox.NativeHost.scene.schema.isolatedClearRect = unavailable !== 'clear capability';
+    const layer = new sandbox.WindowLayer();
+    layer.filterArea = { x: 0, y: 0, width: 80, height: 80 };
+    layer._maskWindow = () => { throw new Error('a clear cannot target an enclosing buffer'); };
+    const window = new sandbox.Window();
+    Object.assign(window, { _isWindow: true, _openness: 255, width: 40, height: 40 });
+    window.addChild(sprite()); layer.addChild(window); layer.addChild(sprite());
+    let root = layer;
+    if (unavailable === 'target depth') {
+      sandbox.nativeSceneFilter = () => ({ groups: [{ kind: 20 }], blur: null });
+      for (let depth = 0; depth < 4; ++depth) {
+        const parent = new sandbox.PIXI.Container();
+        parent._filters = [{}]; parent.addChild(root); root = parent;
+      }
+    }
+    assert.equal(sandbox.submitNativeScene(root), true);
+    const packet = harness.submitted.at(-1);
+    const kinds = packet.metadata.filter((_, index) => index % 7 === 0);
+    assert.equal(kinds.filter(kind => kind === 1).length, 2, 'window and non-window pixels remain encoded');
+    assert.equal(kinds.includes(10), false, 'fallback emits no destructive clear');
+    assert.ok(harness.compatHits.some(hit => hit[0] === 'render.window-layer'));
+    if (unavailable === 'target depth') assert.equal(kinds.filter(kind => kind === 6).length, 4);
+  });
+}

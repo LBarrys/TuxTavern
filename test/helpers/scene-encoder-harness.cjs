@@ -122,7 +122,9 @@ function makeHarness() {
   }
 
   class Tilemap extends Container {}
-  class Window extends Container {}
+  class Window extends Container {
+    get openness() { return this._openness; }
+  }
   class WindowLayer extends Container {}
   class BlurFilter {
     constructor(blur, quality) {

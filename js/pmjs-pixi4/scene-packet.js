@@ -441,6 +441,15 @@ function writeNativeSceneNode(node, parentIndex, forcedClip, forcedMask,
       Math.round(node.alpha * 255)]);
   }
   var filterGroups = filterPlan.groups || [];
+  // MV's WindowLayer draws its windows into their own target, each clearing what the
+  // windows behind cover, so overlapping translucent windows do not show through.
+  var windowLayer = typeof WindowLayer === 'function' && node instanceof WindowLayer &&
+    typeof node._maskWindow === 'function';
+  if (windowLayer && !filterGroups.length && nativeWindowLayerHasContent(node)) {
+    filterGroups = [{ kind: 20, resource: 0, parameters: [1] }];
+  }
+  var windowTargetFrame = windowLayer && filterGroups.length && filterGroups[0].frame ||
+    windowLayer && node.filterArea || null;
   if (nativeSceneFilterDepth + filterGroups.length > 4) {
     var appliedGroups = Math.max(0, 4 - nativeSceneFilterDepth);
     PMJS.compat.hit('render.filter-depth',
@@ -638,18 +647,39 @@ function writeNativeSceneNode(node, parentIndex, forcedClip, forcedMask,
     for (var windowIndex = 0; windowIndex < node.children.length; windowIndex++) {
       var windowChild = node.children[windowIndex];
       if (windowChild && windowChild._isWindow && windowChild.visible &&
-          windowChild._openness > 0) {
-
+          windowChild.openness > 0) {
+        if (windowLayer) {
+          if (!NativeHost.scene.schema.isolatedClearRect || !filterGroups.length) {
+            PMJS.compat.hit('render.window-layer', 'isolated rectangle clear is unavailable');
+          } else {
+            node._maskWindow(windowChild, {
+              x: Math.round(-windowTargetFrame.x), y: Math.round(-windowTargetFrame.y) });
+            var rectangle = node._windowRect;
+            if (!rectangle) throw new Error('WindowLayer mask did not provide a rectangle');
+            var clearIndex = nativeSceneRecord(0xffffffff, 10, 0, 0, 0,
+              nativeIdentityTransform, 1, nativeClip, 0, null);
+            var clearOffset = clearIndex * nativeSceneValueStride;
+            var clearProjection = nativeSceneRootTransform;
+            var clearScale = clearProjection.b === 0 && clearProjection.c === 0 &&
+              clearProjection.a > 0 && clearProjection.a === clearProjection.d ? clearProjection.a : 1;
+            nativeSceneValues[clearOffset + 7] = (rectangle.x + windowTargetFrame.x) * clearScale + clearProjection.tx;
+            nativeSceneValues[clearOffset + 8] = (rectangle.y + windowTargetFrame.y) * clearScale + clearProjection.ty;
+            nativeSceneValues[clearOffset + 13] = rectangle.width * clearScale;
+            nativeSceneValues[clearOffset + 14] = rectangle.height * clearScale;
+            var clearRenderer = globalThis.Graphics && Graphics._renderer;
+            nativeSceneValues[clearOffset + 33] = (clearRenderer && clearRenderer.resolution || 1) / clearScale;
+          }
+        }
         writeNativeSceneNode(windowChild, nodeIndex);
       }
     }
+    closeNativeSceneFilters(filterGroups.length, parentIndex, nativeClip);
     for (var otherIndex = 0; otherIndex < node.children.length; otherIndex++) {
       var otherChild = node.children[otherIndex];
       if (otherChild && !otherChild._isWindow) {
         writeNativeSceneNode(otherChild, nodeIndex);
       }
     }
-    closeNativeSceneFilters(filterGroups.length, parentIndex, nativeClip);
     return;
   }
   var particleContainer = PIXI.particles && PIXI.particles.ParticleContainer &&
