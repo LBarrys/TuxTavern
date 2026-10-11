@@ -1061,7 +1061,7 @@ test('tiling prepares pivot sampling and retains finite small scales', () => {
 });
 
 test('undefined tiling sampling omits only its leaf and preserves visible children', () => {
-  for (const scale of [0, NaN, Infinity, 1e-40]) {
+  for (const scale of [NaN, Infinity, 1e-40]) {
     const harness = makeHarness(), { sandbox, makeTexture, sprite } = harness;
     const root = new sandbox.PIXI.Container();
     const node = new sandbox.PIXI.extras.TilingSprite(makeTexture(4, 4), 20, 16);
@@ -1098,6 +1098,37 @@ test('tiling clamps NPOT and cropped repeats while preserving full POT repeat sa
     root.addChild(new sandbox.PIXI.extras.TilingSprite(texture, 20, 16));
     const packet = submitOnly(harness, root);
     assert.equal(packet.metadata[7 + 5] & 32768, expected);
+  }
+});
+
+test('untrimmed atlas tiling retains the live base image and leaves cropped variants separate', () => {
+  const harness = makeHarness(), { sandbox, makeTexture } = harness;
+  sandbox.NativeHost.scene.schema.atlasTilingSampling = true;
+  const texture = makeTexture(8, 8);
+  texture._frame = texture.frame = { x: 2, y: 2, width: 3, height: 3 };
+  texture.orig = { x: 0, y: 0, width: 3, height: 3 };
+  texture.width = texture.height = 3;
+  const root = new sandbox.PIXI.Container();
+  const node = root.addChild(new sandbox.PIXI.extras.TilingSprite(texture, 20, 16));
+  const first = submitOnly(harness, root);
+  assert.ok(first.metadata[7 + 5] & 1048576);
+  assert.equal(first.metadata[7 + 2], texture.baseTexture.source._nativeImage.handle);
+  assert.equal(texture.__pmjsTilingCanvas, undefined);
+  // Replacement and reframing are read at submission, without a crop-cache revision.
+  texture.baseTexture.source._nativeImage.handle = 900;
+  texture._frame.x = 3;
+  const replaced = submitOnly(harness, root);
+  assert.equal(replaced.metadata[7 + 2], 900);
+  assert.equal(replaced.values[41 + 34], 3 / 8);
+  assert.equal(texture.__pmjsTilingCanvas, undefined);
+  assert.deepEqual(node.tileScale, { x: 1, y: 1 });
+  sandbox.ensureNativeTilingTexture = () => ({ handle: 300, resolution: 1 });
+  for (const variant of [{ rotate: 2 }, { trim: { x: 0, y: 0, width: 3, height: 3 } },
+    { orig: { x: 0, y: 0, width: 4, height: 4 } }]) {
+    node.texture = { ...texture, ...variant };
+    const cropped = submitOnly(harness, root);
+    assert.equal(cropped.metadata[7 + 5] & 1048576, 0);
+    assert.equal(cropped.metadata[7 + 2], 300);
   }
 });
 

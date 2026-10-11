@@ -74,6 +74,7 @@ test('Pixi capture renders current authored state before readback and preserves 
   const calls = [];
   const stage = { color: 'old' };
   const identity = {};
+  const renderer = { roundPixels: true };
   const canvas = { width: 128, height: 96, _ensureNativeCanvas() {
     calls.push('canvas');
     return { handle: 77 };
@@ -87,15 +88,16 @@ test('Pixi capture renders current authored state before readback and preserves 
       setRenderTargetSize(width, height) { calls.push(['size', width, height]); },
       renderToCanvas(handle) { calls.push(['readback', handle]); },
     } },
-    renderNativeStage(received, transform, alpha, roundPixels) {
+    renderNativeStage(received, transform, alpha, roundPixels, _skip, _background, options) {
       assert.equal(received, stage);
       assert.equal(transform, identity);
+      assert.equal(options.renderer, renderer);
       calls.push(['render', received.color, alpha, roundPixels]);
     },
   };
   vm.runInNewContext(rendererSource, context);
   stage.color = 'updated-before-presentation';
-  context.PMJS.pixi4.renderStageToCanvas(stage, canvas, true);
+  context.PMJS.pixi4.renderStageToCanvas(stage, canvas, true, renderer);
   assert.equal(context.PMJS.pixi4, pixi4);
   assert.deepEqual(calls, [
     ['size', 128, 96], ['render', 'updated-before-presentation', 1, true],
@@ -120,11 +122,12 @@ test('Bitmap snap delegates capture while preserving MV transform, blur, and dir
       assert.equal(canvas._ensureNativeCanvas().handle, 88);
       calls.push('blur');
       canvas._pmjsContentChanged();
-    } } }, pixi4: { renderStageToCanvas(received, canvas, roundPixels) {
+    } } }, pixi4: { renderStageToCanvas(received, canvas, roundPixels, renderer) {
       assert.equal(received, stage);
       assert.equal(canvas.width, 64);
       assert.equal(canvas.height, 48);
       assert.equal(roundPixels, true);
+      assert.equal(renderer, context.Graphics._renderer);
       calls.push('capture');
     } } },
   });
