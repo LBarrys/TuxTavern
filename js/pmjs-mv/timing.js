@@ -14,6 +14,9 @@
   var MAX_DEBT_MS = 250;
   // Baseline catch-up bound per frame for uncapped execution and nominal ratio floors.
   var BASE_MAX_STEPS_PER_FRAME = 2;
+  // At 60 Hz a frame within this of one step counts as exactly one, as under a browser's
+  // vsync; timer jitter near a step boundary otherwise gave 0, then 2 steps (judder).
+  var SNAP_MS = 2;
 
   function pmjsMvCreateStepGate(options) {
     var globalOpts = globalThis.__pmjsTimingConfig || {};
@@ -58,6 +61,7 @@
       return { steps: 0, feedMs: 0, overload: false, droppedMs: 0 };
     }
     var elapsed = nowMs - state.clockMs;
+    if (state.renderHz === PMJS_MV_LOGIC_HZ && Math.abs(elapsed - STEP_MS) <= SNAP_MS) elapsed = STEP_MS;
 
     var total = state.accMs + elapsed;
     var slotMs = state.slotMs || 0;

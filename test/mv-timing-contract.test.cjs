@@ -180,6 +180,22 @@ test('jittered arrivals preserve elapsed simulation time', () => {
   assert.equal(ctx.__pmjsOverloadDiscontinuities, undefined);
 });
 
+test('60 Hz arrivals jittering near a step boundary advance exactly one step each', () => {
+  const { ctx, step } = startTiming({ renderHz: 60, catchupMode: 'burst' });
+  step(0);
+  for (let frame = 1; frame <= 60; frame++) {
+    assert.equal(step(frame * 1000 / 60 + (frame % 2 ? -1.5 : 1.5)), 1, 'frame ' + frame);
+  }
+  assert.equal(ctx.SceneManager.logicSteps, 60);
+});
+
+test('uncapped presentation keeps exact elapsed time', () => {
+  const { step } = startTiming({ renderHz: 0 });
+  step(0);
+  assert.equal(step(15.5), 0);
+  assert.equal(step(33.5), 2);
+});
+
 test('sustained 30 Hz arrivals preserve fixed-60 simulation without discarding ordinary debt', () => {
   const { ctx, step } = startTiming({ renderHz: 60, catchupMode: 'smooth' });
   step(0);
