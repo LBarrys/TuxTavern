@@ -7,6 +7,140 @@ const test = require('node:test');
 const vm = require('node:vm');
 
 const { makeHarness } = require('./helpers/scene-encoder-harness.cjs');
+
+function preparedHarness() {
+  const harness = makeHarness({ beforeWriter(sandbox) {
+    const prototype = sandbox.PIXI.Container.prototype;
+    Object.defineProperty(prototype, 'worldTransform', {
+      get() { return this.transform.worldTransform; }
+    });
+    prototype.updateTransform = function() {
+      this._boundsID++;
+      this.transform.updateTransform(this.parent.transform);
+      this.worldAlpha = this.alpha * this.parent.worldAlpha;
+      for (const child of this.children) if (child.visible) child.updateTransform();
+    };
+    const sample = new sandbox.PIXI.Container();
+    Object.getPrototypeOf(sample.transform).updateTransform = function(parent) {
+      this.updateLocalTransform();
+      const local = this.localTransform, world = this.worldTransform, outer = parent.worldTransform;
+      world.a = outer.a; world.b = outer.b; world.c = outer.c; world.d = outer.d;
+      world.tx = outer.a * local.tx + outer.c * local.ty + outer.tx;
+      world.ty = outer.b * local.tx + outer.d * local.ty + outer.ty;
+      this._worldID = (this._worldID || 0) + 1;
+    };
+    sandbox.NativeHost.scene.schema.preparedWorldState = true;
+  } });
+  harness.sandbox.pmjsPixiRenderPreflight.registerTransformPreparation(
+    harness.sandbox.PIXI.Container.prototype.updateTransform, () => {}, () => true);
+  return harness;
+}
+
+test('reviewed transform preparation matches guest state and post-child rounding order', () => {
+  function fixture(harness) {
+    const { sandbox, sprite } = harness;
+    const root = new sandbox.PIXI.Container(); root.x = -4.25; root.alpha = 0.5; root._boundsID = 0;
+    const outer = sprite(); outer.x = 2.75; outer.alpha = 0.8; outer._boundsID = 0;
+    const inner = sprite(); inner.x = 0.5; inner.alpha = 0.6; inner._boundsID = 0;
+    root.addChild(outer); outer.addChild(inner);
+    const predecessor = sandbox.PIXI.Container.prototype.updateTransform;
+    const method = function() { predecessor.call(this); this.worldTransform.tx = Math.floor(this.worldTransform.tx); };
+    outer.updateTransform = method;
+    sandbox.pmjsPixiRenderPreflight.registerTransformEquivalent(method, predecessor,
+      node => { node.worldTransform.tx = Math.floor(node.worldTransform.tx); }, () => true);
+    return root;
+  }
+  const fast = preparedHarness(), guest = preparedHarness();
+  const accelerated = fixture(fast), reference = fixture(guest);
+  fast.sandbox.renderNativeStage(accelerated);
+  guest.sandbox.renderNativeStage(reference, undefined, 1, false, false, null, { worldState: 'pixi' });
+  function state(root) {
+    return [root, root.children[0], root.children[0].children[0]].map(node =>
+      [node.worldTransform.tx, node.worldTransform.ty, node.worldAlpha, node._boundsID, node.transform._worldID]);
+  }
+  assert.deepEqual(state(accelerated), state(reference));
+  assert.deepEqual(state(accelerated).map(entry => entry[0]), [-4.25, -2, -1]);
+  assert.deepEqual(fast.submitted.at(-1), guest.submitted.at(-1));
+  const before = state(accelerated);
+  fast.sandbox.renderNativeStage(accelerated, undefined, 1, false, true);
+  assert.deepEqual(state(accelerated), before, 'skipping transforms invokes no preparation hooks');
+  let calls = 0;
+  const child = accelerated.children[0];
+  const prior = child.updateTransform;
+  child.updateTransform = function() { calls++; prior.call(this); this.worldTransform.tx += 10; };
+  assert.equal(fast.sandbox.pmjsPixiRenderPreflight.transformPlan(accelerated), null);
+  fast.sandbox.renderNativeStage(accelerated);
+  assert.equal(calls, 1);
+  assert.equal(fast.submitted.at(-1).values[41 + 4], 8, 'encoding consumes the final effective hook result');
+});
+
+test('nested rendering restores transform preparation and root state', () => {
+  const harness = preparedHarness(), { sandbox, sprite } = harness;
+  const stage = new sandbox.PIXI.Container();
+  const capturing = sprite(), following = sprite();
+  stage.addChild(capturing); stage.addChild(following);
+  following.x = 3;
+  const nested = new sandbox.PIXI.Container();
+  nested.addChild(sprite());
+  const predecessor = sandbox.PIXI.Container.prototype.updateTransform;
+  capturing.updateTransform = function() {
+    predecessor.call(this);
+    sandbox.renderNativeStage(nested, { a: 1, b: 0, c: 0, d: 1, tx: 100, ty: 0 });
+  };
+  sandbox.renderNativeStage(stage, { a: 1, b: 0, c: 0, d: 1, tx: 10, ty: 0 });
+  assert.equal(following.worldTransform.tx, 3);
+  const packet = harness.submitted.at(-1);
+  assert.equal(packet.values[2 * 41 + 4], 13, 'outer packet consumes the restored world state');
+  assert.ok(packet.metadata[2 * 7 + 5] & 524288);
+  assert.equal(stage.parent, null);
+  assert.equal(nested.parent, null);
+});
+
+test('temporary preparation parents are restored before encoding and absent on skipped renders', () => {
+  const harness = preparedHarness(), { sandbox } = harness;
+  const stage = new sandbox.PIXI.Container(), parent = new sandbox.PIXI.Container();
+  parent.addChild(stage);
+  let updates = 0;
+  const original = stage.updateTransform;
+  stage.updateTransform = function() {
+    updates++; assert.equal(this.parent, sandbox.nativeTransformParent); original.call(this);
+  };
+  const encode = sandbox.submitNativeScene;
+  sandbox.submitNativeScene = function(root, background) {
+    assert.equal(root.parent, parent);
+    return encode(root, background);
+  };
+  sandbox.renderNativeStage(stage);
+  sandbox.renderNativeStage(stage, undefined, 1, false, true);
+  assert.equal(updates, 1);
+  assert.equal(stage.parent, parent);
+});
+
+test('prepared masks consume effective world state without repeating transform hooks', () => {
+  const harness = preparedHarness(), { sandbox, sprite } = harness;
+  const stage = new sandbox.PIXI.Container(), mask = sprite();
+  stage.x = -2.25; stage.addChild(mask); mask.x = 0.6;
+  const predecessor = sandbox.PIXI.Container.prototype.updateTransform;
+  let calls = 0, observed;
+  mask.updateTransform = function() {
+    calls++; predecessor.call(this);
+    this.worldTransform.tx = 7.25; this.worldAlpha = 0.375;
+  };
+  const encode = sandbox.submitNativeScene;
+  sandbox.submitNativeScene = function(root, background) {
+    observed = [sandbox.nativeMaskWorldTransform(mask), sandbox.nativeMaskWorldAlpha(mask)];
+    return encode(root, background);
+  };
+  sandbox.renderNativeStage(stage, {a:2,b:0,c:0,d:2,tx:3,ty:5});
+  assert.equal(calls,1);
+  assert.equal(observed[0].tx,17.5);
+  assert.equal(observed[1],0.375);
+  sandbox.renderNativeStage(stage, {a:1,b:0,c:0,d:1,tx:0,ty:0},1,false,true);
+  assert.equal(calls,1);
+  assert.equal(observed[0].tx,7.25);
+  assert.equal(observed[1],0.375);
+});
+
 function setTriangleBitmap(sandbox, mesh, values, options = {}) {
   sandbox.PMJS.plugins.mpp.setTriangleBitmap(mesh, {
     points: [values.slice(0,2), values.slice(2,4), values.slice(4,6)], sourceBounds: values.slice(6,10),
@@ -352,7 +486,7 @@ test('structural tile layers cannot bypass render-method reporting', () => {
 });
 
 test('skipUpdateTransform uses the rendered root world transform', () => {
-  const harness = makeHarness();
+  const harness = preparedHarness();
   const { sandbox } = harness;
   const root = new sandbox.PIXI.Container();
   root.x = 12;
@@ -1927,13 +2061,13 @@ test('nonfinite leaf quads retain enclosing masks, filters and sibling traversal
 });
 
 
-test('stock transform scenes retain the native transform path', () => {
+test('an unknown stage transform executes once before encoding', () => {
   const harness = makeHarness(), { sandbox, sprite } = harness;
   const root = new sandbox.PIXI.Container(); root.addChild(sprite());
   let transforms = 0;
   root.updateTransform = () => { transforms++; };
   sandbox.renderNativeStage(root, undefined, undefined, undefined, false, null, sandbox.PMJS.pixi4.getStageRenderOptions(root));
-  assert.equal(transforms, 0);
+  assert.equal(transforms, 1);
   assert.equal(harness.submitted.at(-1).metadata[12] & 4096, 0);
 });
 
@@ -1968,7 +2102,7 @@ test('skipped Sprite world vertices receive the explicit render root transform o
 });
 
 
-test('a global guest Sprite transform hook does not force unrelated scenes onto Pixi traversal', () => {
+test('unknown stage hooks run in default and explicitly requested guest preparation', () => {
   const harness = makeHarness(), { sandbox, sprite } = harness;
   sandbox.Sprite = function() {};
   sandbox.Sprite.prototype.updateTransform = function() {};
@@ -1976,10 +2110,10 @@ test('a global guest Sprite transform hook does not force unrelated scenes onto 
   const scene = new sandbox.PIXI.Container(); scene.addChild(sprite());
   let calls=0; scene.updateTransform=()=>{calls++;};
   sandbox.renderNativeStage(scene, undefined, undefined, undefined, false, null, sandbox.PMJS.pixi4.getStageRenderOptions(scene));
-  assert.equal(calls,0);
+  assert.equal(calls,1);
   sandbox.PMJS.pixi4.setStageRenderOptions(scene, {worldState:'pixi'});
   sandbox.renderNativeStage(scene, undefined, undefined, undefined, false, null, sandbox.PMJS.pixi4.getStageRenderOptions(scene));
-  assert.equal(calls,1);
+  assert.equal(calls,2);
 });
 
 test('real compatibility observations preserve exact frames while unsupported hits degrade them', () => {
@@ -2008,7 +2142,7 @@ test('real compatibility observations preserve exact frames while unsupported hi
   }
 });
 
-test('root resolution invalidates cached Pixi world transforms and restores full coordinates', () => {
+test('target resolution preserves guest transform generations and logical coordinates', () => {
   const { sandbox } = makeHarness();
   sandbox.nativeTransformParent.transform._worldID = 0;
   const root = new sandbox.PIXI.Container();
@@ -2022,9 +2156,10 @@ test('root resolution invalidates cached Pixi world transforms and restores full
   };
   const render = scale => sandbox.renderNativeStage(root,
     {a:scale,b:0,c:0,d:scale,tx:0,ty:0},scale,false,false,null,{worldState:'pixi'});
-  render(0.5); assert.equal(resolvedX,50);
-  render(0.75); assert.equal(resolvedX,75);
+  render(0.5); assert.equal(resolvedX,100);
+  render(0.75); assert.equal(resolvedX,100);
   render(1); assert.equal(resolvedX,100);
+  assert.equal(parentGeneration,0);
   assert.equal(root.parent,null);
 });
 

@@ -82,6 +82,9 @@ bool Renderer::queueScene(std::uint32_t version, const std::uint32_t* metadata,
     if ((flags & NodeFlags::standaloneBitmapRegion) && !(flags & NodeFlags::premultipliedSpriteTexture)) return false;
     if (parentIndex != noParent && (metadata[parentIndex * metadataStride + 5] & NodeFlags::spriteWorldVertices)) return false;
     const bool spriteVertices = flags & NodeFlags::spriteWorldVertices;
+    const bool preparedWorld = flags & NodeFlags::preparedWorldState;
+    if (preparedWorld && (filterMarker || kind == static_cast<std::uint32_t>(NodeKind::clearRect) ||
+        kind == static_cast<std::uint32_t>(NodeKind::effect))) return false;
     const bool effectNode = kind == static_cast<std::uint32_t>(NodeKind::effect);
     const std::array<float, 6> local = effectNode ?
       std::array<float, 6>{1, 0, 0, 1, 0, 0} : std::array<float, 6>{
@@ -92,7 +95,9 @@ bool Renderer::queueScene(std::uint32_t version, const std::uint32_t* metadata,
     const SceneState parent = parentIndex == noParent
       ? SceneState{} : states[parentIndex];
     SceneState& state = states[index];
-    state.world = {
+    if (spriteVertices) state.world = parent.world;
+    else if (preparedWorld) state.world = local;
+    else state.world = {
       parent.world[0] * local[0] + parent.world[2] * local[1],
       parent.world[1] * local[0] + parent.world[3] * local[1],
       parent.world[0] * local[2] + parent.world[2] * local[3],
@@ -100,8 +105,7 @@ bool Renderer::queueScene(std::uint32_t version, const std::uint32_t* metadata,
       parent.world[0] * local[4] + parent.world[2] * local[5] + parent.world[4],
       parent.world[1] * local[4] + parent.world[3] * local[5] + parent.world[5],
     };
-    if (spriteVertices) state.world = parent.world;
-    state.alpha = parent.alpha * values[valueOffset + 6];
+    state.alpha = (preparedWorld ? 1 : parent.alpha) * values[valueOffset + 6];
     state.clip = parent.clip;
     state.clipped = parent.clipped;
     state.maskImage = parent.maskImage;

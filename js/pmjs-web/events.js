@@ -103,6 +103,27 @@ EventTarget.prototype.dispatchEvent = function(event) {
 };
 
 globalThis.EventTarget = EventTarget;
+function pmjsDispatchHostEvent(target, event, isCurrent) {
+  event.target = event.target || target;
+  event.currentTarget = target;
+  var listeners = (target._listeners[event.type] || []).slice();
+  if (!target._eventHandlers[event.type] && typeof target['on' + event.type] === 'function') {
+    listeners.unshift({ callback: target['on' + event.type], removed: false });
+  }
+  var chain = Promise.resolve();
+  listeners.forEach(function(listener) {
+    chain = chain.then(function() {
+      return PMJS.tasks.invoke(function() {
+        if (listener.removed || PMJS.tasks.stopped || isCurrent && !isCurrent()) return;
+        pmjsInvokeEventHandler(target, listener.callback, event);
+      }, 'event');
+    });
+  });
+  return chain.then(function() {
+    return !PMJS.tasks.stopped && (!isCurrent || isCurrent());
+  });
+}
+
 globalThis.PMJS = globalThis.PMJS || {};
 PMJS.web = PMJS.web || {};
 PMJS.web.input = PMJS.web.input || new EventTarget();

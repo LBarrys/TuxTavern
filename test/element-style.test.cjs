@@ -6,7 +6,7 @@ const vm = require('node:vm');
 const test = require('node:test');
 
 function document() {
-  const context = vm.createContext({ console, performance: { now: () => 0 }, PMJS: {},
+  const context = vm.createContext({ console, performance: { now: () => 0 }, PMJS: {}, __pmjsBuiltinRequire: require,
     CanvasContext2D: function() {}, nativeWindowState: { focused: true, visible: true },
     pmjsGameConfig: {}, NativeHost: { runtime: { loadScript() {}, runScript() {} } } });
   context.window = context;

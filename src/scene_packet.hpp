@@ -5,7 +5,7 @@
 
 namespace pmjs::scene_packet {
 
-constexpr std::uint32_t version = 29;
+constexpr std::uint32_t version = 30;
 constexpr std::size_t metadataStride = 7;
 constexpr std::size_t valueStride = 41;
 // filterBegin's unused slot preserves zero/normal in existing version 28 writers.
@@ -87,6 +87,7 @@ enum NodeFlags : std::uint32_t {
   mipmapSampling = 1U << 16U,
   floatSpriteUv = 1U << 17U,
   repeatSpriteSampling = 1U << 18U,
+  preparedWorldState = 1U << 19U,
   // Tiling: normalized UV min/max 9..12; inverse UV transform 28..31;
   // atlas scale/offset 32..35; half-texel bounds 36..39.
   atlasTilingSampling = 1U << 20U,
@@ -100,7 +101,7 @@ constexpr std::uint32_t kAllowedNodeFlags =
     NodeFlags::roundPixels | NodeFlags::hasMeshPostTintOverlay |
     NodeFlags::premultipliedSpriteTexture | NodeFlags::packedSpriteColor |
     NodeFlags::spriteWorldVertices | NodeFlags::standaloneBitmapRegion | NodeFlags::hasMvBitmapBlend |
-    NodeFlags::clampedTilingSampling | NodeFlags::mipmapSampling | NodeFlags::floatSpriteUv | NodeFlags::repeatSpriteSampling | NodeFlags::atlasTilingSampling;
+    NodeFlags::clampedTilingSampling | NodeFlags::mipmapSampling | NodeFlags::floatSpriteUv | NodeFlags::repeatSpriteSampling | NodeFlags::preparedWorldState | NodeFlags::atlasTilingSampling;
 
 static_assert((kAllowedNodeFlags & NodeFlags::roundPixels) != 0U,
               "scene packet validators must accept roundPixels");

@@ -40,8 +40,7 @@ function nativeRecordCustomFilter(filter, node, filters) {
   var resolution = filter.resolution === undefined ? 1 : Number(filter.resolution);
   var padding = filter.padding === undefined ? 4 : Number(filter.padding) | 0;
   if (!Number.isFinite(resolution) || resolution <= 0 || resolution > 16 || padding < 0) return null;
-  // The packet writer normally computes transforms without updating Pixi's
-  // world state. Authored filters still need current upstream world bounds.
+  // Encoding must not repeat transform callbacks while reading filter bounds.
   var bounds = node.filterArea || (node.getBounds && node.getBounds(
     typeof nativeSceneUsePixiWorldState !== 'undefined' && nativeSceneUsePixiWorldState));
   if (!bounds) return null;

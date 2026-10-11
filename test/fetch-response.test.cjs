@@ -9,30 +9,26 @@ const test = require('node:test');
 test('fetch responses carry a readable body as well as text and json', async () => {
   const files = { 'img/replacements.json': Buffer.from('{"a":1}') };
   const context = vm.createContext({ performance, TextDecoder, ReadableStream, Blob, Promise, PMJS: {},
-    EventTarget: function() {}, gameReadPath: file => file,
-    NativeHost: { fs: { readBytes: file => files[file] || null } } });
+    EventTarget: function() {}, gameReadPath: file => file, __pmjsBuiltinRequire: require,
+    NativeHost: { fs: { readBytesAsync: async file => files[file] || null } } });
   for (const name of ['scheduler', 'requests']) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, '../js/pmjs-web', name + '.js'), 'utf8'), context);
   }
-  const pending = context.fetch('./img/replacements.json');
-  context.PMJS.tasks.drain();
-  const response = await pending;
+  const response = await context.fetch('./img/replacements.json');
   assert.ok(response.ok);
   const chunks = [];
   for await (const chunk of response.body) chunks.push(Buffer.from(chunk));
   assert.equal(Buffer.concat(chunks).toString(), '{"a":1}');
   assert.equal((await response.json()).a, 1);
   assert.equal(await (await response.blob()).text(), '{"a":1}');
-  const missing = context.fetch('img/none.json');
-  context.PMJS.tasks.drain();
-  assert.equal((await missing).status, 404);
+  assert.equal((await context.fetch('img/none.json')).status, 404);
 });
 
 test('text responses drop a leading byte order mark, as browsers decode them', async () => {
   const text = '\uFEFF { "testing": 1 }';
   const context = vm.createContext({ performance, TextDecoder, ReadableStream, Blob, Promise, PMJS: {},
-    EventTarget: function() {}, gameReadPath: file => file, gamePath: file => file,
-    NativeHost: { fs: { readText: () => text, readBytes: () => Buffer.from(text) } } });
+    EventTarget: function() {}, gameReadPath: file => file, gamePath: file => file, __pmjsBuiltinRequire: require,
+    NativeHost: { fs: { readText: () => text, readBytesAsync: async () => Buffer.from(text) } } });
   for (const name of ['scheduler', 'events', 'requests']) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, '../js/pmjs-web', name + '.js'), 'utf8'), context);
   }
@@ -40,7 +36,5 @@ test('text responses drop a leading byte order mark, as browsers decode them', a
   request.open('GET', 'data/RemLines.json', false);
   request.send();
   assert.equal(JSON.parse(request.responseText).testing, 1);
-  const pending = context.fetch('data/RemLines.json');
-  context.PMJS.tasks.drain();
-  assert.equal(JSON.parse(await (await pending).text()).testing, 1);
+  assert.equal(JSON.parse(await (await context.fetch('data/RemLines.json')).text()).testing, 1);
 });

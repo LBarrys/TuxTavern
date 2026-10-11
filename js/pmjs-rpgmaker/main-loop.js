@@ -14,9 +14,6 @@
     if (globalThis.PMJS && PMJS.web && PMJS.web.video) {
       PMJS.web.video.update();
     }
-    if (globalThis.PMJS && PMJS.tasks) {
-      PMJS.tasks.drain();
-    }
   }
 
   function oneLine(fn) {
@@ -64,25 +61,27 @@
     }
   }
 
-  function runTick(now, beforeServices, beforeScheduler) {
-    if (typeof beforeServices === 'function') beforeServices(now);
+  function runTick(now, afterServices, beforeScheduler) {
     updateNativeServices();
-    if (typeof beforeScheduler === 'function') beforeScheduler(now);
-    if (typeof globalThis.pmjsDrainScheduler === 'function') {
-      globalThis.pmjsDrainScheduler(now);
-    }
-    if (typeof SceneManager !== 'undefined' && SceneManager._scene !== reportedScene) {
-      reportedScene = SceneManager._scene;
-      sceneSince = now;
-      waitReported = false;
-      console.log('[pmjs] scene', reportedScene && reportedScene.constructor &&
-        reportedScene.constructor.name || 'UnknownScene');
-    } else if (reportedScene && !waitReported && now - sceneSince >= WAIT_REPORT_MS &&
-        typeof SceneManager.isCurrentSceneStarted === 'function' &&
-        !SceneManager.isCurrentSceneStarted()) {
-      waitReported = true;
-      try { reportSceneWait(reportedScene); } catch (_) {}
-    }
+    return PMJS.tasks.invokeRendering(function() {
+      if (typeof afterServices === 'function') afterServices(now);
+    }).then(function() {
+      if (typeof beforeScheduler === 'function') beforeScheduler(now);
+      return globalThis.pmjsDrainScheduler(now);
+    }).then(function() {
+      if (typeof SceneManager !== 'undefined' && SceneManager._scene !== reportedScene) {
+        reportedScene = SceneManager._scene;
+        sceneSince = now;
+        waitReported = false;
+        console.log('[pmjs] scene', reportedScene && reportedScene.constructor &&
+          reportedScene.constructor.name || 'UnknownScene');
+      } else if (reportedScene && !waitReported && now - sceneSince >= WAIT_REPORT_MS &&
+          typeof SceneManager.isCurrentSceneStarted === 'function' &&
+          !SceneManager.isCurrentSceneStarted()) {
+        waitReported = true;
+        try { reportSceneWait(reportedScene); } catch (_) {}
+      }
+    });
   }
 
   globalThis.pmjsRunRpgMakerTick = runTick;

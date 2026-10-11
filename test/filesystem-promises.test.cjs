@@ -53,7 +53,6 @@ test('fs.Dirent can be extended; lstat, realpath, access and callback readdir ma
   assert.equal(await guest.promises.realpath('/save/img'), '/save/img');
   const listed = await new Promise((resolve, reject) => {
     guest.readdir('/save/img', (error, names) => error ? reject(error) : resolve(names));
-    fixture.tasks.drain();
   });
   assert.deepEqual(Array.from(listed), ['a.png']);
   await assert.rejects(guest.promises.lstat('/save/none'), error => error.code === 'ENOENT');

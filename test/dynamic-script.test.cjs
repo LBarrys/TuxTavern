@@ -7,7 +7,7 @@ const test = require('node:test');
 
 function fixture(files) {
   const errors = [];
-  const context = vm.createContext({ console, performance: { now: () => 0 }, PMJS: {},
+  const context = vm.createContext({ console, __pmjsBuiltinRequire: require, performance: { now: () => 0 }, PMJS: {},
     CanvasContext2D: function() {},
     nativeWindowState: { focused: true, visible: true },
     gamePath: path => path.replace(/^\/?(game\/)?/, '').replace(/^\.\//, ''), gameReadPath: path => path,
@@ -87,7 +87,7 @@ test('script data and external script elements do not execute as inline source',
 });
 
 // Karryn's Prison's mod manager appends <script src> for each mod and waits for onload.
-test('external scripts load after the current task, in order, then fire load or error', () => {
+test('external scripts load after the current task, in order, then fire load or error', async () => {
   const { context: c, document: d, errors } = fixture({
     'mods/Body Hair/Body Hair.js': 'globalThis.order.push("hair:" + (document.currentScript === hair));',
     'mods/broken.js': 'globalThis.order.push("broken"); throw new Error("mod failure");',
@@ -107,7 +107,7 @@ test('external scripts load after the current task, in order, then fire load or 
   add('mods/missing.js');
   add('mods/broken.js');
   assert.deepEqual(c.order, [], 'nothing runs while the appending code runs');
-  c.PMJS.tasks.drain();
+  await c.PMJS.tasks.idle();
   assert.deepEqual(c.order, ['hair:true', 'broken']);
   assert.deepEqual(events, ['load ./mods/Body Hair/Body Hair.js', 'error mods/missing.js', 'load mods/broken.js']);
   assert.deepEqual(errors, ['mod failure']);

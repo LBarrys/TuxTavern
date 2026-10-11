@@ -50,7 +50,7 @@ realm.PMJS.images = { shouldRetainPixels: () => false, loadCompleted() {}, prepa
 
 async function settle(done) {
   for (let round = 0; round < 200 && !done(); round++) {
-    realm.PMJS.tasks.drain();
+    await realm.PMJS.tasks.idle();
     await new Promise(resolve => setImmediate(resolve));
   }
   assert.ok(done(), 'worker work finished');
@@ -114,7 +114,7 @@ async function pixel(bitmapOrCanvas, x, y) {
   let late = false;
   worker.onmessage = () => { late = true; };
   worker.postMessage({ op: 'create', id: 5, request: { canvasId: 'b' } });
-  for (let round = 0; round < 5; round++) { realm.PMJS.tasks.drain(); await new Promise(r => setImmediate(r)); }
+  for (let round = 0; round < 5; round++) { await realm.PMJS.tasks.idle(); await new Promise(r => setImmediate(r)); }
   assert.equal(late, false, 'a terminated worker gets and sends nothing');
   console.log('node-workers ok');
 })().catch(error => { console.error(error); process.exit(1); });

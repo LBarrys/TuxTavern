@@ -160,6 +160,10 @@ if(BUILD_TESTING)
     SDL_AUDIODRIVER=dummy LIBGL_ALWAYS_SOFTWARE=1
     PMJS_NATIVE_ADDON=$<TARGET_FILE:pmjs_native>
     ${NODE_EXECUTABLE} --test ${CMAKE_CURRENT_SOURCE_DIR}/test/node-writable-filesystem.cjs)
+  add_test(NAME node-async-loading COMMAND ${XVFB_RUN} -a ${CMAKE_COMMAND} -E env
+    SDL_AUDIODRIVER=dummy LIBGL_ALWAYS_SOFTWARE=1
+    PMJS_NATIVE_ADDON=$<TARGET_FILE:pmjs_native>
+    ${NODE_EXECUTABLE} --test ${CMAKE_CURRENT_SOURCE_DIR}/test/node-async-loading.cjs)
   pmjs_add_cpp_test(pmjs-checked-bounds-test native-checked-bounds test/checked-bounds.cpp)
   add_test(NAME node-image-recovery COMMAND ${XVFB_RUN} -a ${NODE_EXECUTABLE}
     "${CMAKE_CURRENT_SOURCE_DIR}/test/node-image-recovery.cjs" $<TARGET_FILE:pmjs_native>)
@@ -173,7 +177,8 @@ if(BUILD_TESTING)
   pmjs_add_cpp_test(pmjs-media-mix-test native-audio-mix-unit test/media-mix.cpp)
   target_compile_definitions(pmjs-media-mix-test PRIVATE
     PMJS_EFFECT_AUDIO_REFERENCE="${CMAKE_CURRENT_SOURCE_DIR}/test/assets/reference/mz-effects/audio.tsv"
-    PMJS_MZ_AUDIO_REFERENCE="${CMAKE_CURRENT_SOURCE_DIR}/test/assets/reference/mz-pan.tsv")
+    PMJS_MZ_AUDIO_REFERENCE="${CMAKE_CURRENT_SOURCE_DIR}/test/assets/reference/mz-pan.tsv"
+    PMJS_GAIN_AUDIO_REFERENCE="${CMAKE_CURRENT_SOURCE_DIR}/test/assets/reference/gain-automation.tsv")
   add_executable(pmjs-image-capabilities-test test/image-capabilities.cpp)
   target_include_directories(pmjs-image-capabilities-test PRIVATE src)
   target_compile_options(pmjs-image-capabilities-test PRIVATE -Wall -Wextra -Wpedantic)
@@ -261,6 +266,7 @@ if(BUILD_TESTING)
   set_tests_properties(node-presentation-byte-precision PROPERTIES ENVIRONMENT
     "LIBGL_ALWAYS_SOFTWARE=1;SDL_AUDIODRIVER=dummy;PMJS_WINDOW_SIZE=256x256")
   set_tests_properties(node-derived-sprite node-uniform-inline-matrix PROPERTIES ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;SDL_AUDIODRIVER=dummy")
+  set_tests_properties(node-audio-bytes PROPERTIES ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;SDL_AUDIODRIVER=dummy")
   add_test(NAME node-pixi4-tiling-pixels COMMAND ${XVFB_RUN} -a ${NODE_EXECUTABLE}
     "${CMAKE_CURRENT_SOURCE_DIR}/test/node-pixi4-tiling-pixels.cjs" $<TARGET_FILE:pmjs_native> "${CMAKE_CURRENT_BINARY_DIR}/test-assets")
   set_tests_properties(node-pixi4-tiling-pixels PROPERTIES ENVIRONMENT

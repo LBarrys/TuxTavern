@@ -10,7 +10,9 @@ const source = fs.readFileSync(path.resolve(__dirname, '../js/pmjs-rpgmaker/main
 
 function setup(bitmaps, isReady) {
   const lines = [];
-  const context = vm.createContext({ console: { log: (...args) => lines.push(args.join(' ')) } });
+  const context = vm.createContext({ console: { log: (...args) => lines.push(args.join(' ')) },
+    PMJS: { tasks: { invokeRendering: callback => Promise.resolve().then(callback) } },
+    pmjsDrainScheduler() {} });
   context.globalThis = context;
   vm.runInContext(`
     function Scene_Base() {}
@@ -32,32 +34,32 @@ function setup(bitmaps, isReady) {
   return { context, lines };
 }
 
-test('a scene still loading after 10 s names the images it waits for', () => {
+test('a scene still loading after 10 s names the images it waits for', async () => {
   const { context, lines } = setup([['img/titles1/a.png', 'loaded'], ['img/titles1/b.png', 'requesting'],
     ['img/system/c.png', 'pending']]);
-  context.pmjsRunRpgMakerTick(1000);
-  context.pmjsRunRpgMakerTick(10999);
+  await context.pmjsRunRpgMakerTick(1000);
+  await context.pmjsRunRpgMakerTick(10999);
   assert.deepEqual(lines, ['[pmjs] scene Scene_Title']);
-  context.pmjsRunRpgMakerTick(11000);
-  context.pmjsRunRpgMakerTick(30000);
+  await context.pmjsRunRpgMakerTick(11000);
+  await context.pmjsRunRpgMakerTick(30000);
   assert.deepEqual(lines.slice(1), ['[pmjs] Scene_Title has not started after 10 s; waiting for 1 image(s):',
     '[pmjs]   img/titles1/b.png (requesting)']);
 });
 
-test('with its images ready, the plugin isReady holding the scene is shown', () => {
+test('with its images ready, the plugin isReady holding the scene is shown', async () => {
   const { context, lines } = setup([['img/titles1/a.png', 'loaded']],
     'function() { return Scene_Base.prototype.isReady.call(this) && window.pluginDone; }');
-  context.pmjsRunRpgMakerTick(0);
-  context.pmjsRunRpgMakerTick(10000);
+  await context.pmjsRunRpgMakerTick(0);
+  await context.pmjsRunRpgMakerTick(10000);
   assert.equal(lines[1], '[pmjs] Scene_Title has not started after 10 s; its images are ready, so a plugin holds isReady:');
   assert.match(lines[2], /^\[pmjs\] {3}Scene_Title\.isReady: function\(\) \{ return .*window\.pluginDone; \}$/);
   assert.match(lines[3], /^\[pmjs\] {3}Scene_Base\.isReady: /);
 });
 
-test('a scene that starts is not reported', () => {
+test('a scene that starts is not reported', async () => {
   const { context, lines } = setup([['img/titles1/b.png', 'requesting']]);
-  context.pmjsRunRpgMakerTick(0);
+  await context.pmjsRunRpgMakerTick(0);
   context.SceneManager._sceneStarted = true;
-  context.pmjsRunRpgMakerTick(20000);
+  await context.pmjsRunRpgMakerTick(20000);
   assert.deepEqual(lines, ['[pmjs] scene Scene_Title']);
 });

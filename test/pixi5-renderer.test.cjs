@@ -68,7 +68,7 @@ test('Pixi 5 scene encoder reads resource.source and submits sprites', () => {
 
   assert.equal(fixture.submissions.length, 1);
   const packet = fixture.submissions[0];
-  assert.equal(packet.version, 29);
+  assert.equal(packet.version, 30);
   assert.equal(packet.count, 3, 'background, stage container, sprite');
   assert.equal(packet.metadata[2 * 7], 1);
   assert.equal(packet.metadata[2 * 7 + 2], 42);
