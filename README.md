@@ -10,7 +10,10 @@ Differences from upstream:
   packaging and PortMaster.
 - A burst of image loads (a game preloading thousands) is decoded when first drawn, as in a browser;
   `PMJS_DEFER_IMAGES=1` defers every load, `=0` none.
-- The window opens at `package.json`'s size, as in NW.js, instead of filling the screen.
+- The window opens at `package.json`'s size, as in NW.js, instead of filling the screen; it is resizable
+  and sharp on scaled displays.
+- Closer to NW.js: smooth stretched canvas drawing (MV window backgrounds), steady MV 60 Hz steps.
+- Faster with many images, filtered sprites or files; fewer GC pauses and GPU readbacks.
 - `pmjs prepare --adapter FILE` adds a launcher's adapter (rpgm's F8 cheat menu, `RPGM_PMJS_SKIP`).
 - `PMJS_PRESENT_FILTER=sharp`: whole-pixel enlargement, then smooth to the window.
 - Fixes for games that stopped: Node's `os`, `MouseEvent`, `style.setProperty`, MZ's `Main`, audio fades,
