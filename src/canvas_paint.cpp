@@ -110,7 +110,9 @@ bool CanvasStore::compositePixels(CanvasHandle handle, int x, int y, int width, 
     if (!clip[index] || px < 0 || py < 0 || px >= surface->width || py >= surface->height) continue;
     const auto* source = pixels.data() + index * 4;
     auto* destination = surface->pixels.data() + (py * surface->width + px) * 4;
-    compositeCanvasPixel(destination, {source[0] * alpha, source[1] * alpha,
+    if (operation == CanvasComposite::lighter && alpha == 1)
+      addCanvasPixel(destination, source[0], source[1], source[2], source[3]);
+    else compositeCanvasPixel(destination, {source[0] * alpha, source[1] * alpha,
       source[2] * alpha, source[3] * alpha}, operation);
     if (destination[0] > destination[3] || destination[1] > destination[3] || destination[2] > destination[3])
       surface->mayHaveOverAlpha = true;

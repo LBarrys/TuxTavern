@@ -731,9 +731,13 @@ void CanvasStore::fillRectNow(Content& surface, int x, int y, int width, int hei
   const int y1 = static_cast<int>(std::clamp<std::int64_t>(
     static_cast<std::int64_t>(y) + height, 0, surface.height));
   if (!(rgba & 255)) return;
+  // Opaque replaces: the same bytes as blending, without a blend per pixel.
+  const std::uint8_t opaque[4] = {std::uint8_t(rgba >> 8), std::uint8_t(rgba >> 16),
+    std::uint8_t(rgba >> 24), 255};
   for (int py = y0; py < y1; ++py) {
     for (int px = x0; px < x1; ++px) {
-      blendPixel(surface, px, py, rgba, 255);
+      if ((rgba & 255) == 255) std::memcpy(surface.pixels.data() + (std::size_t(py) * surface.width + px) * 4, opaque, 4);
+      else blendPixel(surface, px, py, rgba, 255);
     }
   }
   markDirty(surface, x0, y0, x1 - x0, y1 - y0);
@@ -1244,10 +1248,26 @@ std::optional<CanvasInfo> CanvasStore::createPixels(
 }
 
 bool CanvasStore::fillRect(CanvasHandle handle, int x, int y, int width, int height,
-                           std::uint32_t rgba) {
+                           std::uint32_t rgba, CanvasComposite operation) {
   auto* surfacePointer = writableContent(handle);
   if (!surfacePointer) return false;
   auto& surface = *surfacePointer;
+  if (operation != CanvasComposite::sourceOver) {
+    if (canvasCompositeClearsOutside(operation) || !realizeContent(surface)) return false;
+    const int x0 = std::clamp(x, 0, surface.width), y0 = std::clamp(y, 0, surface.height);
+    const int x1 = int(std::clamp<std::int64_t>(std::int64_t(x) + width, 0, surface.width));
+    const int y1 = int(std::clamp<std::int64_t>(std::int64_t(y) + height, 0, surface.height));
+    const unsigned a = rgba & 255, r = importCanvasChannel(rgba >> 24, a),
+      g = importCanvasChannel((rgba >> 16) & 255, a), b = importCanvasChannel((rgba >> 8) & 255, a);
+    for (int py = y0; py < y1; ++py) for (int px = x0; px < x1; ++px) {
+      auto* pixel = surface.pixels.data() + (std::size_t(py) * surface.width + px) * 4;
+      if (operation == CanvasComposite::lighter) { addCanvasPixel(pixel, r, g, b, a); continue; }
+      compositeCanvasPixel(pixel, {double(r), double(g), double(b), double(a)}, operation);
+      if (pixel[0] > pixel[3] || pixel[1] > pixel[3] || pixel[2] > pixel[3]) surface.mayHaveOverAlpha = true;
+    }
+    markDirty(surface, x0, y0, x1 - x0, y1 - y0);
+    return true;
+  }
   if (surface.state == ContentState::Deferred) {
     if (surface.commands.size() >= 256 || surface.queuedCommandBytes >= 64 * 1024) {
       if (!realizeContent(surface)) return false;
@@ -1284,6 +1304,30 @@ bool CanvasStore::fillRadialGradient(
     static_cast<std::int64_t>(x) + width, 0, surface->width));
   const int bottom = static_cast<int>(std::clamp<std::int64_t>(
     static_cast<std::int64_t>(y) + height, 0, surface->height));
+  // Colours (premultiplied when added) come from a table by distance: lighting plugins
+  // fill screenfuls of these a frame.
+  constexpr int steps = 1024;
+  std::array<std::uint32_t, steps> table;
+  for (int step = 0; step < steps; ++step) {
+    const float amount = float(step) / (steps - 1);
+    std::size_t upper = 0;
+    while (upper + 1 < offsets.size() && offsets[upper] < amount) ++upper;
+    const std::size_t lower = upper == 0 ? 0 : upper - 1;
+    const float span = offsets[upper] - offsets[lower];
+    const float mix = span > 0 ? std::clamp((amount - offsets[lower]) / span,
+                                           0.0F, 1.0F) : 0.0F;
+    const auto first = colors[lower];
+    const auto second = colors[upper];
+    const auto channel = [&](int shift) {
+      return static_cast<std::uint32_t>(std::lround(
+        ((first >> shift) & 255U) * (1.0F - mix) +
+        ((second >> shift) & 255U) * mix));
+    };
+    const std::uint32_t alpha = channel(0), premultiply = additive ? alpha : 255;
+    table[step] = (importCanvasChannel(channel(24), premultiply) << 24) |
+      (importCanvasChannel(channel(16), premultiply) << 16) |
+      (importCanvasChannel(channel(8), premultiply) << 8) | alpha;
+  }
   const float radiusSpan = outerRadius - innerRadius;
   for (int py = top; py < bottom; ++py) {
     for (int px = left; px < right; ++px) {
@@ -1291,23 +1335,10 @@ bool CanvasStore::fillRadialGradient(
       const float dy = py + 0.5F - centerY;
       const float amount = std::clamp((std::sqrt(dx * dx + dy * dy) - innerRadius) /
                                       radiusSpan, 0.0F, 1.0F);
-      std::size_t upper = 0;
-      while (upper + 1 < offsets.size() && offsets[upper] < amount) ++upper;
-      const std::size_t lower = upper == 0 ? 0 : upper - 1;
-      const float span = offsets[upper] - offsets[lower];
-      const float mix = span > 0 ? std::clamp((amount - offsets[lower]) / span,
-                                             0.0F, 1.0F) : 0.0F;
-      const auto first = colors[lower];
-      const auto second = colors[upper];
-      const auto channel = [&](int shift) {
-        return static_cast<std::uint32_t>(std::lround(
-          ((first >> shift) & 255U) * (1.0F - mix) +
-          ((second >> shift) & 255U) * mix));
-      };
-      const std::uint32_t rgba = (channel(24) << 24) | (channel(16) << 16) |
-                                 (channel(8) << 8) | channel(0);
-      if (additive) blendPixelAdditive(*surface, px, py, rgba);
-      else blendPixel(*surface, px, py, rgba, 255);
+      const std::uint32_t rgba = table[static_cast<int>(amount * (steps - 1) + 0.5F)];
+      if (!additive) { blendPixel(*surface, px, py, rgba, 255); continue; }
+      auto* pixel = surface->pixels.data() + (std::size_t(py) * surface->width + px) * 4;
+      addCanvasPixel(pixel, rgba >> 24, (rgba >> 16) & 255, (rgba >> 8) & 255, rgba & 255);
     }
   }
   markDirty(*surface, left, top, right - left, bottom - top);
@@ -1441,9 +1472,8 @@ void CanvasStore::blendPixelAdditive(Content& surface, int x, int y, std::uint32
   if (x < 0 || y < 0 || x >= surface.width || y >= surface.height) return;
   auto* pixel = surface.pixels.data() + (static_cast<size_t>(y) * surface.width + x) * 4;
   const unsigned alpha = rgba & 255;
-  compositeCanvasPixel(pixel, {double(importCanvasChannel(rgba >> 24, alpha)),
-    double(importCanvasChannel((rgba >> 16) & 255, alpha)),
-    double(importCanvasChannel((rgba >> 8) & 255, alpha)), double(alpha)}, CanvasComposite::lighter);
+  addCanvasPixel(pixel, importCanvasChannel(rgba >> 24, alpha),
+    importCanvasChannel((rgba >> 16) & 255, alpha), importCanvasChannel((rgba >> 8) & 255, alpha), alpha);
 }
 
 bool CanvasStore::drawText(CanvasHandle handle,

@@ -111,8 +111,9 @@ class CanvasStore {
   std::optional<CanvasInfo> create(int width, int height);
   std::optional<CanvasInfo> createPixels(int width, int height,
                                        std::vector<std::uint8_t> pixels, PixelEncoding encoding);
+  // Composites other than source-over must not clear outside the rectangle.
   bool fillRect(CanvasHandle handle, int x, int y, int width, int height,
-                std::uint32_t rgba);
+                std::uint32_t rgba, CanvasComposite operation = CanvasComposite::sourceOver);
   bool compositePixels(CanvasHandle handle, int x, int y, int width, int height,
     std::span<const std::uint8_t> pixels, std::span<const std::uint8_t> clip,
     CanvasComposite operation, double alpha);

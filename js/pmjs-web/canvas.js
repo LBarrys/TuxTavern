@@ -98,10 +98,12 @@ Object.defineProperty(CanvasContext2D.prototype, 'globalCompositeOperation', {
     if (canvasCompositeOperations.indexOf(value) >= 0) this._compositeOperation = value;
   }
 });
+function compositeClearsOutside(operation) {
+  return operation === 'copy' || operation === 'source-in' || operation === 'source-out' ||
+    operation === 'destination-in' || operation === 'destination-atop';
+}
 function canvasCompositeRegion(context, left, top, right, bottom) {
-  var operation = context.globalCompositeOperation;
-  if (operation === 'copy' || operation === 'source-in' || operation === 'source-out' ||
-      operation === 'destination-in' || operation === 'destination-atop') {
+  if (compositeClearsOutside(context.globalCompositeOperation)) {
     return [0, 0, context.canvas.width, context.canvas.height];
   }
   return [left, top, right, bottom];
@@ -737,8 +739,23 @@ CanvasContext2D.prototype.fillRect = function(x, y, width, height) {
   var rectangle = axisAlignedRect(this, x, y, width, height);
   if (rectangle && fillAxisAlignedRadialGradient(this, rectangle, this.fillStyle)) return;
   if (rectangle && fillAxisAlignedLinearGradient(this, rectangle, this.fillStyle)) return;
+  var operation = this.globalCompositeOperation;
+  if (rectangle && !this._clipPaths.length && typeof this.fillStyle !== 'object' &&
+      operation !== 'source-over' && !compositeClearsOutside(operation)) {
+    // Natively, over the pixels whose centres it covers: Terrax tints the whole screen
+    // with 'lighter' every frame, and a per-pixel loop here took tens of ms.
+    var left = Math.max(0, Math.ceil(rectangle.x - 0.5));
+    var top = Math.max(0, Math.ceil(rectangle.y - 0.5));
+    var right = Math.min(this.canvas.width, Math.floor(rectangle.x + rectangle.width - 0.5) + 1);
+    var bottom = Math.min(this.canvas.height, Math.floor(rectangle.y + rectangle.height - 0.5) + 1);
+    if (rectangle.width && rectangle.height && right > left && bottom > top) {
+      NativeHost.canvas.fillRect(this.canvas._ensureNativeCanvas().handle, left, top,
+        right - left, bottom - top, colorWithGlobalAlpha(this.fillStyle, this.globalAlpha), operation);
+    }
+    return;
+  }
   if (!rectangle || this._clipPaths.length || typeof this.fillStyle === 'object' ||
-      this.globalCompositeOperation !== 'source-over') {
+      operation !== 'source-over') {
     paintAffineRectangle(this, x, y, width, height,
       typeof this.fillStyle === 'object' ? this.fillStyle :
         colorWithGlobalAlpha(this.fillStyle, this.globalAlpha), false);
