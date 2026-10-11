@@ -8,7 +8,8 @@ Differences from upstream:
 - Builds with distribution tools ([Alpine](docs/building.md#alpine)): CMake 4 accepted; text uses FreeType.
 - Leaves out upstream's handheld parts: the Skia65 text backend (exactly Clang 20.1.2), ARM64 release
   packaging and PortMaster.
-- Images are decoded when first drawn, as in a browser; `PMJS_DEFER_IMAGES=0` decodes them on load.
+- A burst of image loads (a game preloading thousands) is decoded when first drawn, as in a browser;
+  `PMJS_DEFER_IMAGES=1` defers every load, `=0` none.
 - The window opens at `package.json`'s size, as in NW.js, instead of filling the screen.
 - `pmjs prepare --adapter FILE` adds a launcher's adapter (rpgm's F8 cheat menu, `RPGM_PMJS_SKIP`).
 - `PMJS_PRESENT_FILTER=sharp`: whole-pixel enlargement, then smooth to the window.

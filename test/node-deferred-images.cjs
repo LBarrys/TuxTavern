@@ -1,7 +1,7 @@
 'use strict';
 
-// By default PNGs and JPEGs are decoded and uploaded on first use, not on load.
-delete process.env.PMJS_DEFER_IMAGES;
+// PMJS_DEFER_IMAGES=1: PNGs and JPEGs are decoded and uploaded on first use, not on load.
+process.env.PMJS_DEFER_IMAGES = '1';
 
 const assert = require('node:assert/strict');
 const fs = require('node:fs');

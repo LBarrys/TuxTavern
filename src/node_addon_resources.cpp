@@ -322,7 +322,8 @@ napi_value queueImageLoad(napi_env env, const std::filesystem::path& path,
   load->prepareCpuPixels = retainCpuPixels;
   load->prepared = state->images.capturePrepared(*load->source, tileSet);
   if (load->prepared) load->fallbackSource = pmjs::ImageStore::capturePreparedFallback(*load->prepared);
-  load->deferrable = tileSet.empty() && !retainCpuPixels && state->images.defersImages();
+  load->deferrable = tileSet.empty() && !retainCpuPixels &&
+    state->images.defersLoad(state->pendingImageLoads.size());
   load->deferreds.push_back(deferred);
   state->pendingImageLoads.emplace(key, load.get());
   const auto queued = queueImageWork(env, *load);

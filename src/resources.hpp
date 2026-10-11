@@ -181,11 +181,16 @@ class ImageStore {
                                           bool retainCpuPixels = false);
   std::optional<ImageInfo> installDecodedMemory(ImagePixels pixels,
                                                 bool retainCpuPixels = false);
-  // Unless PMJS_DEFER_IMAGES=0, a PNG or JPEG is decoded and uploaded when first drawn, as browsers
-  // do, so a game preloading thousands of images neither waits for nor fills GPU
-  // memory with all of them. The first deferredFileLimit keep their file open and so
-  // the version that was loaded; later ones reopen it by path.
-  bool defersImages() const { return deferImages_; }
+  // While a game queues many images at once (SAO preloads 1500 frames), a PNG or JPEG is
+  // decoded and uploaded when first drawn, as browsers do, so neither the wait nor GPU memory
+  // grows with all of them. Ordinary loads still decode on worker threads, so a new scene
+  // does not stall on its first frame. PMJS_DEFER_IMAGES=1 always defers, =0 never.
+  // The first deferredFileLimit keep their file open and so the version that was loaded;
+  // later ones reopen it by path.
+  static constexpr std::size_t deferBurst = 64;
+  bool defersLoad(std::size_t pendingLoads) const {
+    return deferMode_ == DeferMode::always || (deferMode_ == DeferMode::bursts && pendingLoads >= deferBurst);
+  }
   std::optional<ImageInfo> installDeferred(std::shared_ptr<ImageFileSource> source, int width, int height);
   std::optional<ImageInfo> createRgba(int width, int height, const void* pixels, bool premultiplied = false);
   // GPU-only image storage. readPixels() intentionally returns no CPU copy.
@@ -307,7 +312,8 @@ class ImageStore {
   bool materialize(Slot& slot, bool premultiplied);
   static std::optional<ImagePixels> decodeDeferred(const Slot& slot);
   bool undefer(Slot& slot);
-  bool deferImages_ = false;
+  enum class DeferMode { never, bursts, always };
+  DeferMode deferMode_ = DeferMode::bursts;
   std::size_t deferredFiles_ = 0;
   static ImagePixels* preparedPixels(PreparedBacking& backing, std::size_t page);
   static std::optional<ImagePixels> readPreparedRegion(PreparedBacking& backing,
