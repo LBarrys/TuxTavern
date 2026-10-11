@@ -73,12 +73,15 @@ int Renderer::filterBoundsPadding(scene_packet::FilterKind kind,
 
 void Renderer::computeFilterContentBounds() {
   constexpr std::size_t maxRegions = 8;
+  // Merging is cubic in the regions: past this many, a filter uses its bounding rectangle.
+  constexpr std::size_t maxCollectedRegions = 32;
   filterBounds_.clear();
   filterBounds_.resize(frame_.commands.size());
   struct Accumulator {
     std::size_t beginIndex = 0;
     bool hasContent = false;
     bool unbounded = false;
+    bool regionsDropped = false;
     float minX = 0.0F;
     float minY = 0.0F;
     float maxX = 0.0F;
@@ -100,7 +103,10 @@ void Renderer::computeFilterContentBounds() {
       acc.maxX = std::max(acc.maxX, x1);
       acc.maxY = std::max(acc.maxY, y1);
     }
-    if (x0 < x1 && y0 < y1) acc.regions.push_back({x0, y0, x1, y1});
+    if (x0 < x1 && y0 < y1) {
+      if (acc.regions.size() < maxCollectedRegions) acc.regions.push_back({x0, y0, x1, y1});
+      else acc.regionsDropped = true;
+    }
   };
   const auto compactRegions = [](std::vector<std::array<float, 4>>& regions) {
     const auto overlapsOrTouches = [](const auto& a, const auto& b) {
@@ -184,7 +190,7 @@ void Renderer::computeFilterContentBounds() {
       float ex1 = 0.0F;
       float ey1 = 0.0F;
       bool effective = false;
-      const bool regionsValid = !level.unbounded &&
+      const bool regionsValid = !level.unbounded && !level.regionsDropped &&
           filterBoundsPadding(begun.filterKind, begun.filterParameters) == 0;
       if (begun.customFilterPlan) {
         const auto& frame = begun.customFilterPlan->frame;
