@@ -146,13 +146,12 @@ void syncExternalMemory(napi_env env) {
     if (video->browser420) videoColorBytes += video->browser420->planes.capacity();
     videoColorBytes += video->canvasRgba.capacity();
   }
+  // CPU memory only, as browsers report canvases but not textures: counting GPU
+  // memory made every batch of new images force a full garbage collection.
   const std::int64_t current =
-      static_cast<std::int64_t>(value.images.gpuBytes()) +
       static_cast<std::int64_t>(value.images.cpuBytes()) +
       static_cast<std::int64_t>(value.images.tileMetadataBytes()) +
       static_cast<std::int64_t>(value.canvases.cpuBytes()) +
-      static_cast<std::int64_t>(value.renderer.renderTargetBytes()) +
-      static_cast<std::int64_t>(value.renderer.tileGeometryGpuBytes()) +
       static_cast<std::int64_t>(value.renderer.tileGeometryCpuBytes()) +
       static_cast<std::int64_t>(value.core.media().sampleMemoryBytes()) +
       static_cast<std::int64_t>(videoColorBytes);
