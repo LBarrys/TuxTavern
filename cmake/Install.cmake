@@ -1,4 +1,4 @@
-find_package(Python3 REQUIRED COMPONENTS Interpreter)
+find_program(NODE_EXECUTABLE node REQUIRED)
 
 install(TARGETS pmjs_native LIBRARY DESTINATION lib)
 install(PROGRAMS bin/pmjs DESTINATION bin)
@@ -11,6 +11,6 @@ install(DIRECTORY third_party/ DESTINATION share/pmjs/notices FILES_MATCHING PAT
 install(DIRECTORY docs/ DESTINATION share/pmjs/docs FILES_MATCHING PATTERN "*.md")
 
 configure_file(cmake/build-config.json.in build-config.json @ONLY)
-install(CODE "execute_process(COMMAND \"${Python3_EXECUTABLE}\" \"${CMAKE_CURRENT_SOURCE_DIR}/tools/install-manifest.py\"
+install(CODE "execute_process(COMMAND \"${NODE_EXECUTABLE}\" \"${CMAKE_CURRENT_SOURCE_DIR}/tools/install-manifest.mjs\"
   \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}\" \"${CMAKE_CURRENT_BINARY_DIR}\" \"${CMAKE_CURRENT_SOURCE_DIR}\"
   COMMAND_ERROR_IS_FATAL ANY)")

@@ -116,7 +116,6 @@ include(CTest)
 if(BUILD_TESTING)
   find_program(XVFB_RUN xvfb-run REQUIRED)
   find_program(NODE_EXECUTABLE node REQUIRED)
-  find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
   function(pmjs_add_cpp_test TARGET TEST_NAME)
     add_executable(${TARGET} ${ARGN})

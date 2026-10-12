@@ -42,7 +42,7 @@ The MZ reference is stock RPG Maker MZ 1.10.0, PixiJS 5.3.12 and NW.js 0.48.4, w
 - A C++20 compiler
 - Node.js and Node API headers
 - pkg-config
-- Git and Python 3.12 or newer
+- Git
 - SDL2, EGL, and OpenGL ES 3.0 or newer
 - libpng, zlib, libjpeg, FreeType, and HarfBuzz
 - FFmpeg libraries: avformat, avcodec, avutil, swresample, and swscale
