@@ -6,6 +6,7 @@ RPG Maker MV/MZ games on Alpine Linux (musl) and Wayland: `RPGM_PMJS=1 rpgm GAME
 Differences from upstream:
 
 - Builds with distribution tools ([Alpine](docs/building.md#alpine)): CMake 4 accepted; text uses FreeType.
+- Alpine package from the checkout: `git pull && doas sh tools/apk.sh`.
 - Leaves out upstream's handheld parts: the Skia65 text backend (exactly Clang 20.1.2), ARM64 release
   packaging and PortMaster.
 - A burst of image loads (a game preloading thousands) is decoded when first drawn, as in a browser;

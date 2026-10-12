@@ -20,6 +20,9 @@ sudo apt-get install build-essential cmake ninja-build pkg-config git \
 
 ## Alpine
 
+As a package, rebuilt and upgraded after each `git pull`: `doas sh tools/apk.sh` (installs
+`pmjs@busylinux`, signed with `/root/keys/local.rsa`, as BusyLinux's `update.sh` does). By hand:
+
 ```sh
 doas apk add build-base cmake samurai pkgconf git nodejs-dev linux-headers \
   sdl2-dev mesa-dev libpng-dev libwebp-dev zlib-dev libjpeg-turbo-dev \
