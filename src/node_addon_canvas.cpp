@@ -155,7 +155,10 @@ napi_value paintCircle(napi_env env, napi_callback_info info) try {
 
 napi_value fillRect(napi_env env, napi_callback_info info) try {
   auto a = arguments(env, info, 7);
-  const auto operation = a.size() > 6 ? canvasComposite(asString(env, a[6])) : CanvasComposite::sourceOver;
+  napi_valuetype compositeType = napi_undefined;
+  if (a.size() > 6) check(env, napi_typeof(env, a[6], &compositeType), "cannot inspect composite");
+  // Only a string names a composite; callers may pass ignored extra arguments.
+  const auto operation = compositeType == napi_string ? canvasComposite(asString(env, a[6])) : CanvasComposite::sourceOver;
   if (!host(env).canvases.fillRect(asUint32(env,a.at(0)),asInt32(env,a.at(1)),asInt32(env,a.at(2)),asInt32(env,a.at(3)),asInt32(env,a.at(4)),asUint32(env,a.at(5)),operation)) throw std::runtime_error("invalid canvas");
   return undefined(env);
 } catch (const std::exception& error) { napi_throw_range_error(env,nullptr,error.what()); return nullptr; }
