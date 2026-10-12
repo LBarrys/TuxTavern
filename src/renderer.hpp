@@ -252,6 +252,8 @@ class Renderer {
   bool setPresentationLayers(float canvasOpacity, ImageHandle video,
                              float videoOpacity, ImageHandle upperCanvas,
                              float upperCanvasOpacity);
+  bool setPresentationOverlay(ImageHandle image, float x, float y,
+                              float width, float height, float opacity);
   bool setRenderTargetSize(int width, int height);
   bool setScreenRenderSize(int width, int height);
   void setDrawableSize(int width, int height);
@@ -296,6 +298,7 @@ class Renderer {
   void render();
   void renderScene();
   void presentToDrawable();
+  void drawPresentationOverlay();
   void finish();
   std::vector<std::uint8_t> captureSceneRgba(AlphaMode alphaMode = AlphaMode::straight);
   std::vector<std::uint8_t> captureSceneRawPremultiplied();
@@ -535,6 +538,7 @@ class Renderer {
   std::uint32_t presentationProgram_ = 0;
   int presentationSceneUniform_ = -1;
   int presentationLayerUniform_ = -1;
+  int presentationRectUniform_ = -1;
   int presentationOverlayUniform_ = -1;
   int presentationVideoUniform_ = -1;
   int presentationUpperCanvasUniform_ = -1;
@@ -621,6 +625,9 @@ class Renderer {
   bool toneCompositionActive_ = false;
   ImageHandle presentationVideo_ = 0;
   ImageHandle presentationUpperCanvas_ = 0;
+  ImageHandle presentationOverlay_ = 0;
+  std::array<float, 4> presentationOverlayRect_{};
+  float presentationOverlayOpacity_ = 0.0F;
   float presentationCanvasOpacity_ = 1.0F;
   float presentationVideoOpacity_ = 0.0F;
   float presentationUpperCanvasOpacity_ = 0.0F;
