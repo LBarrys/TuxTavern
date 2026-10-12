@@ -43,35 +43,19 @@ function axisAlignedRect(context, x, y, width, height) {
     width: Math.abs(x1 - x0), height: Math.abs(y1 - y0) };
 }
 
-function canvasSourcePixels(source, nativeSource, operationId, region) {
+function canvasSourcePixels(source, nativeSource, region) {
   var x = region ? region.x : 0;
   var y = region ? region.y : 0;
   var width = region ? region.width : source.width;
   var height = region ? region.height : source.height;
-  var trace = globalThis.__pmjsTrace;
-  var sourceResource = trace && trace.active() ?
-    trace.revision(nativeSource, source && source._nativeCanvas ? 'canvas' : 'image') : null;
   if (source && source._nativeCanvas) {
-    var canvasPixels = NativeHost.canvas.readPremultipliedPixels(nativeSource.handle, x, y, width, height);
-    if (trace && trace.active()) trace.event('canvas', 'canvas.source-read', {
-      parentOperationId: operationId, sourceId: sourceResource.id,
-      sourceRevision: sourceResource.revision, x: x, y: y, width: width,
-      height: height, bytes: canvasPixels.length, temporary: false
-    });
-    return canvasPixels;
+    return NativeHost.canvas.readPremultipliedPixels(nativeSource.handle, x, y, width, height);
   }
   var temporary = NativeHost.canvas.create(width, height);
   try {
     NativeHost.canvas.drawImage(temporary.handle, nativeSource.handle,
       x, y, width, height, 0, 0, width, height, 1);
-    var imagePixels = NativeHost.canvas.readPremultipliedPixels(temporary.handle, 0, 0, width, height);
-    if (trace && trace.active()) trace.event('canvas', 'canvas.source-read', {
-      parentOperationId: operationId, sourceId: sourceResource.id,
-      sourceRevision: sourceResource.revision, x: x, y: y, width: width,
-      height: height, bytes: imagePixels.length, temporary: true,
-      temporaryWidth: width, temporaryHeight: height
-    });
-    return imagePixels;
+    return NativeHost.canvas.readPremultipliedPixels(temporary.handle, 0, 0, width, height);
   } finally {
     releaseNativeResource(temporary, 'canvas');
   }
@@ -131,7 +115,7 @@ function canvasNativePaint(style) {
 }
 
 function drawAffineImage(context, source, nativeSource, sx, sy, sw, sh,
-    dx, dy, dw, dh, operationId) {
+    dx, dy, dw, dh) {
   if (!sw || !sh || !dw || !dh || source.width <= 0 || source.height <= 0) return;
   var t = context._transform;
   var determinant = t[0] * t[3] - t[1] * t[2];
@@ -160,7 +144,7 @@ function drawAffineImage(context, source, nativeSource, sx, sy, sw, sh,
     context.imageSmoothingEnabled ? Math.ceil(Math.max(sy, sy + sh) + 0.5) :
       Math.floor(Math.max(sy, sy + sh)) + 1));
   var sourceWidth = sourceRight - sourceLeft;
-  var sourcePixels = canvasSourcePixels(source, nativeSource, operationId, {
+  var sourcePixels = canvasSourcePixels(source, nativeSource, {
     x: sourceLeft, y: sourceTop, width: sourceWidth,
     height: sourceBottom - sourceTop
   });
@@ -204,15 +188,6 @@ function drawAffineImage(context, source, nativeSource, sx, sy, sw, sh,
   }
   NativeHost.canvas.compositePixels(destination.handle, left, top,
     right - left, bottom - top, paintPixels, clipMask, context.globalCompositeOperation, alpha);
-  if (globalThis.__pmjsTrace && __pmjsTrace.active()) {
-    var destinationResource = __pmjsTrace.revision(destination, 'canvas', true);
-    __pmjsTrace.event('canvas', 'canvas.destination-write', {
-      parentOperationId: operationId, destinationId: destinationResource.id,
-      destinationRevision: destinationResource.revision,
-      x: left, y: top, width: right - left, height: bottom - top,
-      bytes: paintPixels.length
-    });
-  }
 }
 
 function paintAffineRectangle(context, x, y, width, height, rgba, clear) {
@@ -848,23 +823,12 @@ CanvasContext2D.prototype.drawImage = function(source) {
   dh *= (clippedBottom - clippedTop) / sh;
   sx = clippedLeft; sy = clippedTop;
   sw = clippedRight - clippedLeft; sh = clippedBottom - clippedTop;
-  var trace = globalThis.__pmjsTrace;
-  var tracedDestination = trace && trace.active() ?
-    this.canvas._ensureNativeCanvas() : null;
-  var operationId = trace && trace.active() ? trace.event('canvas', 'canvas.drawImage', {
-    sourceId: trace.id(nativeSource, source && source._nativeCanvas ? 'canvas' : 'image'),
-    destinationId: trace.id(tracedDestination, 'canvas'),
-    sourceX: sx, sourceY: sy, sourceWidth: sw, sourceHeight: sh,
-    destinationX: dx, destinationY: dy,
-    destinationWidth: dw, destinationHeight: dh,
-    composite: this.globalCompositeOperation
-  }) : 0;
   var transformed = axisAlignedRect(this, dx, dy, dw, dh);
   if (!transformed || this._transform[0] < 0 || this._transform[3] < 0 ||
       this._clipPaths.length ||
       this.globalCompositeOperation !== 'source-over') {
     drawAffineImage(this, source, nativeSource, sx, sy, sw, sh,
-      dx, dy, dw, dh, operationId);
+      dx, dy, dw, dh);
     return;
   }
   dx = transformed.x; dy = transformed.y; dw = transformed.width; dh = transformed.height;
@@ -873,19 +837,6 @@ CanvasContext2D.prototype.drawImage = function(source) {
     destination.handle, nativeSource.handle,
     sx, sy, sw, sh, dx, dy, dw, dh,
     Math.max(0, Math.min(1, Number(this.globalAlpha))), this.imageSmoothingEnabled !== false);
-  if (trace && trace.active()) {
-    var destinationResource = trace.revision(destination, 'canvas', true);
-    trace.event('canvas', 'canvas.drawImage-complete', {
-      parentOperationId: operationId,
-      destinationId: destinationResource.id,
-      destinationRevision: destinationResource.revision,
-      x: Math.floor(dx), y: Math.floor(dy),
-      width: Math.floor(dw), height: Math.floor(dh),
-      submittedBytes: Math.max(0, Math.floor(dw)) *
-        Math.max(0, Math.floor(dh)) * 4,
-      implementation: 'native-cropped-draw'
-    });
-  }
 };
 function nativeTextStyle(context, font) {
   return { bold: font.weight >= 600, italic: font.style === 'italic' || font.style === 'oblique',

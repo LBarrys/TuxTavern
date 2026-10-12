@@ -85,10 +85,6 @@ Renderer::Renderer(int width, int height, ImageStore& images)
       images_(images) {
   const auto* graphicsRenderer = reinterpret_cast<const char*>(glGetString(GL_RENDERER));
   softwareSceneDepth_ = graphicsRenderer && std::string(graphicsRenderer).find("llvmpipe") != std::string::npos;
-  const char* tileTextures = std::getenv("PMJS_TILE_BATCH_TEXTURES");
-  if (tileTextures && std::string(tileTextures) != "1" && std::string(tileTextures) != "4")
-    throw std::runtime_error("PMJS_TILE_BATCH_TEXTURES must be 1 or 4");
-  fourTileTextures_ = tileTextures && std::string(tileTextures) == "4";
   const char* nearestTile = std::getenv("PMJS_TILE_NEAREST_SHADER");
   if (nearestTile && std::string(nearestTile) != "0" && std::string(nearestTile) != "1")
     throw std::runtime_error("PMJS_TILE_NEAREST_SHADER must be 0 or 1");
@@ -107,10 +103,6 @@ Renderer::Renderer(int width, int height, ImageStore& images)
   if (maxTextureSize_ <= 0) {
     throw std::runtime_error("cannot query GL_MAX_TEXTURE_SIZE");
   }
-  const char* presentTiming = std::getenv("PMJS_PRESENT_TIMING");
-  presentationTimings_.enabled = presentTiming && std::string(presentTiming) == "1";
-  const char* presentFinish = std::getenv("PMJS_PRESENT_FINISH");
-  presentationTimings_.finishBeforeSwap = presentFinish && std::string(presentFinish) == "1";
   using namespace renderer_shaders;
   createPixiPrograms(pixiFragmentPrecision_);
   generatedTextureProgram_ = linkProgram(vertexSource,
@@ -332,35 +324,22 @@ void Renderer::createPixiPrograms(const std::string& precision) {
   };
   GLuint filter = 0;
   GLuint simple = 0;
-  GLuint tile = 0, fourTile = 0;
-  GLuint nearestTile = 0, nearestFourTile = 0;
+  GLuint tile = 0;
+  GLuint nearestTile = 0;
   GLuint meshOverlay = 0;
   GLuint canvasTriangleBitmap = 0;
   try {
     filter = linkPixiProgram(vertexSource, fragmentSource);
     simple = linkPixiProgram(vertexSource, simpleFragmentSource);
     tile = linkPixiProgram(tileVertexSource, tileFragmentSource);
-    if (fourTileTextures_) {
-      std::string vertex(tileVertexSource), fragment(tileFragmentSource);
-      vertex.insert(vertex.find('\n') + 1, "#define PMJS_FOUR_TILE_TEXTURES\n");
-      fragment.insert(fragment.find('\n') + 1, "#define PMJS_FOUR_TILE_TEXTURES\n");
-      fourTile = linkPixiProgram(vertex.c_str(), fragment.c_str());
-    }
     if (nearestTileShader_) {
       try {
         std::string vertex(tileVertexSource);
         vertex.insert(vertex.find('\n') + 1, "#define PMJS_NEAREST_TILE\n");
         nearestTile = linkPixiProgram(vertex.c_str(), nearestTileFragmentSource);
-        if (fourTileTextures_) {
-          std::string fragment(nearestTileFragmentSource);
-          vertex.insert(vertex.find('\n') + 1, "#define PMJS_FOUR_TILE_TEXTURES\n");
-          fragment.insert(fragment.find('\n') + 1, "#define PMJS_FOUR_TILE_TEXTURES\n");
-          nearestFourTile = linkPixiProgram(vertex.c_str(), fragment.c_str());
-        }
       } catch (const std::exception& error) {
         if (nearestTile) glDeleteProgram(nearestTile);
-        if (nearestFourTile) glDeleteProgram(nearestFourTile);
-        nearestTile = nearestFourTile = 0;
+        nearestTile = 0;
         std::fprintf(stderr, "[pmjs-renderer] nearest tile shader unavailable: %s\n", error.what());
       }
     }
@@ -372,9 +351,7 @@ void Renderer::createPixiPrograms(const std::string& precision) {
     if (filter) glDeleteProgram(filter);
     if (simple) glDeleteProgram(simple);
     if (tile) glDeleteProgram(tile);
-    if (fourTile) glDeleteProgram(fourTile);
     if (nearestTile) glDeleteProgram(nearestTile);
-    if (nearestFourTile) glDeleteProgram(nearestFourTile);
     if (meshOverlay) glDeleteProgram(meshOverlay);
     if (canvasTriangleBitmap) glDeleteProgram(canvasTriangleBitmap);
     throw;
@@ -382,9 +359,7 @@ void Renderer::createPixiPrograms(const std::string& precision) {
   if (program_) glDeleteProgram(program_);
   if (simpleProgram_) glDeleteProgram(simpleProgram_);
   if (tileProgram_) glDeleteProgram(tileProgram_);
-  if (fourTileProgram_) glDeleteProgram(fourTileProgram_);
   if (nearestTileProgram_) glDeleteProgram(nearestTileProgram_);
-  if (nearestFourTileProgram_) glDeleteProgram(nearestFourTileProgram_);
   if (meshPostTintOverlayProgram_) glDeleteProgram(meshPostTintOverlayProgram_);
   if (canvasTriangleBitmapProgram_) glDeleteProgram(canvasTriangleBitmapProgram_);
   program_ = filter;
@@ -408,22 +383,8 @@ void Renderer::createPixiPrograms(const std::string& precision) {
   simpleDerivedUvTransformUniform_ = glGetUniformLocation(simpleProgram_, "derivedUvTransform");
   simpleDerivedSampleBoundsUniform_ = glGetUniformLocation(simpleProgram_, "derivedSampleBounds");
   tileProgram_ = tile;
-  fourTileProgram_ = fourTile;
   nearestTileProgram_ = nearestTile;
-  nearestFourTileProgram_ = nearestFourTile;
   if (nearestTileProgram_) nearestTileUniforms_ = queryTileProgramUniforms(nearestTileProgram_);
-  if (nearestFourTileProgram_) {
-    nearestFourTileUniforms_ = queryTileProgramUniforms(nearestFourTileProgram_);
-    glUseProgram(nearestFourTileProgram_);
-    for (int slot = 0; slot < 4; ++slot)
-      glUniform1i(glGetUniformLocation(nearestFourTileProgram_, ("tileImage" + std::to_string(slot)).c_str()), slot);
-  }
-  if (fourTileProgram_) {
-    fourTileUniforms_ = queryTileProgramUniforms(fourTileProgram_);
-    glUseProgram(fourTileProgram_);
-    for (int slot = 0; slot < 4; ++slot)
-      glUniform1i(glGetUniformLocation(fourTileProgram_, ("tileImage" + std::to_string(slot)).c_str()), slot);
-  }
   meshPostTintOverlayProgram_ = meshOverlay;
   canvasTriangleBitmapProgram_ = canvasTriangleBitmap;
   queryFilterProgramUniforms();
@@ -651,9 +612,7 @@ Renderer::~Renderer() {
   if (spriteEffect_.program) glDeleteProgram(spriteEffect_.program);
   if (bitmapRegion_.program) glDeleteProgram(bitmapRegion_.program);
   if (tileProgram_) glDeleteProgram(tileProgram_);
-  if (fourTileProgram_) glDeleteProgram(fourTileProgram_);
   if (nearestTileProgram_) glDeleteProgram(nearestTileProgram_);
-  if (nearestFourTileProgram_) glDeleteProgram(nearestFourTileProgram_);
   if (meshPostTintOverlayProgram_) glDeleteProgram(meshPostTintOverlayProgram_);
   if (canvasTriangleBitmapProgram_) glDeleteProgram(canvasTriangleBitmapProgram_);
   if (clearTriangleProgram_) glDeleteProgram(clearTriangleProgram_);

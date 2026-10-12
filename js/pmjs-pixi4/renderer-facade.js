@@ -21,19 +21,6 @@ function nativeElementOpacity(element, fallback) {
   return Math.max(0, Math.min(1, opacity));
 }
 
-var pmjsVideoTelemetryEnabled = null;
-function isPmjsVideoTelemetryEnabled() {
-  if (pmjsVideoTelemetryEnabled === null) {
-    try {
-      pmjsVideoTelemetryEnabled = NativeHost.runtime.env(
-        'PMJS_VIDEO_TELEMETRY') === '1';
-    } catch (_) {
-      pmjsVideoTelemetryEnabled = false;
-    }
-  }
-  return pmjsVideoTelemetryEnabled;
-}
-
 function configureNativePixiFragmentPrecision() {
   var authored = typeof PIXI !== 'undefined' && PIXI &&
     PIXI.settings && PIXI.settings.PRECISION_FRAGMENT;
@@ -411,29 +398,6 @@ function createNativePixiRenderer(width, height, options) {
       var upperCanvasHandle = upperCanvas && upperCanvasOpacity > 0 &&
         typeof upperCanvas._ensureNativeCanvas === 'function'
         ? upperCanvas._ensureNativeCanvas().handle : 0;
-      if (isPmjsVideoTelemetryEnabled()) {
-        var sceneName = '';
-        try {
-          sceneName = SceneManager._scene.constructor.name;
-        } catch (_) {}
-        var videoLoading = !!(Graphics && Graphics._videoLoading);
-        var presentationState = [videoLoading, canvasOpacity, videoOpacity,
-          videoHandle, upperCanvasOpacity, upperCanvasHandle, sceneName].join('|');
-        if (presentationState !== this._pmjsLastVideoTelemetryState) {
-          this._pmjsLastVideoTelemetryState = presentationState;
-          console.log('[pmjs-video-lifecycle] ' + JSON.stringify({
-            event: 'presentation-state',
-            timeMs: performance.now(),
-            scene: sceneName,
-            videoLoading: videoLoading,
-            canvasOpacity: canvasOpacity,
-            videoOpacity: videoOpacity,
-            videoReady: !!videoHandle,
-            upperCanvasOpacity: upperCanvasOpacity,
-            upperCanvasReady: !!upperCanvasHandle
-          }));
-        }
-      }
       NativeHost.render.setPresentationLayers(canvasOpacity,
         videoHandle, videoOpacity, upperCanvasHandle, upperCanvasOpacity);
     },

@@ -63,14 +63,9 @@ struct CanvasTextStats {
 
   std::uint64_t glyphEvictions = 0;
 
-  std::uint64_t freetypeLoadUs = 0;
-  std::uint64_t freetypeRenderUs = 0;
-  std::uint64_t strokeBuildUs = 0;
-  std::uint64_t glyphBlendUs = 0;
   std::uint64_t layoutRequests = 0;
   std::uint64_t layoutCacheHits = 0;
   std::uint64_t shapeTextCalls = 0;
-  std::uint64_t shapeTextUs = 0;
   std::uint64_t fallbackShapeCalls = 0;
   std::size_t layoutCacheBytes = 0;
 };

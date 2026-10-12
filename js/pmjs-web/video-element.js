@@ -5,14 +5,6 @@ var nativeVideoFinalizer = typeof FinalizationRegistry === 'function'
       try { NativeHost.media.releaseVideo(handles.video); } catch (_) {}
       try { if (handles.audio) NativeHost.media.releaseAudio(handles.audio); } catch (_) {}
     }) : null;
-function videoTelemetry(event, details) {
-  try {
-    if (typeof NativeHost === 'undefined' || !NativeHost.runtime ||
-        NativeHost.runtime.env('PMJS_VIDEO_TELEMETRY') !== '1') return;
-    console.log('[pmjs-video-lifecycle] ' + JSON.stringify(
-      Object.assign({ event: event, timeMs: performance.now() }, details || {})));
-  } catch (_) {}
-}
 function VideoElement() {
   GenericElement.call(this, 'video');
   this._src = ''; this._media = null;
@@ -135,12 +127,6 @@ VideoElement.prototype._failLoad = function(generation, error) {
   this._loading = false;
   this._playRequested = false;
   this._settlePlayPromises(error || new Error('Video load failed'));
-  videoTelemetry('load-failed', {
-    generation: generation,
-    queueMs: this._loadRequestedAt === undefined ? null :
-      performance.now() - this._loadRequestedAt,
-    error: error && error.message || String(error || 'Video load failed')
-  });
   var event = { type: 'error', target: this, error: error };
   this.dispatchEvent(event);
 };
@@ -154,12 +140,6 @@ VideoElement.prototype._loadNow = function(generation) {
     var encoded = source.split('?')[0].replace(/%(?![0-9a-f]{2})/gi, '%25');
     var path = decodeURIComponent(encoded).replace(/^file:\/\/\/game\//, '').replace(/^\.\//, '');
     this._loading = true;
-    this._nativeLoadStartedAt = performance.now();
-    videoTelemetry('native-load-start', {
-      generation: generation,
-      queueMs: this._loadRequestedAt === undefined ? null :
-        this._nativeLoadStartedAt - this._loadRequestedAt
-    });
     loadPromise = NativeHost.media.loadVideoAsync(path,
       PMJS.config && PMJS.config.videoColorProfile || 'chromium65');
   } catch (error) {
@@ -186,27 +166,11 @@ VideoElement.prototype._loadNow = function(generation) {
     if (nativeVideoFinalizer) nativeVideoFinalizer.register(video, {
       video: media.handle, audio: media.audio || 0
     }, video);
-    videoTelemetry('first-frame-ready', {
-      generation: generation,
-      queueMs: video._loadRequestedAt === undefined ? null :
-        performance.now() - video._loadRequestedAt,
-      nativeMs: video._nativeLoadStartedAt === undefined ? null :
-        performance.now() - video._nativeLoadStartedAt,
-      width: media.width,
-      height: media.height
-    });
     video.dispatchEvent({ type: 'loadedmetadata', target: video });
     if (generation !== video._loadGeneration) return;
     video.dispatchEvent({ type: 'loadeddata', target: video });
     if (generation !== video._loadGeneration) return;
     var graphics = typeof Graphics !== 'undefined' ? Graphics : null;
-    videoTelemetry('loadeddata-dispatched', {
-      generation: generation,
-      videoLoading: !!(graphics && graphics._videoLoading),
-      canvasOpacity: graphics && graphics._canvas && graphics._canvas.style
-        ? graphics._canvas.style.opacity : null,
-      videoOpacity: video.style ? video.style.opacity : null
-    });
     video.dispatchEvent({ type: 'canplay', target: video });
     if (generation !== video._loadGeneration) return;
     video.dispatchEvent({ type: 'canplaythrough', target: video });
@@ -227,9 +191,6 @@ VideoElement.prototype.load = function() {
 VideoElement.prototype._queueLoad = function(generation) {
   var video = this;
   this._loading = true;
-  this._loadRequestedAt = performance.now();
-  this._nativeLoadStartedAt = undefined;
-  videoTelemetry('load-queued', { generation: generation });
   PMJS.tasks.enqueue(function() {
     if (generation === video._loadGeneration && video._loading) {
       video._loadNow(generation);

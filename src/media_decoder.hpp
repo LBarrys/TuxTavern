@@ -52,8 +52,6 @@ struct VideoDecodeStats {
   std::uint64_t noNewFrameDue = 0;
   std::uint64_t prefetchedFrames = 0;
   std::uint64_t maxQueuedFrames = 0;
-  double decodeMs = 0.0;
-  double convertMs = 0.0;
 };
 
 class AudioDecoderSession {
@@ -78,8 +76,7 @@ class AudioDecoderSession {
 
 class VideoDecoderSession {
  public:
-  explicit VideoDecoderSession(const std::filesystem::path& path, bool telemetry = false,
-                               bool browserColor = false);
+  explicit VideoDecoderSession(const std::filesystem::path& path, bool browserColor = false);
   ~VideoDecoderSession();
   VideoDecoderSession(const VideoDecoderSession&) = delete;
   VideoDecoderSession& operator=(const VideoDecoderSession&) = delete;

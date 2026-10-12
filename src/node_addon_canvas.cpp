@@ -470,14 +470,6 @@ napi_value canvasGlyphStats(napi_env env, napi_callback_info) try {
     number(env, stats.strokeMaskMisses)), "cannot set strokeMaskMisses");
   check(env, napi_set_named_property(env, result, "glyphEvictions",
     number(env, stats.glyphEvictions)), "cannot set glyphEvictions");
-  check(env, napi_set_named_property(env, result, "freetypeLoadUs",
-    number(env, stats.freetypeLoadUs)), "cannot set freetypeLoadUs");
-  check(env, napi_set_named_property(env, result, "freetypeRenderUs",
-    number(env, stats.freetypeRenderUs)), "cannot set freetypeRenderUs");
-  check(env, napi_set_named_property(env, result, "strokeBuildUs",
-    number(env, stats.strokeBuildUs)), "cannot set strokeBuildUs");
-  check(env, napi_set_named_property(env, result, "glyphBlendUs",
-    number(env, stats.glyphBlendUs)), "cannot set glyphBlendUs");
   const auto setLayoutStat = [&](const char* name, double metric) {
     check(env, napi_set_named_property(env, result, name, number(env, metric)),
       "cannot set text layout stat");
@@ -485,7 +477,6 @@ napi_value canvasGlyphStats(napi_env env, napi_callback_info) try {
   setLayoutStat("layoutRequests", stats.layoutRequests);
   setLayoutStat("layoutCacheHits", stats.layoutCacheHits);
   setLayoutStat("shapeTextCalls", stats.shapeTextCalls);
-  setLayoutStat("shapeTextUs", stats.shapeTextUs);
   setLayoutStat("fallbackShapeCalls", stats.fallbackShapeCalls);
   setLayoutStat("layoutCacheBytes", stats.layoutCacheBytes);
   return result;

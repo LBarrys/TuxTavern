@@ -10,30 +10,27 @@ const {png} = require('./helpers/png.cjs');
 if (!process.argv.includes('--worker')) {
   const output = fs.mkdtempSync(path.join(os.tmpdir(), 'pmjs-nearest-comparison-'));
   try {
-    for (const textures of [1, 4]) {
-      const results = [0, 1].map(enabled => {
-        const directory = path.join(output, `${textures}-${enabled}`); fs.mkdirSync(directory);
-        const child = spawnSync(process.execPath, [__filename, process.argv[2], '--worker', directory], {
-          env: {...process.env, PMJS_TILE_BATCH_TEXTURES: String(textures),
-            PMJS_TILE_NEAREST_SHADER: String(enabled), PMJS_GRAPHICS_DIAGNOSTICS: '1',
-            SDL_AUDIODRIVER: process.env.SDL_AUDIODRIVER || 'dummy'}, encoding: 'utf8', maxBuffer: 1024 * 1024
-        });
-        assert.equal(child.status, 0, `${child.stderr}\n${child.signal || ''} ${child.error || ''}`);
-        return {...JSON.parse(child.stdout.trim().split('\n').at(-1)), directory};
+    const results = [0, 1].map(enabled => {
+      const directory = path.join(output, String(enabled)); fs.mkdirSync(directory);
+      const child = spawnSync(process.execPath, [__filename, process.argv[2], '--worker', directory], {
+        env: {...process.env, PMJS_TILE_NEAREST_SHADER: String(enabled), PMJS_GRAPHICS_DIAGNOSTICS: '1',
+          SDL_AUDIODRIVER: process.env.SDL_AUDIODRIVER || 'dummy'}, encoding: 'utf8', maxBuffer: 1024 * 1024
       });
-      assert.deepEqual(results[0].frames.map(frame => frame.name), results[1].frames.map(frame => frame.name));
-      for (let index = 0; index < results[0].frames.length; ++index)
-        assert.ok(fs.readFileSync(path.join(results[0].directory, results[0].frames[index].file)).equals(
-          fs.readFileSync(path.join(results[1].directory, results[1].frames[index].file))),
-        `pixels: textures=${textures}, case=${results[0].frames[index].name}`);
-      assert.equal(results[0].draws, results[1].draws, 'shader selection preserves physical batching');
-      assert.equal(results[0].filters, results[1].filters, 'shader selection preserves filter passes');
-      assert.equal(results[0].filterTargets, results[1].filterTargets, 'shader selection preserves filter targets');
-      assert.equal(results[0].filterClears, results[1].filterClears, 'shader selection preserves filter clears');
-      assert.ok(results[1].active > 0 && results[1].fallback > 0);
-      console.log(JSON.stringify({textures, comparisons: results[0].frames.length,
-        active: results[1].active, fallback: results[1].fallback, draws: results[1].draws}));
-    }
+      assert.equal(child.status, 0, `${child.stderr}\n${child.signal || ''} ${child.error || ''}`);
+      return {...JSON.parse(child.stdout.trim().split('\n').at(-1)), directory};
+    });
+    assert.deepEqual(results[0].frames.map(frame => frame.name), results[1].frames.map(frame => frame.name));
+    for (let index = 0; index < results[0].frames.length; ++index)
+      assert.ok(fs.readFileSync(path.join(results[0].directory, results[0].frames[index].file)).equals(
+        fs.readFileSync(path.join(results[1].directory, results[1].frames[index].file))),
+      `pixels: case=${results[0].frames[index].name}`);
+    assert.equal(results[0].draws, results[1].draws, 'shader selection preserves physical batching');
+    assert.equal(results[0].filters, results[1].filters, 'shader selection preserves filter passes');
+    assert.equal(results[0].filterTargets, results[1].filterTargets, 'shader selection preserves filter targets');
+    assert.equal(results[0].filterClears, results[1].filterClears, 'shader selection preserves filter clears');
+    assert.ok(results[1].active > 0 && results[1].fallback > 0);
+    console.log(JSON.stringify({comparisons: results[0].frames.length,
+      active: results[1].active, fallback: results[1].fallback, draws: results[1].draws}));
   } finally {fs.rmSync(output, {recursive: true, force: true});}
 } else {
   main().catch(error => {console.error(error); process.exitCode = 1;});

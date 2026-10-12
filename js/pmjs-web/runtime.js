@@ -42,10 +42,8 @@ globalThis.__pmjsUpdateWindowState = function(state) {
     globalThis.document.dispatchEvent({ type: 'visibilitychange', target: document });
   }
 };
-var nativeLogicalWidth = (globalThis.__pmjsGameInfo && Number(globalThis.__pmjsGameInfo.width)) ||
-  Number(NativeHost.runtime.env('PMJS_GAME_WIDTH') || 640);
-var nativeLogicalHeight = (globalThis.__pmjsGameInfo && Number(globalThis.__pmjsGameInfo.height)) ||
-  Number(NativeHost.runtime.env('PMJS_GAME_HEIGHT') || 480);
+var nativeLogicalWidth = (globalThis.__pmjsGameInfo && Number(globalThis.__pmjsGameInfo.width)) || 640;
+var nativeLogicalHeight = (globalThis.__pmjsGameInfo && Number(globalThis.__pmjsGameInfo.height)) || 480;
 function normalizeLogicalDimension(value) {
   var number = Number(value);
   if (!Number.isFinite(number) || number < 1 || number > 16384) {
@@ -71,13 +69,11 @@ globalThis.__pmjsSetWindowTitle = function(value) {
 var nativeDisplayWidth = (globalThis.__pmjsGameInfo && Number(globalThis.__pmjsGameInfo.displayWidth)) ||
   (typeof NativeHost !== 'undefined' && NativeHost.runtime &&
    typeof NativeHost.runtime.displaySize === 'function' &&
-   Number(NativeHost.runtime.displaySize().width)) ||
-  Number(NativeHost.runtime.env('PMJS_SCREEN_WIDTH') || 640);
+   Number(NativeHost.runtime.displaySize().width)) || 640;
 var nativeDisplayHeight = (globalThis.__pmjsGameInfo && Number(globalThis.__pmjsGameInfo.displayHeight)) ||
   (typeof NativeHost !== 'undefined' && NativeHost.runtime &&
    typeof NativeHost.runtime.displaySize === 'function' &&
-   Number(NativeHost.runtime.displaySize().height)) ||
-  Number(NativeHost.runtime.env('PMJS_SCREEN_HEIGHT') || 480);
+   Number(NativeHost.runtime.displaySize().height)) || 480;
 var nativeWindowSize = typeof NativeHost.runtime.windowSize === 'function'
   ? NativeHost.runtime.windowSize()
   : { width: nativeDisplayWidth, height: nativeDisplayHeight };

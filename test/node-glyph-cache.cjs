@@ -39,7 +39,6 @@ assert.equal(stats.glyphMetricMisses, 4, 'Expected 4 metric misses for unique ch
 assert.equal(stats.glyphMetricHits, 1, 'Expected 1 metric hit for duplicate character L');
 assert.equal(stats.glyphMaskMisses, 0, 'measureText must NOT rasterize or miss any glyph masks');
 assert.equal(stats.glyphMaskHits, 0, 'measureText must NOT query glyph masks');
-assert.equal(stats.freetypeRenderUs, 0, 'measureText must NOT spend time in FreeType render');
 
 // Repeated measurement must reuse the prepared layout without loading new metrics.
 const width2 = native.canvas.measureText(font, 'HELLO', 24);
@@ -71,7 +70,6 @@ const p1 = native.canvas.pixel(canvas.handle, 10, 40);
 stats = native.canvas.glyphStats();
 assert.equal(stats.glyphMaskMisses, 4, 'Expected 4 mask misses to rasterize H, E, L, O');
 assert.equal(stats.glyphMaskHits, 1, 'Second L should hit mask cache');
-assert.equal(stats.freetypeRenderUs, 0, 'FreeType render time should be 0 when telemetry is disabled (clock gated)');
 assert.ok(stats.glyphBytes > 500, 'Glyph cache bytes should track rasterized coverage');
 
 // Draw "HELLO" fill again: must hit fill mask cache for all 5 characters, 0 new rasterizations
@@ -146,12 +144,12 @@ assert.equal(stats.glyphMaskHits, maskHitsBeforeABC + 3, 'Outline draw must hit 
 
 // drawText("ABC", stroke=4) again -> stroke hits, no rasterization
 const strokeHitsBeforeRepeat = stats.strokeMaskHits;
-const renderUsBeforeRepeat = stats.freetypeRenderUs;
+const maskMissesBeforeRepeat = stats.glyphMaskMisses;
 native.canvas.drawText(c2.handle, font, 'ABC', 10, 60, 20, 0x000000ff, 4);
 native.canvas.pixel(c2.handle, 10, 60);
 stats = native.canvas.glyphStats();
 assert.equal(stats.strokeMaskHits, strokeHitsBeforeRepeat + 3, 'Repeat outline draw must hit stroke mask cache');
-assert.equal(stats.freetypeRenderUs, renderUsBeforeRepeat, 'No FreeType render on repeat outline draw');
+assert.equal(stats.glyphMaskMisses, maskMissesBeforeRepeat, 'No FreeType render on repeat outline draw');
 native.canvas.release(c2.handle);
 
 // 8. Negative cache resilience: failed size strike does not poison face

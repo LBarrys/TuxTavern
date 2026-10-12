@@ -506,39 +506,6 @@ bool Renderer::queueTiled(ImageHandle image,
   return true;
 }
 
-bool Renderer::prepareFourTileBatches(TileLayerResource& layer) {
-  if (layer.batchReady) return true;
-  layer.fourBatches.clear();
-  std::vector<float> attributes;
-  for (const auto& run : layer.batches) {
-    if (layer.fourBatches.empty()) layer.fourBatches.emplace_back();
-    auto* batch = &layer.fourBatches.back();
-    int slot = 0;
-    while (slot < batch->textureCount && batch->textures[slot].texture != run.texture) ++slot;
-    if (slot == 4) {
-      layer.fourBatches.emplace_back(); batch = &layer.fourBatches.back(); slot = 0;
-    }
-    if (slot == batch->textureCount) batch->textures[batch->textureCount++] = run;
-    if (!batch->count) batch->first = run.first;
-    batch->count += run.count;
-    for (int vertex = 0; vertex < run.count; ++vertex)
-      attributes.insert(attributes.end(), {static_cast<float>(slot), static_cast<float>(run.textureWidth),
-        static_cast<float>(run.textureHeight), run.premultiplied ? 1.0F : 0.0F});
-  }
-  if (!layer.batchBuffer) glGenBuffers(1, &layer.batchBuffer);
-  glBindVertexArray(layer.vertexArray);
-  glBindBuffer(GL_ARRAY_BUFFER, layer.batchBuffer);
-  while (glGetError() != GL_NO_ERROR) {}
-  glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(attributes.size()*sizeof(float)), attributes.data(), GL_DYNAMIC_DRAW);
-  if (glGetError() != GL_NO_ERROR) return false;
-  glEnableVertexAttribArray(5);
-  glVertexAttribPointer(5, 4, GL_FLOAT, GL_FALSE, 4*sizeof(float), nullptr);
-  layer.batchBytes = attributes.size()*sizeof(float);
-  layer.batchReady = true;
-  if (diagnostics_) ++stats_.bufferUploads;
-  return true;
-}
-
 bool Renderer::prepareTileLayer(TileLayerResource& layer,
     const std::array<float, 2>& animation, bool nearest) {
   if (layer.tiles.empty()) {
@@ -551,8 +518,6 @@ bool Renderer::prepareTileLayer(TileLayerResource& layer,
       const auto logical = images_.inspect(batch.image);
       layer.nearestTileMapping = layer.nearestTileMapping && logical &&
         logical->width == image->width && logical->height == image->height;
-      if (batch.texture != image->texture || batch.textureWidth != image->width ||
-          batch.textureHeight != image->height || batch.premultiplied != image->premultiplied) layer.batchReady = false;
       batch.texture = image->texture; batch.textureWidth = image->width; batch.textureHeight = image->height;
       batch.premultiplied = image->premultiplied;
     }
@@ -629,7 +594,6 @@ bool Renderer::prepareTileLayer(TileLayerResource& layer,
     layer.vertexBytes = vertices.size()*sizeof(float);
     if (diagnostics_) ++stats_.bufferUploads;
   }
-  layer.batchReady = false;
   layer.tileVertices = std::move(vertices); layer.batches = std::move(batches);
   layer.mappedAnimation = animation; layer.mappedNearest = nearest;
   layer.mappedEpoch = images_.textureEpoch(); layer.mappedReady = true;
@@ -909,7 +873,6 @@ bool Renderer::releaseTileLayer(std::uint32_t layer) {
 void Renderer::destroyTileLayer(std::uint32_t layer) {
   const auto found = tileLayers_.find(layer);
   if (found == tileLayers_.end()) return;
-  if (found->second.batchBuffer) glDeleteBuffers(1, &found->second.batchBuffer);
   if (found->second.vertexBuffer) glDeleteBuffers(1, &found->second.vertexBuffer);
   if (found->second.vertexArray) glDeleteVertexArrays(1, &found->second.vertexArray);
   for (const auto image : found->second.images) images_.release(image);
@@ -1147,13 +1110,13 @@ std::size_t Renderer::targetStorageBytes(const RenderTarget& target) {
 
 std::size_t Renderer::tileGeometryGpuBytes() const {
   std::size_t bytes = 0;
-  for (const auto& [_, layer] : tileLayers_) bytes += layer.vertexBytes + layer.batchBytes;
+  for (const auto& [_, layer] : tileLayers_) bytes += layer.vertexBytes;
   return bytes;
 }
 std::size_t Renderer::tileGeometryCpuBytes() const {
   std::size_t bytes = 0;
   for (const auto& [_, layer] : tileLayers_) bytes += layer.tiles.capacity()*sizeof(TileLayerTile)+
-    layer.tileVertices.capacity()*sizeof(float)+layer.images.capacity()*sizeof(ImageHandle)+layer.batches.capacity()*sizeof(TileBatch)+layer.fourBatches.capacity()*sizeof(FourTileBatch);
+    layer.tileVertices.capacity()*sizeof(float)+layer.images.capacity()*sizeof(ImageHandle)+layer.batches.capacity()*sizeof(TileBatch);
   return bytes;
 }
 std::size_t Renderer::renderTargetBytes() const {

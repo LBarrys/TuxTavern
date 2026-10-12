@@ -983,10 +983,6 @@ constexpr const char* tileVertexSource = R"(#version 300 es
   layout(location = 2) in vec2 animationFactor;
   layout(location = 3) in vec4 preparedMapping;
   layout(location = 4) in vec4 sourceFrame;
-#ifdef PMJS_FOUR_TILE_TEXTURES
-  layout(location = 5) in vec4 batchTexture;
-  flat out highp vec4 tileTextureInfo;
-#endif
 #ifdef PMJS_NEAREST_TILE
   out highp vec2 logicalUv;
 #else
@@ -1008,16 +1004,9 @@ constexpr const char* tileVertexSource = R"(#version 300 es
                        1.0 - pixel.y / screenSize.y * 2.0, 0.0, 1.0);
     if (targetYDown) gl_Position.y = -gl_Position.y;
     gl_Position.xy = (targetProjection * vec3(gl_Position.xy, 1.0)).xy;
-#ifdef PMJS_FOUR_TILE_TEXTURES
-    tileTextureInfo = batchTexture;
-#endif
     vec2 source = sourcePixel + animationFactor * animationOffset;
 #ifdef PMJS_NEAREST_TILE
-#ifdef PMJS_FOUR_TILE_TEXTURES
-    vec2 dimensions = batchTexture.yz;
-#else
     vec2 dimensions = imageDimensions;
-#endif
     logicalUv = source / (preparedMapping.z > 0.0 ? preparedMapping.zw : dimensions);
     vertexUv = (source + preparedMapping.xy) / dimensions;
 #else
@@ -1036,21 +1025,9 @@ constexpr const char* nearestTileFragmentSource = R"(#version 300 es
   uniform highp vec4 color;
   in highp vec2 vertexUv;
   in highp vec2 logicalUv;
-#ifdef PMJS_FOUR_TILE_TEXTURES
-  flat in highp vec4 tileTextureInfo;
-  uniform highp sampler2D tileImage0, tileImage1, tileImage2, tileImage3;
-  #define texturePremultiplied (tileTextureInfo.w > 0.5)
-  highp vec4 tileSample(highp vec2 uv) {
-    if (tileTextureInfo.x < 0.5) return texture(tileImage0, uv);
-    if (tileTextureInfo.x < 1.5) return texture(tileImage1, uv);
-    if (tileTextureInfo.x < 2.5) return texture(tileImage2, uv);
-    return texture(tileImage3, uv);
-  }
-#else
   uniform highp sampler2D image;
   uniform bool texturePremultiplied;
   highp vec4 tileSample(highp vec2 uv) { return texture(image, uv); }
-#endif
   out highp vec4 outputColor;
   void main() {
     // Out-of-sheet rectangles retain transparent slot padding, even for tiny sheets.
@@ -1361,31 +1338,11 @@ constexpr const char* tileFragmentSource = R"(#version 300 es
   precision highp int;
   uniform highp sampler2D image;
   uniform highp vec4 color;
-#ifdef PMJS_FOUR_TILE_TEXTURES
-  flat in highp vec4 tileTextureInfo;
-  uniform highp sampler2D tileImage0, tileImage1, tileImage2, tileImage3;
-  #define texturePremultiplied (tileTextureInfo.w > 0.5)
-  highp vec4 tileSample(highp vec2 uv) {
-    if (tileTextureInfo.x < 0.5) return texture(tileImage0, uv);
-    if (tileTextureInfo.x < 1.5) return texture(tileImage1, uv);
-    if (tileTextureInfo.x < 2.5) return texture(tileImage2, uv);
-    return texture(tileImage3, uv);
-  }
-  highp vec4 tileFetch(ivec2 pixel) {
-    if (tileTextureInfo.x < 0.5) return texelFetch(tileImage0, pixel, 0);
-    if (tileTextureInfo.x < 1.5) return texelFetch(tileImage1, pixel, 0);
-    if (tileTextureInfo.x < 2.5) return texelFetch(tileImage2, pixel, 0);
-    return texelFetch(tileImage3, pixel, 0);
-  }
-  #define imageDimensions tileTextureInfo.yz
-  ivec2 tileDimensions() { return ivec2(tileTextureInfo.yz); }
-#else
   uniform bool texturePremultiplied;
   uniform highp vec2 imageDimensions;
   highp vec4 tileSample(highp vec2 uv) { return texture(image, uv); }
   highp vec4 tileFetch(ivec2 pixel) { return texelFetch(image, pixel, 0); }
   ivec2 tileDimensions() { return textureSize(image, 0); }
-#endif
 #ifndef PMJS_MESH_POST_TINT_OVERLAY
   flat in highp vec4 tileMapping;
   flat in highp vec4 tileFrame;

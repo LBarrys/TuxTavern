@@ -41,18 +41,8 @@ void Renderer::applyBlendMode(BlendMode mode) {
 }
 
 void Renderer::render() {
-  {
-    PresentationPhaseTimer timer(presentationTimings_.enabled, presentationTimings_.phases[0]);
-    renderScene();
-  }
-  {
-    PresentationPhaseTimer timer(presentationTimings_.enabled, presentationTimings_.phases[1]);
-    presentToDrawable();
-  }
-  if (presentationTimings_.finishBeforeSwap && !offscreenRender_) {
-    PresentationPhaseTimer timer(presentationTimings_.enabled, presentationTimings_.phases[4]);
-    glFinish();
-  }
+  renderScene();
+  presentToDrawable();
 }
 
 int Renderer::filterBoundsPadding(scene_packet::FilterKind kind,
@@ -1715,8 +1705,6 @@ void Renderer::renderScene() {
       const bool usesOverlay = command.appliesMeshPostTintOverlay || triangleMaterial || bitmapMaterial;
       const bool canvasTriangleBitmap = triangleMaterial &&
         triangleMaterial->rasterRule == TriangleBitmapMaterial::RasterRule::canvasFourSample;
-      const bool fourTextures = fourTileTextures_ && !usesOverlay && !command.maskImage &&
-        command.primitive == RenderCommand::Primitive::tileLayer && prepareFourTileBatches(layer->second);
       // Integer unit-scale rasterization places fragments at source texel centers.
       const auto integral = [](float value, float limit) {
         return std::isfinite(value) && std::abs(value) <= limit && value == std::floor(value);
@@ -1727,8 +1715,7 @@ void Renderer::renderScene() {
         filterDepth == 1 && rasterFrame[2] > 0 && rasterFrame[3] > 0 &&
         std::all_of(rasterFrame.begin(), rasterFrame.end(),
           [&](float value) { return integral(value, 8192); });
-      const bool nearestTile = nearestTileShader_ &&
-        (fourTextures ? nearestFourTileProgram_ : nearestTileProgram_) &&
+      const bool nearestTile = nearestTileShader_ && nearestTileProgram_ &&
         layer->second.nearestTileGeometry && layer->second.nearestTileMapping && operation.nearest && !usesOverlay && !command.maskImage &&
         command.primitive == RenderCommand::Primitive::tileLayer && !offscreenRender_ &&
         rasterResolution == 1 && nearestTarget &&
@@ -1737,11 +1724,11 @@ void Renderer::renderScene() {
         transform[0] == 1 && transform[1] == 0 && transform[2] == 0 && transform[3] == 1 &&
         integral(transform[4], 8192) && integral(transform[5], 8192) &&
         integral(command.tileAnimation[0], 1024) && integral(command.tileAnimation[1], 1024);
-      const auto program = nearestTile ? (fourTextures ? nearestFourTileProgram_ : nearestTileProgram_) :
-        fourTextures ? fourTileProgram_ : canvasTriangleBitmap ? canvasTriangleBitmapProgram_ :
+      const auto program = nearestTile ? nearestTileProgram_ :
+        canvasTriangleBitmap ? canvasTriangleBitmapProgram_ :
         usesOverlay ? meshPostTintOverlayProgram_ : tileProgram_;
-      const auto& uniforms = nearestTile ? (fourTextures ? nearestFourTileUniforms_ : nearestTileUniforms_) :
-        fourTextures ? fourTileUniforms_ : canvasTriangleBitmap ? canvasTriangleBitmapUniforms_ :
+      const auto& uniforms = nearestTile ? nearestTileUniforms_ :
+        canvasTriangleBitmap ? canvasTriangleBitmapUniforms_ :
         usesOverlay ? meshPostTintOverlayUniforms_ : tileUniforms_;
       glUseProgram(program);
       projectTarget(program);
@@ -1797,28 +1784,6 @@ void Renderer::renderScene() {
         glActiveTexture(GL_TEXTURE0);
       } else {
         glUniform1i(uniforms.maskEnabled, 0);
-      }
-      if (fourTextures) {
-        for (const auto& batch : layer->second.fourBatches) {
-          for (int slot = 0; slot < 4; ++slot) {
-            const auto texture = batch.textures[slot < batch.textureCount ? slot : 0].texture;
-            glActiveTexture(GL_TEXTURE0 + slot); glBindTexture(GL_TEXTURE_2D, texture);
-            const auto nearest = textureNearestState_.find(texture);
-            if (nearest == textureNearestState_.end() || nearest->second != operation.nearest) {
-              textureNearestState_[texture] = operation.nearest;
-              glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, operation.nearest ? GL_NEAREST : GL_LINEAR);
-              glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, operation.nearest ? GL_NEAREST : GL_LINEAR);
-            }
-          }
-          glDrawArrays(GL_TRIANGLES, batch.first, batch.count);
-          if (diagnostics_) {
-            ++stats_.drawCalls; ++stats_.tileDrawCalls;
-            if (nearestTile) ++stats_.nearestTileShaderDrawCalls;
-            else if (nearestTileShader_) ++stats_.nearestTileShaderFallbackDrawCalls;
-          }
-        }
-        glActiveTexture(GL_TEXTURE0);
-        continue;
       }
       for (const auto& batch : layer->second.batches) {
         glUniform1i(uniforms.texturePremultiplied, batch.premultiplied);
@@ -2019,11 +1984,7 @@ void Renderer::presentToDrawable() {
   if (identity) {
     glBindFramebuffer(GL_READ_FRAMEBUFFER,
                       composePresentation ? filterTarget_.framebuffer : sceneTarget_.framebuffer);
-    {
-      PresentationPhaseTimer timer(presentationTimings_.enabled, presentationTimings_.phases[2]);
-      glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-    }
-    PresentationPhaseTimer windowWrite(presentationTimings_.enabled, presentationTimings_.phases[3]);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
     glBlitFramebuffer(0, 0, width_, height_, 0, 0,
                       presentationWidth_, presentationHeight_,
                       GL_COLOR_BUFFER_BIT,
@@ -2044,10 +2005,7 @@ void Renderer::presentToDrawable() {
       presentation_.viewportHeight;
   const int destWidth = presentation_.viewportWidth;
   const int destHeight = presentation_.viewportHeight;
-  {
-    PresentationPhaseTimer timer(presentationTimings_.enabled, presentationTimings_.phases[2]);
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-  }
+  glBindFramebuffer(GL_FRAMEBUFFER, 0);
   glViewport(0, 0, drawableWidth, drawableHeight);
   glDisable(GL_SCISSOR_TEST);
   // Bars use a blit, not glClear: an unswapped window clear correlates
@@ -2057,7 +2015,6 @@ void Renderer::presentToDrawable() {
   if (!fullWindow) {
     glBindFramebuffer(GL_READ_FRAMEBUFFER, blackFramebuffer_);
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-    PresentationPhaseTimer windowWrite(presentationTimings_.enabled, presentationTimings_.phases[3]);
     glBlitFramebuffer(0, 0, 1, 1, 0, 0, drawableWidth, drawableHeight,
                       GL_COLOR_BUFFER_BIT, GL_NEAREST);
   }
@@ -2081,7 +2038,6 @@ void Renderer::presentToDrawable() {
   }
   glBindFramebuffer(GL_READ_FRAMEBUFFER, source);
   glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-  PresentationPhaseTimer windowWrite(presentationTimings_.enabled && fullWindow, presentationTimings_.phases[3]);
   glBlitFramebuffer(0, 0, sourceWidth, sourceHeight, destX, destY,
                     destX + destWidth, destY + destHeight,
                     GL_COLOR_BUFFER_BIT,

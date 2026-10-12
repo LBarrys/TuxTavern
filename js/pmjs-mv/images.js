@@ -34,14 +34,6 @@ if (typeof ImageCache !== 'undefined') {
   if (!Number.isFinite(gameRequestedImageCachePixels) ||
       gameRequestedImageCachePixels < 0) gameRequestedImageCachePixels = 0;
   var configuredImageCacheMaxPixels = Number(PMJS.config.imageCacheMaxPixels || 0);
-  try {
-    var environmentImageCacheMaxPixels = Number(
-      NativeHost.runtime.env('PMJS_IMAGE_CACHE_MAX_PIXELS') || 0);
-    if (Number.isSafeInteger(environmentImageCacheMaxPixels) &&
-        environmentImageCacheMaxPixels > 0) {
-      configuredImageCacheMaxPixels = environmentImageCacheMaxPixels;
-    }
-  } catch (_) {}
   if (!Number.isSafeInteger(configuredImageCacheMaxPixels) ||
       configuredImageCacheMaxPixels <= 0) configuredImageCacheMaxPixels = 0;
   var effectiveImageCachePixels = function() {

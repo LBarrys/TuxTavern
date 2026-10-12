@@ -189,24 +189,6 @@ test('media property handlers keep their registration order with listeners', asy
   ]);
 });
 
-test('video lifecycle telemetry measures queued-to-frame readiness when enabled', async () => {
-  const { context, telemetry } = makeHarness(undefined, '1');
-  const video = context.document.createElement('video');
-  video.src = 'movies/Opening.mp4';
-  context.PMJS.tasks.drain();
-  await Promise.resolve();
-
-  const records = telemetry.filter(line =>
-    line.startsWith('[pmjs-video-lifecycle] ')).map(line =>
-    JSON.parse(line.slice('[pmjs-video-lifecycle] '.length)));
-  assert.deepEqual(records.map(record => record.event), [
-    'load-queued', 'native-load-start', 'first-frame-ready',
-    'loadeddata-dispatched'
-  ]);
-  assert.ok(records[2].queueMs >= 0);
-  assert.ok(records[2].nativeMs >= 0);
-});
-
 test('MV load returns before loadeddata and video-playing state clears on end', async () => {
   const { context } = makeHarness();
   const video = context.document.createElement('video');

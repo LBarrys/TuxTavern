@@ -39,15 +39,11 @@ int main(int argc, char** argv) {
   pmjs::VideoDecoderSession ordinary(path);
   auto ordinaryFirst = ordinary.frame(0.0, &error);
   auto ordinaryLater = ordinary.frame(0.25, &error);
-  const auto ordinaryStats = ordinary.stats();
-  if (!ordinaryFirst || !ordinaryLater || ordinaryLater->timestamp < 0.2 ||
-      ordinaryStats.decodedFrames != 0 || ordinaryStats.convertedFrames != 0 ||
-      ordinaryStats.prefetchedFrames != 0 || ordinaryStats.decodeMs != 0 ||
-      ordinaryStats.convertMs != 0) {
-    std::cerr << "uninstrumented decoder changed playback or collected telemetry\n";
+  if (!ordinaryFirst || !ordinaryLater || ordinaryLater->timestamp < 0.2) {
+    std::cerr << "decoder did not play: " << error << '\n';
     return 1;
   }
-  pmjs::VideoDecoderSession decoder(path, true);
+  pmjs::VideoDecoderSession decoder(path);
 
   auto first = decoder.frame(0.0, &error);
   if (!first || first->rgba != ordinaryFirst->rgba) {

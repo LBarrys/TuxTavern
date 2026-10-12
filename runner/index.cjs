@@ -190,8 +190,7 @@ function validate(input) {
       throw new Error(`${name} must be an integer between 1 and 16384`);
     }
   }
-  const configuredWarmBytes = options.imageWarmCacheBytes ??
-    process.env.PMJS_IMAGE_WARM_CACHE_BYTES;
+  const configuredWarmBytes = options.imageWarmCacheBytes;
   const imageWarmCacheBytes = configuredWarmBytes === undefined ? undefined :
     Number(configuredWarmBytes);
   if (imageWarmCacheBytes !== undefined &&
@@ -409,10 +408,7 @@ async function run(input) {
       ? globalThis.setImmediate.bind(globalThis) : null;
     const physicalDisplay = (native.runtime && typeof native.runtime.displaySize === 'function')
       ? native.runtime.displaySize()
-      : {
-          width: Number(process.env.PMJS_SCREEN_WIDTH || 640),
-          height: Number(process.env.PMJS_SCREEN_HEIGHT || 480)
-        };
+      : { width: 640, height: 480 };
     globalThis.NativeHost = { runtime: native.runtime, render: native.render,
       plugins: native.plugins, mv: native.mv,
       scene: native.scene, images: native.images, assets: native.assets, fs: native.fs,

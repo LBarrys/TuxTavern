@@ -9,7 +9,6 @@
 #include <webp/encode.h>
 
 #include <algorithm>
-#include <chrono>
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
@@ -243,33 +242,12 @@ struct CanvasStore::FontState {
   std::unordered_map<GlyphKey, std::pair<CachedGlyph, std::list<GlyphKey>::iterator>, GlyphKeyHash> glyphCache;
 
   CanvasTextStats stats;
-  bool telemetryEnabled = false;
-  std::chrono::steady_clock::time_point lastTelemetryReport = std::chrono::steady_clock::now();
 
   FontState() {
     FT_Init_FreeType(&library);
-    if (const char* env = std::getenv("PMJS_FONT_TELEMETRY")) {
-      telemetryEnabled = (std::string(env) == "1");
-    } else if (const char* env2 = std::getenv("PMJS_GLYPH_TELEMETRY")) {
-      telemetryEnabled = (std::string(env2) == "1");
-    }
-
-    if (const char* maxBytesEnv = std::getenv("PMJS_GLYPH_CACHE_MAX_BYTES")) {
-      try {
-        maxGlyphBytes = std::max<std::size_t>(1024, std::stoull(maxBytesEnv));
-      } catch (...) {}
-    }
-    if (const char* maxEntriesEnv = std::getenv("PMJS_GLYPH_CACHE_MAX_ENTRIES")) {
-      try {
-        maxGlyphEntries = std::max<std::size_t>(1, std::stoull(maxEntriesEnv));
-      } catch (...) {}
-    }
   }
 
   ~FontState() {
-    if (telemetryEnabled) {
-      reportTelemetry(true);
-    }
     glyphCache.clear();
     lruOrder.clear();
     for (auto& s : strikes) {
@@ -381,16 +359,8 @@ struct CanvasStore::FontState {
     }
     stats.glyphMetricMisses++;
 
-    std::chrono::steady_clock::time_point t0;
-    if (telemetryEnabled) {
-      t0 = std::chrono::steady_clock::now();
-    }
     if (FT_Load_Glyph(strike->face, glyphIndex, FT_LOAD_DEFAULT) != 0) {
       return nullptr;
-    }
-    if (telemetryEnabled) {
-      const auto t1 = std::chrono::steady_clock::now();
-      stats.freetypeLoadUs += std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count();
     }
 
     const FT_GlyphSlot slot = strike->face->glyph;
@@ -444,10 +414,6 @@ struct CanvasStore::FontState {
 
     if (!cached.fillMaskLoaded) {
       stats.glyphMaskMisses++;
-      std::chrono::steady_clock::time_point t0;
-      if (telemetryEnabled) {
-        t0 = std::chrono::steady_clock::now();
-      }
 
       if (FT_Load_Glyph(strike->face, glyphIndex, FT_LOAD_RENDER) != 0) {
         return std::nullopt;
@@ -462,11 +428,6 @@ struct CanvasStore::FontState {
       mask.bitmapTop = slot->bitmap_top;
       cached.fillMask = std::move(mask);
       cached.fillMaskLoaded = true;
-
-      if (telemetryEnabled) {
-        const auto t1 = std::chrono::steady_clock::now();
-        stats.freetypeRenderUs += std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count();
-      }
     } else {
       stats.glyphMaskHits++;
     }
@@ -484,17 +445,7 @@ struct CanvasStore::FontState {
         resultMask = &strokeIt->mask;
       } else {
         stats.strokeMaskMisses++;
-        std::chrono::steady_clock::time_point t0;
-        if (telemetryEnabled) {
-          t0 = std::chrono::steady_clock::now();
-        }
-
         GlyphMask stroked = createStrokeMask(cached.fillMask, strokeWidth);
-
-        if (telemetryEnabled) {
-          const auto t1 = std::chrono::steady_clock::now();
-          stats.strokeBuildUs += std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count();
-        }
 
         cached.strokeMasks.push_back(StrokeMaskEntry{strokeWidth, std::move(stroked)});
         resultMask = &cached.strokeMasks.back().mask;
@@ -550,13 +501,7 @@ struct CanvasStore::FontState {
     auto result = std::make_shared<TextLayout>();
     auto& layout = *result;
     ++stats.shapeTextCalls;
-    std::chrono::steady_clock::time_point shapeStart;
-    if (telemetryEnabled) shapeStart = std::chrono::steady_clock::now();
     layout.shaped = shapeText(key.text, available, stats.fallbackShapeCalls);
-    if (telemetryEnabled) {
-      stats.shapeTextUs += std::chrono::duration_cast<std::chrono::microseconds>(
-        std::chrono::steady_clock::now() - shapeStart).count();
-    }
     layout.metrics.width = layout.shaped.advanceX;
     if (layout.shaped.glyphs.empty()) {
       const auto face = strikes[available.front().strikeId]->face;
@@ -606,9 +551,6 @@ struct CanvasStore::FontState {
     return result;
   }
 
-  void recordBlendUs(std::uint64_t us) {
-    stats.glyphBlendUs += us;
-  }
 
   CanvasTextStats getStats() const {
     CanvasTextStats s = stats;
@@ -631,56 +573,6 @@ struct CanvasStore::FontState {
     enforceLimits();
   }
 
-  void reportTelemetry(bool force = false) {
-    const auto now = std::chrono::steady_clock::now();
-    const double elapsed = std::chrono::duration<double>(now - lastTelemetryReport).count();
-    if (!force && elapsed < 1.0) return;
-
-    const auto s = getStats();
-    const uint64_t totalMetricReqs = s.glyphMetricHits + s.glyphMetricMisses;
-    const double metricHitRate = totalMetricReqs > 0
-      ? (100.0 * static_cast<double>(s.glyphMetricHits) / static_cast<double>(totalMetricReqs))
-      : 100.0;
-
-    const uint64_t totalMaskReqs = s.glyphMaskHits + s.glyphMaskMisses;
-    const double maskHitRate = totalMaskReqs > 0
-      ? (100.0 * static_cast<double>(s.glyphMaskHits) / static_cast<double>(totalMaskReqs))
-      : 100.0;
-
-    std::cerr << "[pmjs-font] {"
-      << "\"faces\":" << s.fontFaces
-      << ",\"strikes\":" << s.fontStrikes
-      << ",\"glyphs\":" << s.glyphEntries
-      << ",\"bytes\":" << s.glyphBytes
-      << ",\"metricHitRate\":" << metricHitRate
-      << ",\"maskHitRate\":" << maskHitRate
-      << ",\"metricHits\":" << s.glyphMetricHits
-      << ",\"metricMisses\":" << s.glyphMetricMisses
-      << ",\"maskHits\":" << s.glyphMaskHits
-      << ",\"maskMisses\":" << s.glyphMaskMisses
-      << ",\"strokeHits\":" << s.strokeMaskHits
-      << ",\"strokeMisses\":" << s.strokeMaskMisses
-      << ",\"evictions\":" << s.glyphEvictions
-      << ",\"loadUs\":" << s.freetypeLoadUs
-      << ",\"renderUs\":" << s.freetypeRenderUs
-      << ",\"strokeUs\":" << s.strokeBuildUs
-      << ",\"blendUs\":" << s.glyphBlendUs
-      << ",\"layoutRequests\":" << s.layoutRequests
-      << ",\"layoutCacheHits\":" << s.layoutCacheHits
-      << ",\"shapeTextCalls\":" << s.shapeTextCalls
-      << ",\"shapeTextUs\":" << s.shapeTextUs
-      << ",\"fallbackShapeCalls\":" << s.fallbackShapeCalls
-      << ",\"layoutCacheBytes\":" << s.layoutCacheBytes
-      << "}\n";
-
-    lastTelemetryReport = now;
-  }
-
-  void maybeReportTelemetry() {
-    if (telemetryEnabled) {
-      reportTelemetry(false);
-    }
-  }
 };
 
 CanvasStore::CanvasStore(ImageStore& images)
@@ -939,7 +831,6 @@ bool CanvasStore::drawTextNow(Content& surface, const std::vector<std::filesyste
   if (!layout) return false;
   double penX = 0;
   double penY = 0;
-  std::uint64_t blendUs = 0;
   int dirtyLeft = surface.width;
   int dirtyTop = surface.height;
   int dirtyRight = 0;
@@ -963,11 +854,6 @@ bool CanvasStore::drawTextNow(Content& surface, const std::vector<std::filesyste
       dirtyRight = std::max(dirtyRight, originX + mask->width);
       dirtyBottom = std::max(dirtyBottom, originY + mask->height);
 
-      std::chrono::steady_clock::time_point b0;
-      if (fonts_->telemetryEnabled) {
-        b0 = std::chrono::steady_clock::now();
-      }
-
       for (int row = 0; row < mask->height; ++row) {
         const int destY = originY + row;
         if (destY < 0 || destY >= surface.height) continue;
@@ -978,25 +864,15 @@ bool CanvasStore::drawTextNow(Content& surface, const std::vector<std::filesyste
           blendPixel(surface, originX + col, destY, rgba, cov);
         }
       }
-
-      if (fonts_->telemetryEnabled) {
-        const auto b1 = std::chrono::steady_clock::now();
-        blendUs += std::chrono::duration_cast<std::chrono::microseconds>(b1 - b0).count();
-      }
     }
     penX += glyph.xAdvance;
     penY += glyph.yAdvance;
-  }
-
-  if (fonts_->telemetryEnabled && blendUs > 0) {
-    fonts_->recordBlendUs(blendUs);
   }
 
   if (dirtyRight > dirtyLeft && dirtyBottom > dirtyTop) {
     markDirty(surface, dirtyLeft, dirtyTop, dirtyRight - dirtyLeft, dirtyBottom - dirtyTop);
   }
 
-  fonts_->maybeReportTelemetry();
   return complete;
 }
 
