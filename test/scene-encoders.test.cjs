@@ -1060,14 +1060,16 @@ test('tiling prepares pivot sampling and retains finite small scales', () => {
   assert.deepEqual(node.tileTransform.pivot, { x: 1.5, y: 2 });
 });
 
-test('undefined tiling sampling omits only its leaf and preserves visible children', () => {
+test('undefined tiling sampling collapses UVs and preserves visible children', () => {
   for (const scale of [NaN, Infinity, 1e-40]) {
     const harness = makeHarness(), { sandbox, makeTexture, sprite } = harness;
     const root = new sandbox.PIXI.Container();
     const node = new sandbox.PIXI.extras.TilingSprite(makeTexture(4, 4), 20, 16);
     node.tileScale.x = scale; node.addChild(sprite()); root.addChild(node);
     const packet = submitOnly(harness, root);
-    assert.deepEqual(packet.metadata.filter((_, i) => i % 7 === 0), [0, 0, 1]);
+    assert.deepEqual(packet.metadata.filter((_, i) => i % 7 === 0), [0, Number.isFinite(scale) ? 0 : 2, 1]);
+    assert.ok(packet.values.every(Number.isFinite));
+    if (!Number.isFinite(scale)) assert.deepEqual(packet.values.slice(41 + 9, 41 + 13), [0, 0, 0, 0]);
     assert.ok(Object.is(node.tileScale.x, scale));
   }
 });

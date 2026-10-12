@@ -176,11 +176,12 @@ function nativeSpriteVertices(node, nodeIndex) {
 }
 
 function nativePackSpriteColor(node, nodeIndex, tint) {
-  if (!nativeSceneUsePixiWorldState || !Number.isFinite(node.worldAlpha)) return;
-  var alpha = Math.max(0, Math.min(1, node.worldAlpha));
-  var red = Math.floor(((tint >>> 16) & 255) * alpha + 0.5);
-  var green = Math.floor(((tint >>> 8) & 255) * alpha + 0.5);
-  var blue = Math.floor((tint & 255) * alpha + 0.5);
+  if (!nativeSceneUsePixiWorldState) return;
+  var alpha = Math.min(1, node.worldAlpha);
+  // Pixi packs NaN alpha as zero while preserving unpremultiplied tint RGB.
+  var red = alpha < 1 ? Math.floor(((tint >>> 16) & 255) * alpha + 0.5) : ((tint >>> 16) & 255);
+  var green = alpha < 1 ? Math.floor(((tint >>> 8) & 255) * alpha + 0.5) : ((tint >>> 8) & 255);
+  var blue = alpha < 1 ? Math.floor((tint & 255) * alpha + 0.5) : (tint & 255);
   var offset = nodeIndex * nativeSceneMetadataStride;
   nativeSceneMetadata[offset + 3] = ((alpha * 255) << 24) | (red << 16) | (green << 8) | blue;
   nativeSceneMetadata[offset + 5] |= 2048;
@@ -658,7 +659,8 @@ function writeNativeSceneNode(node, parentIndex, forcedClip, forcedMask,
       var a = tileMatrix.a * tileWidth / node.width;
       var d = tileMatrix.d * tileHeight / node.height;
       var determinant = a * d;
-      var tilingUvTransform = determinant === 0 ? [0, 0, 0, 0] :
+      var tilingUvTransform = determinant === 0 ||
+        !['a', 'b', 'c', 'd', 'tx', 'ty'].every(function(key) { return Number.isFinite(tileMatrix[key]); }) ? [0, 0, 0, 0] :
         [d / determinant, a / determinant,
           -d * (tileMatrix.tx / node.width) / determinant,
           -a * (tileMatrix.ty / node.height) / determinant];
