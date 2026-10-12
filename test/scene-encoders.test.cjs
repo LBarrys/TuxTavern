@@ -1915,6 +1915,27 @@ test('Sprite vertex packets preserve Pixi Float32 corners and logical GPU bitmap
   }
 });
 
+test('nonfinite leaf quads retain enclosing masks, filters and sibling traversal', () => {
+  const harness = makeHarness(), { sandbox, sprite } = harness;
+  const root = new sandbox.PIXI.Container();
+  const masked = sprite(); masked.mask = maskSprite(harness);
+  masked._filters = [new sandbox.PIXI.filters.BlurFilter(4, 1)];
+  root.addChild(masked);
+  const subject = masked.addChild(sprite());
+  subject.calculateVertices = function() {
+    this.vertexData = new Float32Array([NaN, NaN, NaN, NaN, NaN, NaN, NaN, NaN]);
+  };
+  masked.addChild(sprite()); root.addChild(sprite());
+  sandbox.renderNativeStage(root, undefined, 1, false, false, null, { worldState: "pixi" });
+  const packet = harness.submitted.at(-1);
+  assert.ok(packet.values.every(Number.isFinite));
+  const kinds = packet.metadata.filter((_, index) => index % 7 === 0);
+  assert.equal(kinds.filter(kind => kind === 1).length, 4, 'all sprite records remain reachable');
+  assert.equal(kinds.filter(kind => kind === 6).length, 2);
+  assert.equal(kinds.filter(kind => kind === 7).length, 2);
+  assert.equal(sandbox.nativeSceneFilterDepth, 0);
+});
+
 
 test('stock transform scenes retain the native transform path', () => {
   const harness = makeHarness(), { sandbox, sprite } = harness;
