@@ -49,6 +49,13 @@ try {
   assert.deepEqual(screenPixel(3, 5), [0, 255, 0, 255], 'clear respects the target frame');
   assert.deepEqual(screenPixel(0, 0), [255, 0, 0, 255], 'clear retains pixels outside the target frame');
   assert.equal(root.destinationFrame, destination);
+  // Software GL (llvmpipe) read a framed clear after a present stale without a finish.
+  for (let i = 0; i < 20; i++) {
+    native.render.clearScene(1, 0, 0, 1);
+    native.renderFrame();
+    renderer.clear([0, i % 2, 1 - i % 2, 1]);
+    assert.deepEqual(screenPixel(3, 5), [0, 255 * (i % 2), 255 * (1 - i % 2), 255], 'clear after present');
+  }
   root.setFrame(root.defaultFrame, root.defaultFrame);
 
   renderer.backgroundColor = 0xffff00;

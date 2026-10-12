@@ -881,6 +881,7 @@ void Renderer::destroyTileLayer(std::uint32_t layer) {
 
 std::vector<std::uint8_t> Renderer::captureSceneRawPremultiplied() {
   if (!offscreenRender_) materializeToneComposition();
+  glFinish();  // llvmpipe could read a framed clear made after a present stale.
   std::vector<std::uint8_t> pixels(static_cast<std::size_t>(width_) *
                                    static_cast<std::size_t>(height_) * 4U);
   glBindFramebuffer(GL_READ_FRAMEBUFFER,
