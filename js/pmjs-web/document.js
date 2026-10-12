@@ -92,6 +92,14 @@ globalThis.dispatchEvent = EventTarget.prototype.dispatchEvent.bind(documentTarg
 // A page's window has onmessage; bundled worker code assigns it in strict mode (Karryn's Prison's
 // SelectiveRendering).
 if (!('onmessage' in globalThis)) globalThis.onmessage = null;
+['gamepadconnected', 'gamepaddisconnected'].forEach(function(type) {
+  Object.defineProperty(globalThis, 'on' + type, {
+    configurable: true,
+    get: function() { return documentTarget['on' + type]; },
+    set: function(listener) { documentTarget['on' + type] = listener; }
+  });
+  EventTarget.defineEventHandlerProperty(documentTarget, type);
+});
 
 function setNativeFullscreen(enabled, element) {
   NativeHost.runtime.setFullscreen(enabled);
