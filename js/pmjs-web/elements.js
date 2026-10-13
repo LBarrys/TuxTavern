@@ -1,10 +1,21 @@
 function ImageData(data, width, height) {
-  if (typeof data === 'number') {
-    height = width;
-    width = data;
-    data = new Uint8ClampedArray(width * height * 4);
-  }
+  if (arguments.length < 2) throw new TypeError('ImageData requires two arguments');
   // Tested by tag: a worker's arrays come from its own context (see workers.js).
+  var suppliedPixels = Object.prototype.toString.call(data) === '[object Uint8ClampedArray]';
+  if (!suppliedPixels) {
+    height = +width >>> 0;
+    width = +data >>> 0;
+    if (!width || !height) throw canvasIndexSizeError('ImageData dimensions must be nonzero');
+    data = new Uint8ClampedArray(width * height * 4);
+  } else {
+    width = +width >>> 0;
+    if (!width || !data.length || data.length % (width * 4)) {
+      throw canvasIndexSizeError('ImageData data does not form complete rows');
+    }
+    var inferredHeight = data.length / (width * 4);
+    height = height === undefined ? inferredHeight : +height >>> 0;
+    if (!height || height !== inferredHeight) throw canvasIndexSizeError('ImageData height does not match data');
+  }
   if (Object.prototype.toString.call(data) !== '[object Uint8ClampedArray]' || width <= 0 || height <= 0 ||
       data.length !== width * height * 4) {
     throw new TypeError('invalid ImageData constructor arguments');
@@ -81,7 +92,7 @@ CanvasElement.prototype._ensureNativeCanvas = function() {
     var width = Math.max(1, this.width);
     var height = Math.max(1, this.height);
     this._nativeCanvas = trackNativeResource(
-      NativeHost.canvas.create(width, height),
+      NativeHost.canvas.create(width, height, !!(this._context2d && this._context2d._alpha === false)),
       'canvas');
   }
   return this._nativeCanvas;
@@ -102,16 +113,26 @@ Object.defineProperty(CanvasElement.prototype, 'height', {
     if (this._context2d) resetCanvasContextState(this._context2d);
   }
 });
-CanvasElement.prototype.getContext = function(type) {
+CanvasElement.prototype.getContext = function(type, options) {
   if (type === '2d') {
-    if (!this._context2d) this._context2d = new CanvasContext2D(this);
+    if (!this._context2d) {
+      this._context2d = new CanvasContext2D(this);
+      this._context2d._alpha = !options || options.alpha === undefined || !!options.alpha;
+    }
     return this._context2d;
   }
   return null;
 };
-CanvasElement.prototype.toDataURL = function() {
-  return 'data:image/png;base64,' +
-    base64Bytes(NativeHost.canvas.encodePng(this._ensureNativeCanvas().handle));
+CanvasElement.prototype.toDataURL = function(type, quality) {
+  if (!this.width || !this.height) return 'data:,';
+  type = type === undefined ? 'image/png' : String(type).toLowerCase();
+  var handle = this._ensureNativeCanvas().handle;
+  var suppliedQuality = typeof quality === 'number' && quality >= 0 && quality <= 1;
+  var bytes;
+  if (type === 'image/jpeg') bytes = NativeHost.canvas.encodeJpeg(handle, suppliedQuality ? quality : 0.92);
+  else if (type === 'image/webp') bytes = NativeHost.canvas.encodeWebP(handle, suppliedQuality ? quality : 0.8);
+  else { type = 'image/png'; bytes = NativeHost.canvas.encodePng(handle); }
+  return 'data:' + type + ';base64,' + base64Bytes(bytes);
 };
 CanvasElement.prototype.getBoundingClientRect = function() {
   return this._pmjsPresentationRect || { left: 0, top: 0, width: this.width, height: this.height };

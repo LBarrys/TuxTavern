@@ -729,6 +729,7 @@ bool Renderer::renderPrimitiveSurface(
       return false;
     }
   }
+  if (!images_.preservePixelReads(surface->image)) return false;
   GLint previousFramebuffer = 0;
   GLint previousViewport[4]{};
   GLint previousProgram = 0;
@@ -846,6 +847,7 @@ bool Renderer::clearImageTriangles(ImageHandle handle, const std::vector<float>&
     }
   }
   if (triangles.empty()) return true;
+  if (!images_.preservePixelReads(handle)) return false;
 
   struct SavedState {
     GLint framebuffer, viewport[4], program, vao, buffer;
