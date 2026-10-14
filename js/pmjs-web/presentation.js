@@ -4,9 +4,6 @@
   var canvas = null, video = null, overlay = null;
   var hitRegion = null;
   var viewportKey = '';
-  // The window can show the canvas larger or smaller than its CSS size (a tiled or fullscreen
-  // window, or MV at a plugin's resolution): page pixels are window pixels times these.
-  var scaleX = 1, scaleY = 1;
 
   function opacity(element, fallback) {
     var value = element && element.style && element.style.opacity;
@@ -29,21 +26,13 @@
       viewportKey = key;
       geometry = NativeHost.render.presentation();
     }
-    var shownWidth = geometry.viewportWidth / ratioX, shownHeight = geometry.viewportHeight / ratioY;
-    scaleX = width && shownWidth ? width / ratioX / shownWidth : 1;
-    scaleY = height && shownHeight ? height / ratioY / shownHeight : 1;
     canvas._pmjsPresentationRect = { left: geometry.viewportX / ratioX,
-      top: geometry.viewportY / ratioY, width: shownWidth * scaleX, height: shownHeight * scaleY };
+      top: geometry.viewportY / ratioY, width: geometry.viewportWidth / ratioX,
+      height: geometry.viewportHeight / ratioY };
     var videoSource = video && video._pmjsNativePresentationSource();
     NativeHost.render.setPresentationLayers(opacity(canvas, 1),
       videoSource ? videoSource.handle : 0, video ? opacity(video, 0) : 0,
       overlay ? overlay._ensureNativeCanvas().handle : 0, overlay ? opacity(overlay, 1) : 0);
-  }
-
-  function toPage(x, y) {
-    var rect = canvas && canvas._pmjsPresentationRect;
-    if (!rect) return { x: x, y: y };
-    return { x: rect.left + (x - rect.left) * scaleX, y: rect.top + (y - rect.top) * scaleY };
   }
 
   function pointerTarget(x, y) {
@@ -68,7 +57,6 @@
       hitRegion = element && bounds ? { element: element, canvas: referenceCanvas, bounds: bounds } : null;
     },
     sync: sync,
-    pointerTarget: pointerTarget,
-    toPage: toPage
+    pointerTarget: pointerTarget
   };
 })();

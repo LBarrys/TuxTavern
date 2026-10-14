@@ -158,10 +158,25 @@ if (typeof globalThis.MouseEvent !== 'function') {
   globalThis.MouseEvent.prototype.preventDefault = function() { this.defaultPrevented = true; };
   globalThis.MouseEvent.prototype.stopPropagation = function() { this._pmjsPropagationStopped = true; };
 }
+// MZ's page is the window (presentation.js). MV's page is the game's own size (innerWidth =
+// Graphics.width), which the native side scales into the window: tiled, fullscreen, or a
+// plugin's resolution (Cyberslayers: YEP_CoreEngine 1280x720, whose RS_EventTouch clicks missed).
+function nativePagePoint(source) {
+  var geometry = !PMJS.web.presentation && NativeHost.render && NativeHost.render.presentation();
+  var windowSize = geometry && NativeHost.runtime.windowSize();
+  if (!geometry || !geometry.viewportWidth || !geometry.viewportHeight || !windowSize.width) return source;
+  return {
+    x: (source.x * geometry.drawableWidth / windowSize.width - geometry.viewportX) *
+      geometry.sourceWidth / geometry.viewportWidth,
+    y: (source.y * geometry.drawableHeight / windowSize.height - geometry.viewportY) *
+      geometry.sourceHeight / geometry.viewportHeight
+  };
+}
 function dispatchNativePointer(source) {
   if (!globalThis.document) return;
-  var point = PMJS.web.presentation ? PMJS.web.presentation.toPage(source.x, source.y) : source;
-  var target = PMJS.web.presentation ? PMJS.web.presentation.pointerTarget(point.x, point.y) : document;
+  var point = nativePagePoint(source);
+  var target = PMJS.web.presentation ?
+    PMJS.web.presentation.pointerTarget(point.x, point.y) : document;
   target = target || document;
   function dispatch(type) {
     var event = Object.assign(Object.create(globalThis.MouseEvent.prototype), {

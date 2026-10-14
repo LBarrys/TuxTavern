@@ -88,41 +88,32 @@ test('input snapshots reach owned subscribers independently of presentation refr
   assert.equal(canvas.getBoundingClientRect().width, 32);
 });
 
-// MV keeps page space at the game's size (innerWidth = Graphics.width, _realScale 1), so a
-// window of another size (tiled, fullscreen, or a plugin's 1280x720) is a scaled view of it.
-// Cyberslayers (YEP_CoreEngine 1280x720 in a 960x1080 Sway tile): RS_EventTouch clicks missed.
-test('pointer events reach the page in its own pixels when the presentation is scaled', () => {
-  let geometry = { drawableWidth: 960, drawableHeight: 1080,
-    viewportX: 0, viewportY: 0, viewportWidth: 960, viewportHeight: 1080 };
-  const host = {
-    runtime: { env: () => '', now: () => 0, windowSize: () => ({ width: 960, height: 1080 }) },
-    canvas: { create: (width, height) => ({ handle: 17, width, height }), release() {} },
-    render: {
-      presentation: () => geometry,
-      setPresentationViewport(width, height) {
-        const scale = Math.min(960 / width, 1080 / height);
-        geometry = { ...geometry, viewportWidth: width * scale, viewportHeight: height * scale,
-          viewportX: (960 - width * scale) / 2, viewportY: (1080 - height * scale) / 2 };
-      },
-      setPresentationLayers() {}
-    }
-  };
-  const context = createHostContext(host, { graphics: false });
-  const canvas = context.document.createElement('canvas');
-  canvas.width = 1280; canvas.height = 720;
-  canvas.style.width = '1280px'; canvas.style.height = '720px';
-  context.document.body.appendChild(canvas);
-  context.PMJS.web.presentation.setLayers(canvas, null, null);
-  context.PMJS.web.presentation.sync();
-  const seen = [];
-  context.document.addEventListener('mousedown', event => {
-    const rect = canvas.getBoundingClientRect();
-    seen.push([event.pageX - rect.left, event.pageY - rect.top]);
-  });
-  context.__pmjsReceiveInput({ pointerEvents: [
-    { type: 'mousedown', button: 0, x: 480, y: 540 },
-    { type: 'mousedown', button: 0, x: 0, y: 270 },
-    { type: 'mousedown', button: 0, x: 720, y: 405 }
-  ] });
-  assert.deepEqual(seen, [[640, 360], [0, 0], [960, 180]]);
+// MV loads no presentation.js: its page is the game's size, which the native side scales
+// into the window. Cyberslayers (YEP_CoreEngine 1280x720) fullscreen at 1920x1080, and
+// a 960x1080 Sway tile on a 2x display: RS_EventTouch hotspots missed every click.
+test('MV pointer events reach the page in game pixels when the window scales the game', () => {
+  for (const [windowSize, drawable, viewport] of [
+    [[1920, 1080], [1920, 1080], [0, 0, 1920, 1080]],
+    [[960, 1080], [1920, 2160], [0, 540, 1920, 1080]]]) {
+    const host = {
+      runtime: { env: () => '', now: () => 0, windowSize: () => ({ width: windowSize[0], height: windowSize[1] }) },
+      canvas: { create: (width, height) => ({ handle: 17, width, height }), release() {} },
+      render: { presentation: () => ({ sourceWidth: 1280, sourceHeight: 720,
+        drawableWidth: drawable[0], drawableHeight: drawable[1], viewportX: viewport[0],
+        viewportY: viewport[1], viewportWidth: viewport[2], viewportHeight: viewport[3] }),
+      setPresentationLayers() {} }
+    };
+    const context = createHostContext(host, { graphics: false });
+    delete context.PMJS.web.presentation;
+    const seen = [];
+    context.document.addEventListener('mousedown', event => seen.push([event.pageX, event.pageY]));
+    const at = (gameX, gameY) => [
+      (viewport[0] + gameX * viewport[2] / 1280) * windowSize[0] / drawable[0],
+      (viewport[1] + gameY * viewport[3] / 720) * windowSize[1] / drawable[1]];
+    context.__pmjsReceiveInput({ pointerEvents: [[616, 312], [0, 0], [1280, 720]].map(([x, y]) => {
+      const [wx, wy] = at(x, y);
+      return { type: 'mousedown', button: 0, x: wx, y: wy };
+    }) });
+    assert.deepEqual(seen, [[616, 312], [0, 0], [1280, 720]], windowSize.join('x'));
+  }
 });
