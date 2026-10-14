@@ -20,6 +20,7 @@
 #include <GLES3/gl3.h>
 #include <jpeglib.h>
 #include <png.h>
+#include <webp/decode.h>
 
 namespace pmjs {
 
@@ -188,6 +189,21 @@ std::optional<ImagePixels> decodeJpegFromMemory(const void* data, std::size_t si
   return result;
 }
 
+std::optional<ImagePixels> decodeWebpFromMemory(const void* data, std::size_t size,
+    std::size_t maxDecodedBytes) {
+  int width = 0, height = 0;
+  if (!WebPGetInfo(static_cast<const std::uint8_t*>(data), size, &width, &height)) return std::nullopt;
+  const auto extent = checkedImageExtent(width, height, 8192, maxDecodedBytes);
+  if (!extent) return std::nullopt;
+  ImagePixels result;
+  result.width = extent->width;
+  result.height = extent->height;
+  result.rgba.resize(extent->rgbaBytes);
+  if (!WebPDecodeRGBAInto(static_cast<const std::uint8_t*>(data), size, result.rgba.data(),
+                          result.rgba.size(), extent->width * 4)) return std::nullopt;
+  return result;
+}
+
 std::optional<ImagePixels> decodeMemory(const void* data, std::size_t size,
     std::size_t maxDecodedBytes = 128U*1024U*1024U) {
   if (!data || size < 4) return std::nullopt;
@@ -198,6 +214,8 @@ std::optional<ImagePixels> decodeMemory(const void* data, std::size_t size,
   if (size >= 3 && bytes[0] == 0xff && bytes[1] == 0xd8 && bytes[2] == 0xff) {
     return decodeJpegFromMemory(data, size, maxDecodedBytes);
   }
+  if (size >= 12 && std::memcmp(bytes, "RIFF", 4) == 0 && std::memcmp(bytes + 8, "WEBP", 4) == 0)
+    return decodeWebpFromMemory(data, size, maxDecodedBytes);
   if (size >= 6 && std::memcmp(bytes, "8BPS\0\1", 6) == 0) return decodePsdFromMemory(data, size, maxDecodedBytes);
   if (auto recovered = recoverPngBytes({bytes, size}, maxDecodedBytes))
     return decodePngFromMemory(recovered->data(), recovered->size(), maxDecodedBytes);

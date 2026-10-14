@@ -23,12 +23,19 @@ class PngRows {
   explicit PngRows(const std::filesystem::path& path) {
     file_ = std::fopen(path.c_str(), "rb");
     if (!file_) throw std::runtime_error("cannot open preparation source");
+    // Games ship WebP and JPEG under .png names; those load at run time without preparation.
+    png_byte signature[8];
+    if (std::fread(signature, 1, 8, file_) != 8 || png_sig_cmp(signature, 0, 8)) {
+      std::fclose(file_); file_ = nullptr;
+      throw AssetPreparationUnsupported("source is not a PNG");
+    }
     png_ = png_create_read_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
     info_ = png_ ? png_create_info_struct(png_) : nullptr;
     if (!info_) { close(); throw std::runtime_error("cannot create PNG reader"); }
     if (setjmp(png_jmpbuf(png_))) { close(); throw std::runtime_error("invalid preparation PNG"); }
     png_set_chunk_malloc_max(png_, 1024U * 1024U);
     png_init_io(png_, file_);
+    png_set_sig_bytes(png_, 8);
     png_read_info(png_, info_);
     const auto w = png_get_image_width(png_, info_);
     const auto h = png_get_image_height(png_, info_);

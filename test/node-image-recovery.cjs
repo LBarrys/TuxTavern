@@ -44,8 +44,11 @@ async function main() {
     damagedChecksum[idat.offset + idat.size + 7] ^= 1;
     damagedChecksum.writeUInt32BE(crc(damagedChecksum.subarray(idat.offset + 4,
       idat.offset + idat.size + 8)), idat.offset + idat.size + 8);
+    // Lossless WebP of the same pixels (canvas.encodeWebP). Games ship WebP under .png names,
+    // which browsers sniff and draw.
+    const webp = Buffer.from('UklGRiwAAABXRUJQVlA4TB8AAAAvAUAAAB8gEEjeHzqN+RcQFPwf3fxHZA/gBgwR/Q8BAA==', 'base64');
     const files = { png: original, prefix: damagedPrefix,
-      checksum: damagedChecksum, psd: psd(pixels, false), rle: psd(pixels, true) };
+      checksum: damagedChecksum, psd: psd(pixels, false), rle: psd(pixels, true), webp };
     for (const [name, bytes] of Object.entries(files)) {
       fs.writeFileSync(path.join(directory, name + '.png'), bytes);
     }
@@ -76,7 +79,7 @@ async function main() {
       idat.offset + idat.size + 8)), idat.offset + idat.size + 8);
     const oversized = Buffer.from(psd(pixels, false)); oversized.writeUInt32BE(8193, 18);
     for (const bytes of [badChunk, badStream, badWindow, original.subarray(0, 36),
-      psd(pixels, false).subarray(0, 40), oversized]) {
+      psd(pixels, false).subarray(0, 40), oversized, webp.subarray(0, 30)]) {
       assert.throws(() => native.images.loadBytes(bytes));
       await assert.rejects(native.images.loadBytesAsync(bytes));
     }

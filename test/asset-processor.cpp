@@ -271,6 +271,12 @@ int main() {
     try { pmjs::prepareAssetImage(source, root / "16bit"); }
     catch (const pmjs::AssetPreparationUnsupported&) { refused = true; }
     require(refused);
+    // A WebP under a .png name (as games ship) is skipped quietly, not an invalid PNG.
+    std::ofstream(source, std::ios::binary | std::ios::trunc) << std::string("RIFF\x1e\0\0\0WEBPVP8L", 16);
+    refused = false;
+    try { pmjs::prepareAssetImage(source, root / "webp"); }
+    catch (const pmjs::AssetPreparationUnsupported&) { refused = true; }
+    require(refused && !std::filesystem::exists(root / "webp"));
     write(source, 8192, 4096, [](int x,int y) { return x == 4000 && y == 3000 ? AssetColor{31,41,51,61} : AssetColor{}; });
     result = pmjs::prepareAssetImage(source, root / "large");
     require(result.width == 8192 && result.height == 4096 && result.halo == 10);
