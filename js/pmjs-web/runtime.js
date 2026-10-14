@@ -160,13 +160,13 @@ if (typeof globalThis.MouseEvent !== 'function') {
 }
 function dispatchNativePointer(source) {
   if (!globalThis.document) return;
-  var target = PMJS.web.presentation ?
-    PMJS.web.presentation.pointerTarget(source.x, source.y) : document;
+  var point = PMJS.web.presentation ? PMJS.web.presentation.toPage(source.x, source.y) : source;
+  var target = PMJS.web.presentation ? PMJS.web.presentation.pointerTarget(point.x, point.y) : document;
   target = target || document;
   function dispatch(type) {
     var event = Object.assign(Object.create(globalThis.MouseEvent.prototype), {
       type: type, target: target, bubbles: true,
-      pageX: source.x, pageY: source.y, clientX: source.x, clientY: source.y,
+      pageX: point.x, pageY: point.y, clientX: point.x, clientY: point.y,
       button: source.button || 0, buttons: source.buttons || 0,
       deltaX: source.deltaX || 0, deltaY: source.deltaY || 0, deltaMode: 0,
       preventDefault: function() { this.defaultPrevented = true; },

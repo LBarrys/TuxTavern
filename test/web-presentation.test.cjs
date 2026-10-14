@@ -87,3 +87,42 @@ test('input snapshots reach owned subscribers independently of presentation refr
   assert.deepEqual(snapshots, [input]);
   assert.equal(canvas.getBoundingClientRect().width, 32);
 });
+
+// MV keeps page space at the game's size (innerWidth = Graphics.width, _realScale 1), so a
+// window of another size (tiled, fullscreen, or a plugin's 1280x720) is a scaled view of it.
+// Cyberslayers (YEP_CoreEngine 1280x720 in a 960x1080 Sway tile): RS_EventTouch clicks missed.
+test('pointer events reach the page in its own pixels when the presentation is scaled', () => {
+  let geometry = { drawableWidth: 960, drawableHeight: 1080,
+    viewportX: 0, viewportY: 0, viewportWidth: 960, viewportHeight: 1080 };
+  const host = {
+    runtime: { env: () => '', now: () => 0, windowSize: () => ({ width: 960, height: 1080 }) },
+    canvas: { create: (width, height) => ({ handle: 17, width, height }), release() {} },
+    render: {
+      presentation: () => geometry,
+      setPresentationViewport(width, height) {
+        const scale = Math.min(960 / width, 1080 / height);
+        geometry = { ...geometry, viewportWidth: width * scale, viewportHeight: height * scale,
+          viewportX: (960 - width * scale) / 2, viewportY: (1080 - height * scale) / 2 };
+      },
+      setPresentationLayers() {}
+    }
+  };
+  const context = createHostContext(host, { graphics: false });
+  const canvas = context.document.createElement('canvas');
+  canvas.width = 1280; canvas.height = 720;
+  canvas.style.width = '1280px'; canvas.style.height = '720px';
+  context.document.body.appendChild(canvas);
+  context.PMJS.web.presentation.setLayers(canvas, null, null);
+  context.PMJS.web.presentation.sync();
+  const seen = [];
+  context.document.addEventListener('mousedown', event => {
+    const rect = canvas.getBoundingClientRect();
+    seen.push([event.pageX - rect.left, event.pageY - rect.top]);
+  });
+  context.__pmjsReceiveInput({ pointerEvents: [
+    { type: 'mousedown', button: 0, x: 480, y: 540 },
+    { type: 'mousedown', button: 0, x: 0, y: 270 },
+    { type: 'mousedown', button: 0, x: 720, y: 405 }
+  ] });
+  assert.deepEqual(seen, [[640, 360], [0, 0], [960, 180]]);
+});
