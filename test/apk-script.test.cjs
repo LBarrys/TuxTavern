@@ -11,7 +11,8 @@ const path = require('node:path');
 const test = require('node:test');
 
 const script = path.join(__dirname, '../tools/apk.sh');
-const usable = process.getuid?.() === 0 &&
+// Alpine only: /etc/apk is a mount point here, and creating it elsewhere would touch the host.
+const usable = process.getuid?.() === 0 && fs.existsSync('/etc/apk') &&
   spawnSync('unshare', ['-m', 'true']).status === 0;
 
 const stubs = {
@@ -45,7 +46,7 @@ function run(root, installed) {
   return { calls: fs.readFileSync(log, 'utf8').trim().split('\n'), state };
 }
 
-test('apk.sh packages the checkout and installs it from the local repository', { skip: !usable && 'needs root and unshare' }, () => {
+test('apk.sh packages the checkout and installs it from the local repository', { skip: !usable && 'needs Alpine, root and unshare' }, () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pmjs-apk-'));
   fs.mkdirSync(path.join(root, 'bin'));
   fs.mkdirSync(path.join(root, 'state', 'etc', 'apk'), { recursive: true });
