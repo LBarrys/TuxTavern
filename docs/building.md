@@ -14,7 +14,7 @@ On Ubuntu 24.04:
 ```sh
 sudo apt-get install build-essential cmake ninja-build pkg-config git \
   libnode-dev libsdl2-dev libegl1-mesa-dev libgles2-mesa-dev libpng-dev \
-  zlib1g-dev libjpeg-dev libfreetype-dev libharfbuzz-dev \
+  zlib1g-dev libjpeg-dev libfreetype-dev libharfbuzz-dev liblz4-dev \
   libavformat-dev libavcodec-dev libavutil-dev libswresample-dev libswscale-dev
 ```
 
@@ -26,7 +26,7 @@ As a package, rebuilt and upgraded after each `git pull`: `doas sh tools/apk.sh`
 ```sh
 doas apk add build-base cmake samurai pkgconf git nodejs-dev linux-headers \
   sdl2-dev mesa-dev libpng-dev libwebp-dev zlib-dev libjpeg-turbo-dev \
-  freetype-dev harfbuzz-dev ffmpeg-dev
+  freetype-dev harfbuzz-dev lz4-dev ffmpeg-dev
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
 cmake --build build --target pmjs_native
 cmake --install build --prefix /usr/lib/pmjs

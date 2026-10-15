@@ -12,10 +12,10 @@ REPO=/var/lib/busylinux/repo/$arch KEY=/root/keys/local.rsa WORK=/var/tmp/tuxtav
 
 # FFmpeg by package name: its sonames change with each major version.
 depends="nodejs so:libSDL2-2.0.so.0 so:libEGL.so.1 so:libGLESv2.so.2 so:libpng16.so.16"
-depends="$depends so:libwebp.so.7 so:libjpeg.so.8 so:libfreetype.so.6 so:libharfbuzz.so.0"
+depends="$depends so:libwebp.so.7 so:libjpeg.so.8 so:libfreetype.so.6 so:libharfbuzz.so.0 so:liblz4.so.1"
 depends="$depends ffmpeg-libavformat ffmpeg-libavcodec ffmpeg-libavutil ffmpeg-libswresample ffmpeg-libswscale"
 makedepends="build-base cmake samurai pkgconf git nodejs-dev linux-headers sdl2-dev mesa-dev
-  libpng-dev libwebp-dev zlib-dev libjpeg-turbo-dev freetype-dev harfbuzz-dev ffmpeg-dev openssl"
+  libpng-dev libwebp-dev zlib-dev libjpeg-turbo-dev freetype-dev harfbuzz-dev lz4-dev ffmpeg-dev openssl"
 
 # The checkout belongs to a user; without this git refuses it, and build-info.json
 # would not record the commit.

@@ -1,4 +1,5 @@
 #include "canvas.hpp"
+#include <EGL/egl.h>
 #include <GLES3/gl3.h>
 #include <algorithm>
 #include <cassert>
@@ -14,6 +15,8 @@ bool failRead = false;
 }
 // Capture the actual GLES transfer boundary without a window or driver.
 extern "C" {
+// Uploads need a current context; there is none without a window.
+EGLContext eglGetCurrentContext() { return reinterpret_cast<EGLContext>(1); }
 void glGenTextures(GLsizei count, GLuint* names) { for(int i=0;i<count;++i) names[i]=i+1; }
 void glDeleteTextures(GLsizei, const GLuint*) {}
 void glBindTexture(GLenum, GLuint) {}
