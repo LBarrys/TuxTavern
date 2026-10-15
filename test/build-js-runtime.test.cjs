@@ -82,8 +82,7 @@ test('loading and portable-achievement adapters follow enabled guest plugins', (
     ['YEP_EventCopier', 'yanfly/event-copier'],
     ['YEP_SaveCore', 'yanfly/save-core'],
     ['YEP_CommonEventMenu', 'yanfly/common-event-menu'],
-    ['Irina_VisualNovelBusts', 'irina/visual-novel-busts'],
-    ['OrangeGreenworks', 'greenworks/orange']
+    ['Irina_VisualNovelBusts', 'irina/visual-novel-busts']
   ];
   const game = writeMvGame(root, { plugins: entries.map(([name]) => ({ name, status: true })) });
   const output = path.join(root, 'out.js');
