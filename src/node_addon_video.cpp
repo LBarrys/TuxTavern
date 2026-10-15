@@ -1,12 +1,20 @@
 #include "node_addon_video.hpp"
 
-#include <iostream>
+#include <stdexcept>
 
 namespace pmjs::addon {
 
 Video::Video(std::unique_ptr<pmjs::VideoDecoderSession> source)
     : decoder(std::move(source)) {
-  worker = std::thread([this]() { run(); });
+  worker = std::thread([this]() {
+    try { run(); }
+    catch (...) {
+      std::lock_guard lock(mutex);
+      failure = std::current_exception();
+      requested.reset();
+      ready.reset();
+    }
+  });
 }
 
 Video::~Video() {
@@ -16,13 +24,16 @@ Video::~Video() {
 }
 
 void Video::request(double targetTime) {
-  { std::lock_guard lock(mutex); requested = targetTime; }
+  { std::lock_guard lock(mutex);
+    if (failure) std::rethrow_exception(failure);
+    requested = targetTime; }
   condition.notify_one();
 }
 
 void Video::resetForSeek() {
   std::lock_guard lock(mutex);
   ++playbackGeneration;
+  finishedAt.reset();
   requested.reset();
   if (ready) {
     if (ready->rgba.capacity() > recycledRgba.capacity())
@@ -33,8 +44,15 @@ void Video::resetForSeek() {
 
 std::optional<pmjs::VideoFrame> Video::take() {
   std::lock_guard lock(mutex);
+  if (failure) std::rethrow_exception(failure);
   if (!ready) return std::nullopt;
   auto result = std::move(ready); ready.reset(); return result;
+}
+
+bool Video::ended(double playbackTime) {
+  std::lock_guard lock(mutex);
+  if (failure) std::rethrow_exception(failure);
+  return finishedAt && !ready && playbackTime >= *finishedAt;
 }
 
 void Video::recycle(std::vector<std::uint8_t> rgba) {
@@ -55,8 +73,7 @@ void Video::run() {
         lock.unlock();
         std::string error;
         decoder->prefetchOne(&error);
-        if (!error.empty()) std::cerr << "[pmjs-media] video prefetch error: "
-                                      << error << '\n';
+        if (!error.empty()) throw std::runtime_error(error);
         lock.lock();
         continue;
       }
@@ -69,9 +86,11 @@ void Video::run() {
     std::string error;
     auto frame = decoder->frame(frameTimestamp, rgba, &error);
     if (!frame) {
-      if (!error.empty()) std::cerr << "[pmjs-media] video decoder error: "
-                                    << error << '\n';
+      if (!error.empty()) throw std::runtime_error(error);
       recycle(std::move(rgba));
+      std::lock_guard lock(mutex);
+      if (generation == playbackGeneration && decoder->exhausted() && !decoder->queuedFrames())
+        finishedAt = decoder->endTime();
       continue;
     }
     std::lock_guard lock(mutex);
@@ -83,6 +102,7 @@ void Video::run() {
     if (ready && ready->rgba.capacity() > recycledRgba.capacity())
       recycledRgba = std::move(ready->rgba);
     ready = std::move(frame);
+    if (decoder->exhausted() && !decoder->queuedFrames()) finishedAt = decoder->endTime();
   }
 }
 

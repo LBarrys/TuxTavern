@@ -4,6 +4,7 @@
 #include "resources.hpp"
 
 #include <condition_variable>
+#include <exception>
 #include <mutex>
 #include <thread>
 
@@ -15,6 +16,7 @@ struct Video {
   void request(double targetTime);
   void resetForSeek();
   std::optional<pmjs::VideoFrame> take();
+  bool ended(double timestamp);
   void recycle(std::vector<std::uint8_t> rgba);
   const pmjs::MediaInfo& info() const;
 
@@ -25,6 +27,8 @@ struct Video {
   std::condition_variable condition;
   std::optional<double> requested;
   std::optional<pmjs::VideoFrame> ready;
+  std::exception_ptr failure;
+  std::optional<double> finishedAt;
   std::vector<std::uint8_t> recycledRgba;
   std::uint64_t playbackGeneration = 0;
   std::thread worker;
