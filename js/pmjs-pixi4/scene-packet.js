@@ -271,8 +271,6 @@ function nativePlainSpriteBinding(node) {
 }
 
 function writeNativePlainSpriteSegment(bindings, parentIndex) {
-  nativeSceneSegmentStats.runs++;
-  nativeSceneSegmentStats.sprites += bindings.length;
   for (var bindingIndex = 0; bindingIndex < bindings.length; bindingIndex++) {
     var binding = bindings[bindingIndex];
     var node = binding.node;
@@ -787,7 +785,6 @@ function encodeNativeScene(stage, backgroundColor = null) {
   nativeCustomFilterPlans = [];
   resetNativeSceneRecords();
   nativeSceneFilterDepth = 0;
-  nativeSceneSegmentStats.runs = nativeSceneSegmentStats.sprites = 0;
   if (backgroundColor !== null) {
     nativeSceneRecord(0xffffffff, 3, 0, backgroundColor,
       0, nativeIdentityTransform, 1, null, 0, null);

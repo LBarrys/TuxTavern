@@ -270,8 +270,15 @@ function canvasImageSmoothing(context, sw, sh, dw, dh) {
     dw * dw * (t[0] * t[0] + t[1] * t[1]) < sw * sw &&
     dh * dh * (t[2] * t[2] + t[3] * t[3]) < sh * sh;
 }
-// FreeType is TuxTavern's only text backend (upstream also has Skia65).
-function usesLegacyText() { return true; }
+// TuxTavern's native text is FreeType (glyphStats says so); upstream also has Skia65.
+var canvasTextBackend;
+function usesLegacyText() {
+  if (canvasTextBackend === undefined) {
+    canvasTextBackend = typeof NativeHost.canvas.glyphStats === 'function' ?
+      NativeHost.canvas.glyphStats().backend : 'freetype';
+  }
+  return canvasTextBackend === 'freetype';
+}
 function nativeCanvasPath(context, paths, stroke, clear, rule) {
   return typeof NativeHost.canvas.paintPath === 'function' &&
     NativeHost.canvas.paintPath(context.canvas._ensureNativeCanvas().handle, {
@@ -328,7 +335,7 @@ function canvasNativePaint(style, context) {
 }
 
 function drawAffineImage(context, source, nativeSource, sx, sy, sw, sh,
-    dx, dy, dw, dh, operationId, paintStyle, smoothing) {
+    dx, dy, dw, dh, paintStyle, smoothing) {
   if (!sw || !sh || !dw || !dh || source.width <= 0 || source.height <= 0) return;
   var t = context._transform;
   var determinant = t[0] * t[3] - t[1] * t[2];
@@ -343,13 +350,6 @@ function drawAffineImage(context, source, nativeSource, sx, sy, sw, sh,
     };
     if (paintStyle) descriptor.paint = canvasNativePaint(paintStyle, { _transform: context._paintTransform || t, imageSmoothingEnabled: context.imageSmoothingEnabled });
     NativeHost.canvas.drawAffineImage(target.handle, nativeSource.handle, descriptor);
-    if (globalThis.__pmjsTrace && __pmjsTrace.active()) {
-      var resource = __pmjsTrace.revision(target, 'canvas', true);
-      __pmjsTrace.event('canvas', 'canvas.affine-native-complete', {
-        parentOperationId: operationId, destinationId: resource.id,
-        destinationRevision: resource.revision
-      });
-    }
     return;
   }
   var corners = [[dx, dy], [dx + dw, dy], [dx + dw, dy + dh], [dx, dy + dh]];
@@ -1268,17 +1268,6 @@ CanvasContext2D.prototype.drawImage = function(source) {
   sw = clippedRight - clippedLeft; sh = clippedBottom - clippedTop;
   if (!this.canvas.width || !this.canvas.height || !dimensions[0] || !dimensions[1] ||
       !canvasTransformInvertible(this)) return;
-  var trace = globalThis.__pmjsTrace;
-  var tracedDestination = trace && trace.active() ?
-    this.canvas._ensureNativeCanvas() : null;
-  var operationId = trace && trace.active() ? trace.event('canvas', 'canvas.drawImage', {
-    sourceId: trace.id(nativeSource, source && source._nativeCanvas ? 'canvas' : 'image'),
-    destinationId: trace.id(tracedDestination, 'canvas'),
-    sourceX: sx, sourceY: sy, sourceWidth: sw, sourceHeight: sh,
-    destinationX: dx, destinationY: dy,
-    destinationWidth: dw, destinationHeight: dh,
-    composite: this.globalCompositeOperation
-  }) : 0;
   var smoothing = canvasImageSmoothing(this, sw, sh, dw, dh);
   var transformed = axisAlignedRect(this, dx, dy, dw, dh);
   if (!transformed || this._transform[0] < 0 || this._transform[3] < 0 ||
@@ -1286,7 +1275,7 @@ CanvasContext2D.prototype.drawImage = function(source) {
       this.globalCompositeOperation !== 'source-over') {
     var bitmapSource = { width: dimensions[0], height: dimensions[1], _nativeCanvas: source._nativeCanvas };
     drawAffineImage(this, bitmapSource, nativeSource, sx, sy, sw, sh,
-      dx, dy, dw, dh, operationId, null, smoothing);
+      dx, dy, dw, dh, null, smoothing);
     return;
   }
   dx = transformed.x; dy = transformed.y; dw = transformed.width; dh = transformed.height;
@@ -1295,19 +1284,6 @@ CanvasContext2D.prototype.drawImage = function(source) {
     destination.handle, nativeSource.handle,
     sx, sy, sw, sh, dx, dy, dw, dh,
     Math.max(0, Math.min(1, Number(this.globalAlpha))), smoothing);
-  if (trace && trace.active()) {
-    var destinationResource = trace.revision(destination, 'canvas', true);
-    trace.event('canvas', 'canvas.drawImage-complete', {
-      parentOperationId: operationId,
-      destinationId: destinationResource.id,
-      destinationRevision: destinationResource.revision,
-      x: Math.floor(dx), y: Math.floor(dy),
-      width: Math.floor(dw), height: Math.floor(dh),
-      submittedBytes: Math.max(0, Math.floor(dw)) *
-        Math.max(0, Math.floor(dh)) * 4,
-      implementation: 'native-cropped-draw'
-    });
-  }
 };
 function nativeTextStyle(context, font) {
   return { bold: font.weight >= 600, italic: font.style === 'italic' || font.style === 'oblique',
@@ -1383,7 +1359,7 @@ function drawCanvasText(context, text, x, y, stroke, maxWidth) {
       var drawing = Object.create(context); drawing._transform = [1, 0, 0, 1, 0, 0];
       drawing._paintTransform = transform;
       drawAffineImage(drawing, mask, mask, 0, 0, mask.width, mask.height,
-        0, 0, mask.width, mask.height, 0, style, false);
+        0, 0, mask.width, mask.height, style, false);
     } finally { releaseNativeResource(mask, 'canvas'); }
     return;
   }
@@ -1399,7 +1375,7 @@ function drawCanvasText(context, text, x, y, stroke, maxWidth) {
       _nativeCanvas: temporary };
     drawAffineImage(context, source, temporary, 0, 0, temporary.width,
       temporary.height, placement.x - padding, placement.top - padding,
-      temporary.width * horizontalScale, temporary.height, 0, dynamicStyle ? style : null);
+      temporary.width * horizontalScale, temporary.height, dynamicStyle ? style : null);
   } finally {
     releaseNativeResource(temporary, 'canvas');
   }

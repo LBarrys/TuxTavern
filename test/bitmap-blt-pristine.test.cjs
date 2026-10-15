@@ -20,7 +20,6 @@ function setupEnvironment({ config = {}, env = {} } = {}) {
       tagName: 'CANVAS',
       _width: width || 0,
       _height: height || 0,
-      _pmjsBitmapUrl: null,
       __pmjsContentRevision: 0,
       drawCalls: [],
       _ensureNativeCanvas() { return { handle: 1 }; },

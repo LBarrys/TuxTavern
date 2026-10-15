@@ -77,7 +77,7 @@ PMJS.methods.wrap({
     return (typeof Sprite !== 'undefined' && Sprite.prototype) || null;
   },
   method: '_executeTint',
-  id: 'pmjs.mv.native-sprite-tint-execute-proof',
+  id: 'pmjs.mv.native-sprite-tint-execution-proof',
   wrap: function(stockExecuteTint) { return stockExecuteTint; }
 });
 

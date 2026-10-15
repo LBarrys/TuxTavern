@@ -1772,11 +1772,8 @@ test('registry disable selects ordinary sprite encoding with the same packet', (
     root.addChild(child);
   }
   const optimized = submitOnly(harness, root);
-  assert.equal(sandbox.nativeSceneSegmentStats.runs, 1);
-  assert.equal(sandbox.nativeSceneSegmentStats.sprites, 6);
   sandbox.PMJS.optimizations.isEnabled = id => id !== 'scene.plain-sprite-segment';
   const ordinary = submitOnly(harness, root);
-  assert.equal(sandbox.nativeSceneSegmentStats.runs, 0);
   assert.deepEqual(ordinary, optimized);
 });
 
@@ -1807,7 +1804,6 @@ test('sprite segments preserve Text preparation and later text changes', () => {
   assert.deepEqual(label.prepared, [[2, true, true]]);
   assert.equal(packet.metadata[7 + 2], label.nextTexture.baseTexture.source._nativeImage.handle);
   assert.equal(packet.values[41 + 13], 40);
-  assert.equal(sandbox.nativeSceneSegmentStats.sprites, 4);
 
   label.nextTexture = makeTexture(72, 16);
   label.dirty = true;

@@ -182,8 +182,6 @@ var nativeMaterializationStats = {
   meshHits: 0, meshMisses: 0,
   cpuTintedSprites: 0, shaderToneSprites: 0
 };
-// Plain sprite runs batched in the last encoded scene.
-var nativeSceneSegmentStats = { runs: 0, sprites: 0 };
 
 function nativeTextureSource(source) {
   if (!source) return null;
