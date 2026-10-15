@@ -5,13 +5,17 @@ const path = require('node:path');
 const vm = require('node:vm');
 const test = require('node:test');
 
-function fixture() {
+function fixture(files) {
   const errors = [];
   const context = vm.createContext({ console, performance: { now: () => 0 }, PMJS: {},
     CanvasContext2D: function() {},
     nativeWindowState: { focused: true, visible: true },
-    pmjsGameConfig: {}, NativeHost: { runtime: {
-      loadScript() { throw new Error('unexpected external script'); },
+    gamePath: path => path.replace(/^\/?(game\/)?/, '').replace(/^\.\//, ''), gameReadPath: path => path,
+    pmjsGameConfig: {}, NativeHost: { fs: { exists: path => !!files && path in files }, runtime: {
+      loadScript(path) {
+        if (!files) throw new Error('unexpected external script');
+        return vm.runInContext(files[path], context);
+      },
       runScript(source) { return vm.runInContext(source, context); }
     } } });
   context.window = context;
@@ -80,4 +84,32 @@ test('script data and external script elements do not execute as inline source',
   }
   assert.equal(c.inertSource, undefined);
   assert.deepEqual(errors, []);
+});
+
+// Karryn's Prison's mod manager appends <script src> for each mod and waits for onload.
+test('external scripts load after the current task, in order, then fire load or error', () => {
+  const { context: c, document: d, errors } = fixture({
+    'mods/Body Hair/Body Hair.js': 'globalThis.order.push("hair:" + (document.currentScript === hair));',
+    'mods/broken.js': 'globalThis.order.push("broken"); throw new Error("mod failure");',
+  });
+  c.order = [];
+  const events = [];
+  const add = src => {
+    const script = d.createElement('script');
+    script.src = src;
+    script.async = false;
+    script.onload = () => events.push('load ' + src);
+    script.onerror = () => events.push('error ' + src);
+    d.body.appendChild(script);
+    return script;
+  };
+  c.hair = add('./mods/Body Hair/Body Hair.js');
+  add('mods/missing.js');
+  add('mods/broken.js');
+  assert.deepEqual(c.order, [], 'nothing runs while the appending code runs');
+  c.PMJS.tasks.drain();
+  assert.deepEqual(c.order, ['hair:true', 'broken']);
+  assert.deepEqual(events, ['load ./mods/Body Hair/Body Hair.js', 'error mods/missing.js', 'load mods/broken.js']);
+  assert.deepEqual(errors, ['mod failure']);
+  assert.equal(d.currentScript, null);
 });

@@ -35,6 +35,25 @@
         currentScriptStack.pop();
       }
     };
+    // A connected <script src> loads after the current task, in append order, as with async=false
+    // (Karryn's Prison's mod manager waits on onload). A missing file fires error; a script that
+    // throws is reported and still fires load, as in a browser.
+    globalThis.pmjsLoadScriptElement = function(script) {
+      PMJS.tasks.enqueue(function() {
+        var source = String(script.src).replace(/^file:\/\//, '');
+        try { source = decodeURI(source); } catch (_) { /* keep it as written */ }
+        var path = gamePath(source.split(/[?#]/)[0]);
+        if (!NativeHost.fs.exists(gameReadPath(path))) {
+          script.dispatchEvent({ type: 'error', target: script });
+          return;
+        }
+        currentScriptStack.push(script);
+        try { rawLoadScript.call(NativeHost.runtime, path); }
+        catch (error) { pmjsReportEventError(error); }
+        finally { currentScriptStack.pop(); }
+        script.dispatchEvent({ type: 'load', target: script });
+      });
+    };
     NativeHost.runtime.loadScript = function(path) {
       var script = {
         src: resolveScriptVirtualSrc(path)

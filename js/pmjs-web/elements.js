@@ -238,12 +238,17 @@ function ScriptElement() {
 ScriptElement.prototype = Object.create(GenericElement.prototype);
 ScriptElement.prototype.constructor = ScriptElement;
 ScriptElement.prototype._prepare = function() {
-  if (this._started || this.src) return;
+  if (this._started) return;
   var root = this;
   while (root.parentNode) root = root.parentNode;
   if (root !== documentTarget) return;
   var type = String(this.type || '').trim().toLowerCase();
   if (type && type !== 'text/javascript' && type !== 'application/javascript') return;
+  if (this.src) {
+    this._started = true;
+    pmjsLoadScriptElement(this);
+    return;
+  }
   if (!this.textContent) return;
   this._started = true;
   var script = this;
