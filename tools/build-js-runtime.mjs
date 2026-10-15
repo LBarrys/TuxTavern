@@ -48,16 +48,17 @@ const supportedEngines = {
 // The scripts index.html loads before rpg_core.js, in order, as NW.js would. MV games on Pixi 7
 // (Karryn's Prison) bring their own: @pixi/tilemap, pixi-rpgm, a logger.
 // NW.js runs index.html's scripts in order: libraries before rpg_core.js, the game's own
-// between the last rpg_*.js and plugins.js (which, with main.js, PMJS loads itself).
+// after the last rpg_*.js and up to main.js (which, with plugins.js, PMJS loads itself).
 function pageScripts(gameDir) {
   const html = fs.readFileSync(path.join(gameDir, 'index.html'), 'utf8');
   const scripts = [...html.matchAll(/<script[^>]*\ssrc\s*=\s*["']([^"']+)["']/gi)].map(match => match[1]);
   const core = scripts.findIndex(src => /(^|\/)rpg_core\.js$/i.test(src));
   if (core < 0) throw new Error(`${gameDir}/index.html does not load rpg_core.js`);
   const engineEnd = scripts.findLastIndex(src => /(^|\/)rpg_\w+\.js$/i.test(src)) + 1;
-  const plugins = scripts.findIndex(src => /(^|\/)plugins\.js$/i.test(src));
+  const main = scripts.findIndex(src => /(^|\/)main\.js$/i.test(src));
   return { libraries: scripts.slice(0, core),
-    scripts: scripts.slice(engineEnd, plugins < 0 ? engineEnd : plugins) };
+    scripts: scripts.slice(engineEnd, main < 0 ? scripts.length : main)
+      .filter(src => !/(^|\/)plugins\.js$/i.test(src)) };
 }
 
 // Structural validation only: the runtime optimization registry remains the

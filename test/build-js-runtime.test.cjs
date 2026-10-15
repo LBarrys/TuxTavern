@@ -184,13 +184,14 @@ test('alternate Pixi paths from inspection are used by MV setup', () => {
     /inspected Pixi 4\.8\.9 but loaded 4\.8\.8/);
 });
 
-// Karryn's Prison: index.html loads Pixi 7 libraries before rpg_core.js and its ModManager after
-// rpg_windows.js; NW.js runs them in that order, plugins.js and main.js stay PMJS's.
+// Karryn's Prison: index.html loads Pixi 7 libraries before rpg_core.js and its own scripts
+// (ModManager) after the engine, around plugins.js; plugins.js and main.js stay PMJS's.
 test('MV on Pixi 7 loads the index.html scripts around the engine in page order', () => {
   const root = temporaryDirectory('pmjs-mv-pixi7-');
   const game = writeMvGame(root, { pixiVersion: '7.4.2' });
   const page = ['js/libs/pixi.js', 'js/libs/pixi-tilemap.umd.js', 'js/libs/logger.js', 'js/rpg_core.js',
-    'js/rpg_managers.js', 'js/rpg_windows.js', 'js/modmanager.js', 'js/plugins.js', 'js/main.js'];
+    'js/rpg_managers.js', 'js/rpg_windows.js', 'js/modmanager.js', 'js/plugins.js', 'js/mods.js', 'js/main.js',
+    'js/after-main.js'];
   fs.writeFileSync(path.join(game, 'index.html'),
     page.map(src => `<script type="text/javascript" src="${src}"></script>`).join('\n'));
   const out = path.join(root, 'out.js');
@@ -199,7 +200,7 @@ test('MV on Pixi 7 loads the index.html scripts around the engine in page order'
   assert.match(bundle, /BEGIN js\/pmjs-pixi7\/setup.js/);
   const runtimeGame = JSON.parse(bundle.match(/globalThis\.PMJS_RUNTIME_GAME = (\{[^\n]+\});/)[1]);
   assert.deepEqual(runtimeGame.libraries, ['js/libs/pixi.js', 'js/libs/pixi-tilemap.umd.js', 'js/libs/logger.js']);
-  assert.deepEqual(runtimeGame.scripts, ['js/modmanager.js']);
+  assert.deepEqual(runtimeGame.scripts, ['js/modmanager.js', 'js/mods.js']);
 
   const paths = [];
   const context = { PMJS_RUNTIME_GAME: runtimeGame, nativeBootPhase() {},
@@ -213,7 +214,7 @@ test('MV on Pixi 7 loads the index.html scripts around the engine in page order'
   }
   assert.deepEqual(paths, ['js/libs/pixi.js', 'js/libs/pixi-tilemap.umd.js', 'js/libs/logger.js',
     'js/rpg_managers.js', 'js/rpg_objects.js', 'js/rpg_scenes.js', 'js/rpg_sprites.js', 'js/rpg_windows.js',
-    'js/modmanager.js']);
+    'js/modmanager.js', 'js/mods.js']);
 });
 
 test('MV inspection rejects a missing tilemap library before bundle generation', () => {
