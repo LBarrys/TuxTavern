@@ -162,6 +162,11 @@ function exposeNativeGamepads() {
 }
 function dispatchNativeKey(source) {
   if (!globalThis.document || typeof document.dispatchEvent !== 'function') return;
+  var target = document.activeElement || document;
+  if (source.text !== undefined) {
+    if (typeof target._insertText === 'function') target._insertText(source.text);
+    return;
+  }
   var event = { type: source.down ? 'keydown' : 'keyup',
     keyCode: source.keyCode, which: source.keyCode,
     code: source.code || '', key: source.key || '', repeat: !!source.repeat,
@@ -169,9 +174,14 @@ function dispatchNativeKey(source) {
     metaKey: !!source.meta,
     getModifierState: function(name) { return name === 'CapsLock' && !!source.capsLock; },
     preventDefault: function() { this.defaultPrevented = true; },
-    stopPropagation: function() {},
-    stopImmediatePropagation: function() {} };
-  document.dispatchEvent(event);
+    stopPropagation: function() { this._pmjsPropagationStopped = true; },
+    stopImmediatePropagation: function() { this._pmjsPropagationStopped = true; } };
+  var current = target;
+  while (current && current !== document && !event._pmjsPropagationStopped) {
+    current.dispatchEvent(event); current = current.parentNode;
+  }
+  if (!event._pmjsPropagationStopped) document.dispatchEvent(event);
+  if (!event.defaultPrevented && source.down && typeof target._editKey === 'function') target._editKey(event);
 }
 var nativePointerDownTarget = null;
 // PixiJS 4's interaction code tests `event instanceof MouseEvent` without checking that

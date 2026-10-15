@@ -138,6 +138,10 @@
 
   function registerStylesheet(cssText, stylesheetPath) {
     if (!cssText || typeof cssText !== 'string') return;
+    if (PMJS.web && typeof PMJS.web.registerStylesheet === 'function') {
+      PMJS.web.registerStylesheet(cssText, stylesheetPath);
+      return;
+    }
     var ruleRegex = /@font-face\s*\{[^}]+\}/gi;
     var match;
     while ((match = ruleRegex.exec(cssText)) !== null) {

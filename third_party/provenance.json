@@ -333,6 +333,12 @@
     },
     "js/pmjs-plugins/yanfly/core-transforms.js": {
       "origin": "original"
+    },
+    "js/pmjs-plugins/input-form/native-form.js": {
+      "origin": "compatibility",
+      "source": "PMJS",
+      "license": "MIT",
+      "notice": "LICENSE"
     }
   },
   "defaults": {

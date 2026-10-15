@@ -26,28 +26,6 @@ function ImageData(data, width, height) {
 }
 globalThis.ImageData = ImageData;
 
-// element.style keeps plain properties, plus the methods plugins call on it.
-function CSSStyleDeclaration() {}
-function cssStyleKey(name) {
-  // Custom properties (--x) keep their name; others become style.backgroundColor and so on.
-  name = String(name);
-  return name.indexOf('--') === 0 ? name :
-    name.replace(/-([a-z])/g, function(_, letter) { return letter.toUpperCase(); });
-}
-CSSStyleDeclaration.prototype.setProperty = function(name, value) {
-  this[cssStyleKey(name)] = value === null || value === undefined ? '' : String(value);
-};
-CSSStyleDeclaration.prototype.getPropertyValue = function(name) {
-  var value = this[cssStyleKey(name)];
-  return value === undefined || value === null ? '' : String(value);
-};
-CSSStyleDeclaration.prototype.removeProperty = function(name) {
-  var value = this.getPropertyValue(name);
-  delete this[cssStyleKey(name)];
-  return value;
-};
-globalThis.CSSStyleDeclaration = CSSStyleDeclaration;
-
 function base64Bytes(bytes) {
   var alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
   var encoded = '';
@@ -64,18 +42,81 @@ function base64Bytes(bytes) {
   return encoded;
 }
 
+// element.style keeps plain properties, plus the methods plugins call on it.
+function CSSStyleDeclaration() {}
+function cssPropertyName(name) {
+  // Custom properties (--x) keep their name; others become style.backgroundColor and so on.
+  name = String(name);
+  return name.indexOf('--') === 0 ? name :
+    name.replace(/-([a-z])/g, function(_, letter) { return letter.toUpperCase(); });
+}
+CSSStyleDeclaration.prototype.setProperty = function(name, value) {
+  this[cssPropertyName(name)] = value === null || value === undefined ? '' : String(value);
+};
+CSSStyleDeclaration.prototype.getPropertyValue = function(name) {
+  var value = this[cssPropertyName(name)];
+  return value === undefined || value === null ? '' : String(value);
+};
+CSSStyleDeclaration.prototype.removeProperty = function(name) {
+  var previous = this.getPropertyValue(name);
+  delete this[cssPropertyName(name)];
+  return previous;
+};
+Object.defineProperty(CSSStyleDeclaration.prototype, 'cssText', {
+  get: function() {
+    return Object.keys(this).map(function(name) {
+      return name.replace(/[A-Z]/g, function(letter) { return '-' + letter.toLowerCase(); }) + ': ' + this[name] + ';';
+    }, this).join(' ');
+  },
+  set: function(text) {
+    Object.keys(this).forEach(function(name) { delete this[name]; }, this);
+    String(text).split(';').forEach(function(declaration) {
+      var colon = declaration.indexOf(':');
+      if (colon > 0) this.setProperty(declaration.slice(0, colon).trim(), declaration.slice(colon + 1).trim());
+    }, this);
+  }
+});
+['transform', 'transformOrigin', 'perspective', 'perspectiveOrigin', 'opacity', 'visibility',
+  'display', 'position', 'left', 'top', 'right', 'bottom', 'width', 'height', 'maxWidth', 'maxHeight',
+  'color', 'backgroundColor', 'fontSize', 'fontFamily', 'fontWeight', 'fontStyle', 'lineHeight',
+  'padding', 'margin', 'border', 'zIndex', 'overflow', 'filter', 'imageRendering', 'src'].forEach(function(name) {
+  Object.defineProperty(CSSStyleDeclaration.prototype, name, { value: '', writable: true, configurable: true });
+});
+globalThis.CSSStyleDeclaration = CSSStyleDeclaration;
+
+function Node() { EventTarget.call(this); this.children = []; this.parentNode = null; }
+Node.prototype = Object.create(EventTarget.prototype);
+Node.prototype.constructor = Node;
+function Element() { Node.call(this); }
+Element.prototype = Object.create(Node.prototype);
+Element.prototype.constructor = Element;
+function HTMLElement(tagName) {
+  Element.call(this);
+  this.tagName = String(tagName).toUpperCase();
+  this.nodeType = 1;
+  this.style = new CSSStyleDeclaration();
+}
+HTMLElement.prototype = Object.create(Element.prototype);
+HTMLElement.prototype.constructor = HTMLElement;
+globalThis.Node = Node;
+globalThis.Element = Element;
+globalThis.HTMLElement = HTMLElement;
+
+function GenericElement(tagName) { HTMLElement.call(this, tagName); }
+GenericElement.prototype = Object.create(HTMLElement.prototype);
+GenericElement.prototype.constructor = GenericElement;
+
 function CanvasElement() {
-  EventTarget.call(this);
+  GenericElement.call(this, 'canvas');
   this._width = 300;
   this._height = 150;
   this.__pmjsContentRevision = 0;
-  this.style = new CSSStyleDeclaration();
   this.screencanvas = false;
   this._context2d = null;
   this._nativeCanvas = null;
 }
 
-CanvasElement.prototype = Object.create(EventTarget.prototype);
+CanvasElement.prototype = Object.create(GenericElement.prototype);
 CanvasElement.prototype.constructor = CanvasElement;
 CanvasElement.prototype._pmjsContentChanged = function() {
   this.__pmjsContentRevision++;
@@ -135,6 +176,13 @@ CanvasElement.prototype.toDataURL = function(type, quality) {
   return 'data:' + type + ';base64,' + base64Bytes(bytes);
 };
 CanvasElement.prototype.getBoundingClientRect = function() {
+  if (this._pmjsNativePresentation && NativeHost.render && NativeHost.render.presentation) {
+    var geometry = NativeHost.render.presentation();
+    var size = NativeHost.runtime.windowSize();
+    var ratioX = geometry.drawableWidth / size.width, ratioY = geometry.drawableHeight / size.height;
+    return { left: geometry.viewportX / ratioX, top: geometry.viewportY / ratioY,
+      width: geometry.viewportWidth / ratioX, height: geometry.viewportHeight / ratioY };
+  }
   return this._pmjsPresentationRect || { left: 0, top: 0, width: this.width, height: this.height };
 };
 
@@ -143,16 +191,6 @@ Object.defineProperties(CanvasElement.prototype, {
   offsetTop: { get: function() { return this.getBoundingClientRect().top; } }
 });
 
-function GenericElement(tagName) {
-  EventTarget.call(this);
-  this.tagName = String(tagName).toUpperCase();
-  this.style = new CSSStyleDeclaration();
-  this.children = [];
-  this.parentNode = null;
-}
-
-GenericElement.prototype = Object.create(EventTarget.prototype);
-GenericElement.prototype.constructor = GenericElement;
 // Simple selectors only (tag, #id, .class), as Karryn's Prison's sweetalert uses.
 GenericElement.prototype.querySelectorAll = function(selector) {
   var match = /^(#|\.)?([\w-]+)$/.exec(String(selector).trim());
@@ -184,7 +222,11 @@ GenericElement.prototype.appendChild = function(child) {
 };
 GenericElement.prototype.removeChild = function(child) {
   var index = this.children.indexOf(child);
-  if (index >= 0) this.children.splice(index, 1);
+  if (index < 0) throw new Error('The node is not a child of this element');
+  if (typeof documentTarget !== 'undefined' && child.contains(documentTarget.activeElement)) {
+    documentTarget.activeElement.blur();
+  }
+  this.children.splice(index, 1);
   child.parentNode = null;
   return child;
 };
@@ -239,7 +281,37 @@ GenericElement.prototype.removeAttribute = function(name) {
   var descriptor = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(this), name);
   if (descriptor && descriptor.set) this[name] = '';
 };
-GenericElement.prototype.getElementsByTagName = function() { return []; };
+GenericElement.prototype.remove = function() {
+  if (this.parentNode) this.parentNode.removeChild(this);
+};
+GenericElement.prototype.contains = function(node) {
+  for (; node; node = node.parentNode) if (node === this) return true;
+  return false;
+};
+Node.prototype.contains = GenericElement.prototype.contains;
+Node.prototype.removeChild = GenericElement.prototype.removeChild;
+Node.prototype.remove = GenericElement.prototype.remove;
+Object.defineProperty(GenericElement.prototype, 'isConnected', {
+  get: function() { return typeof documentTarget !== 'undefined' && documentTarget.documentElement.contains(this); }
+});
+GenericElement.prototype.getElementsByTagName = function(tagName) {
+  var name = String(tagName).toUpperCase(), results = [];
+  function visit(node) {
+    (node.children || []).forEach(function(child) {
+      if (child.nodeType === 1 && (name === '*' || child.tagName === name)) results.push(child);
+      visit(child);
+    });
+  }
+  visit(this);
+  results.item = function(index) { return this[index] || null; };
+  return results;
+};
+GenericElement.prototype.getBoundingClientRect = function() {
+  var left = parseFloat(this.style.left) || 0, top = parseFloat(this.style.top) || 0;
+  var width = parseFloat(this.style.width) || 0, height = parseFloat(this.style.height) || 0;
+  return { x: left, y: top, left: left, top: top, width: width, height: height,
+    right: left + width, bottom: top + height };
+};
 
 function escapeElementText(text) {
   return String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -278,6 +350,17 @@ function parseElementHtml(parent, html) {
     }
   }
 }
+function TextNode(text) {
+  Node.call(this);
+  this.nodeType = 3;
+  this.textContent = String(text);
+}
+TextNode.prototype = Object.create(Node.prototype);
+TextNode.prototype.constructor = TextNode;
+Object.defineProperty(TextNode.prototype, 'outerHTML', {
+  get: function() { return escapeElementText(this.textContent); }
+});
+globalThis.Text = TextNode;
 Object.defineProperties(GenericElement.prototype, {
   textContent: {
     configurable: true,
@@ -391,8 +474,7 @@ Object.defineProperties(ScriptElement.prototype, {
     },
     set: function(value) {
       this.children.forEach(function(child) { child.parentNode = null; });
-      var text = new GenericElement('#text');
-      text.textContent = value === null ? '' : String(value);
+      var text = new TextNode(value === null ? '' : String(value));
       text.parentNode = this;
       this.children = [text];
       this._prepare();
@@ -414,3 +496,56 @@ AudioElement.prototype.constructor = AudioElement;
 AudioElement.prototype.canPlayType = function(type) {
   return /^audio\//.test(String(type)) ? 'maybe' : '';
 };
+
+function InputElement() {
+  GenericElement.call(this, 'input');
+  this.type = 'text';
+  this.maxLength = -1;
+  this._value = '';
+  this.selectionStart = this.selectionEnd = 0;
+}
+InputElement.prototype = Object.create(GenericElement.prototype);
+InputElement.prototype.constructor = InputElement;
+Object.defineProperty(InputElement.prototype, 'value', {
+  get: function() { return this._value; },
+  set: function(value) {
+    this._value = String(value);
+    this.selectionStart = this.selectionEnd = this._value.length;
+  }
+});
+InputElement.prototype.setAttribute = function(name, value) {
+  if (String(name).toLowerCase() === 'maxlength') this.maxLength = Number(value);
+  else GenericElement.prototype.setAttribute.call(this, name, value);
+};
+InputElement.prototype.setSelectionRange = function(start, end) {
+  this.selectionEnd = Math.max(0, Math.min(this.value.length, Number(end) || 0));
+  this.selectionStart = Math.max(0, Math.min(this.selectionEnd, Number(start) || 0));
+};
+InputElement.prototype._insertText = function(text) {
+  if (this.disabled || this.readOnly || this.type !== 'text') return;
+  var start = this.selectionStart, end = this.selectionEnd;
+  text = String(text);
+  if (this.maxLength >= 0) text = text.slice(0, Math.max(0, this.maxLength - this.value.length + end - start));
+  if (!text && start === end) return;
+  this._value = this.value.slice(0, start) + text + this.value.slice(end);
+  this.selectionStart = this.selectionEnd = start + text.length;
+  this.dispatchEvent({ type: 'input', target: this });
+};
+InputElement.prototype._editKey = function(event) {
+  var start = this.selectionStart, end = this.selectionEnd;
+  if (event.keyCode === 8 || event.keyCode === 46) {
+    if (start === end) {
+      if (event.keyCode === 8) start = Math.max(0, start - 1);
+      else end = Math.min(this.value.length, end + 1);
+      // Keep UTF-16 surrogate pairs intact when deleting a character.
+      if (start > 0 && /[\uDC00-\uDFFF]/.test(this.value[start])) start--;
+      if (end < this.value.length && /[\uDC00-\uDFFF]/.test(this.value[end])) end++;
+    }
+    this.setSelectionRange(start, end); this._insertText('');
+  } else if (event.keyCode === 36) this.setSelectionRange(0, 0);
+  else if (event.keyCode === 35) this.setSelectionRange(this.value.length, this.value.length);
+  else if (event.keyCode === 37) this.setSelectionRange(Math.max(0, start - 1), Math.max(0, start - 1));
+  else if (event.keyCode === 39) this.setSelectionRange(Math.min(this.value.length, end + 1), Math.min(this.value.length, end + 1));
+  else if ((event.ctrlKey || event.metaKey) && event.keyCode === 65) this.setSelectionRange(0, this.value.length);
+};
+globalThis.HTMLInputElement = InputElement;

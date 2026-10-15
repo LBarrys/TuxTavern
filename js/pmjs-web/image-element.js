@@ -1,6 +1,6 @@
 var NativeImage = (function() {
 function NativeImage() {
-  EventTarget.call(this);
+  GenericElement.call(this, 'img');
   this.width = 0;
   this.height = 0;
   this.naturalWidth = 0;
@@ -27,7 +27,7 @@ var pendingNativeImageLoads = 0;
 var imageBurst = null;
 var IMAGE_BURST = 64;
 
-NativeImage.prototype = Object.create(EventTarget.prototype);
+NativeImage.prototype = Object.create(GenericElement.prototype);
 NativeImage.prototype.constructor = NativeImage;
 // Images are attached to elements too (Karryn's Prison's FastCutIns removes its previews).
 NativeImage.prototype.remove = function() {

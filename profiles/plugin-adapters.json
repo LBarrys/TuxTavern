@@ -117,6 +117,14 @@
       "modules": [
         "js/pmjs-plugins/srd/battle-status-gauges.js"
       ]
+    },
+    {
+      "plugins": [
+        "111_InputForm"
+      ],
+      "modules": [
+        "js/pmjs-plugins/input-form/native-form.js"
+      ]
     }
   ]
 }

@@ -214,7 +214,7 @@ test('MV load returns before loadeddata and video-playing state clears on end', 
 
   graphics._playVideo('movies/Opening.mp4');
   assert.equal(graphics._videoLoading, true);
-  assert.equal(video.style.opacity, undefined);
+  assert.equal(video.style.opacity, '');
   assert.equal(graphics.isVideoPlaying(), true);
   await context.PMJS.tasks.idle();
   await Promise.resolve();

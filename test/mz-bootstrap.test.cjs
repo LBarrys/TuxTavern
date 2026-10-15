@@ -68,7 +68,7 @@ test('MZ plugins in a subfolder are reported loaded, under their file name', () 
     } } },
     PluginManager: { _scripts: [], setParameters() {} },
     Utils: { extractFileName(name) { return name.split('/').pop(); } },
-    nativeBootPhase() {},
+    nativeBootPhase() {}, PMJS_RUNTIME_ENGINE: 'mz',
   });
   context.globalThis = context;
   for (const module of ['js/pmjs-rpgmaker/lifecycle.js', 'js/pmjs-core/methods.js',
@@ -173,3 +173,19 @@ for (const failure of ['loaded', 'afterGuestPlugins', 'method', 'beforeBoot']) {
     }
   });
 }
+
+test('MZ loader accepts older Utils without extractFileName and preserves subdirectory parameters', () => {
+  const loads = [], parameters = [];
+  const c = vm.createContext({ Utils: {}, PluginManager: { _scripts: [],
+    setParameters(name, values) { parameters.push([name, values]); } },
+    NativeHost: { runtime: { loadScript(name) { loads.push(name); } } },
+    PMJS: { plugins: { execute(name, load) { load(); } } },
+    pmjsInitializeRpgMakerPlugins(install) { install(); } });
+  runModule(c, 'js/pmjs-mz/plugin-loader.js'); c.pmjsMzInitializePlugins();
+  const values = { setting: 'on' };
+  c.PluginManager.setup([{ name: 'Disabled', status: false },
+    { name: 'folder/Example', status: true, parameters: values },
+    { name: 'folder/Example', status: true, parameters: values }]);
+  assert.deepEqual(loads, ['js/plugins/folder/Example.js']);
+  assert.deepEqual(parameters, [['Example', values]]);
+});

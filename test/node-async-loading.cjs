@@ -54,7 +54,8 @@ function imageFixture(t) {
     trackNativeResource: resource => resource,
     releaseNativeResource(resource) { if (resource) { released.push(resource.handle); native.images.release(resource.handle); } }
   });
-  for (const module of ['pmjs-web/scheduler', 'pmjs-web/events', 'pmjs-web/object-urls', 'pmjs-web/images', 'pmjs-web/image-element']) {
+  for (const module of ['pmjs-web/scheduler', 'pmjs-web/events', 'pmjs-web/elements', 'pmjs-web/object-urls',
+    'pmjs-web/images', 'pmjs-web/image-element']) {
     const filename = path.resolve(__dirname, '../js', module + '.js');
     vm.runInContext(fs.readFileSync(filename, 'utf8'), context);
   }
