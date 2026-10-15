@@ -89,6 +89,9 @@ globalThis.CanvasRenderingContext2D = CanvasContext2D;
 globalThis.addEventListener = EventTarget.prototype.addEventListener.bind(documentTarget);
 globalThis.removeEventListener = EventTarget.prototype.removeEventListener.bind(documentTarget);
 globalThis.dispatchEvent = EventTarget.prototype.dispatchEvent.bind(documentTarget);
+// A page's window has onmessage; bundled worker code assigns it in strict mode (Karryn's Prison's
+// SelectiveRendering).
+if (!('onmessage' in globalThis)) globalThis.onmessage = null;
 
 function setNativeFullscreen(enabled, element) {
   NativeHost.runtime.setFullscreen(enabled);

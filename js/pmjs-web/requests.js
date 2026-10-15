@@ -26,6 +26,11 @@ globalThis.fetch = function(url) {
           ok: status >= 200 && status < 300, status: status,
           statusText: status === 200 ? 'OK' : 'Not Found', url: target,
           headers: { get: function() { return null; } },
+          // Some code checks body before reading (Karryn's Prison's ImageReplacer).
+          body: new ReadableStream({ start: function(controller) {
+            if (body.byteLength) controller.enqueue(new Uint8Array(body.slice(0)));
+            controller.close();
+          } }),
           text: function() { return Promise.resolve(text()); },
           json: function() { return Promise.resolve().then(function() { return JSON.parse(text()); }); },
           arrayBuffer: function() { return Promise.resolve(body.slice(0)); }

@@ -129,6 +129,9 @@ test('document querySelector finds simple tag, id and class selectors', () => {
   assert.equal(document.body.querySelector('.swal2-popup'), span, 'elements search their descendants');
   assert.equal(span.querySelector('span'), null, 'an element is not its own descendant');
   assert.ok(span instanceof realm.Element && span instanceof realm.HTMLElement, 'elements are Elements');
+  assert.equal(realm.onmessage, null);
+  vm.runInContext('"use strict"; onmessage = function() {};', realm);
+  assert.equal(typeof realm.onmessage, 'function', 'strict code can assign window.onmessage');
 });
 
 test('reflected image draws use the affine path', () => {
