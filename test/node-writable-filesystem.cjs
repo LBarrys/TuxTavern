@@ -22,7 +22,7 @@ function fixture(t) {
   const overlay = path.join(root, 'save/game-files');
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const host = createGameFilesystem(native.fs, overlay);
-  const context = vm.createContext({ Buffer, TextDecoder, __pmjsBuiltinRequire: require, performance: { now: () => 0 },
+  const context = vm.createContext({ Buffer, TextDecoder, ReadableStream, __pmjsBuiltinRequire: require, performance: { now: () => 0 },
     PMJS: { config: {} }, NativeHost: { fs: host, storage: createStorage(path.join(root, 'save')) } });
   for (const name of ['events', 'scheduler', 'filesystem', 'requests']) {
     const filename = path.resolve(__dirname, '../js/pmjs-web', name + '.js');

@@ -58,3 +58,15 @@ test('fs.Dirent can be extended; lstat, realpath, access and callback readdir ma
   assert.deepEqual(Array.from(listed), ['a.png']);
   await assert.rejects(guest.promises.lstat('/save/none'), error => error.code === 'ENOENT');
 });
+
+// FastCutIns saves each sprite sheet PNG by writing a stream's chunks, then closing it.
+test('fs.createWriteStream stores the written chunks when closed', async () => {
+  const guest = fixture();
+  guest.mkdirSync('/save/fast');
+  const stream = guest.createWriteStream('/save/fast/sheet_0.png');
+  stream.write(Uint8Array.from([137, 80]));
+  stream.write(Buffer.from('NG'));
+  await new Promise((resolve, reject) => { stream.on('error', reject); stream.close(resolve); });
+  assert.equal(guest.readFileSync('/save/fast/sheet_0.png').toString('latin1'), '\x89PNG');
+  assert.equal(stream.path, '/save/fast/sheet_0.png');
+});

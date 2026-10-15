@@ -206,7 +206,8 @@ test('MV on Pixi 7 loads the index.html scripts around the engine in page order'
   const context = { PMJS_RUNTIME_GAME: runtimeGame, nativeBootPhase() {},
     NativeHost: { runtime: { loadScript(relative) {
       paths.push(relative);
-      if (relative === 'js/libs/pixi.js') context.PIXI = { VERSION: '7.4.2', Container: function() {} };
+      if (relative === 'js/libs/pixi.js') context.PIXI = { VERSION: '7.4.2', Container: function() {},
+        Assets: { setPreferences(preferences) { context.preferences = preferences; } } };
     } } } };
   context.globalThis = context;
   for (const file of ['pmjs-pixi7/setup.js', 'pmjs-mv/engine.js']) {
@@ -215,6 +216,7 @@ test('MV on Pixi 7 loads the index.html scripts around the engine in page order'
   assert.deepEqual(paths, ['js/libs/pixi.js', 'js/libs/pixi-tilemap.umd.js', 'js/libs/logger.js',
     'js/rpg_managers.js', 'js/rpg_objects.js', 'js/rpg_scenes.js', 'js/rpg_sprites.js', 'js/rpg_windows.js',
     'js/modmanager.js', 'js/mods.js']);
+  assert.equal(JSON.stringify(context.preferences), '{"preferWorkers":false,"preferCreateImageBitmap":false}');
 });
 
 test('MV inspection rejects a missing tilemap library before bundle generation', () => {

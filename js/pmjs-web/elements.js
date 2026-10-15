@@ -4,7 +4,8 @@ function ImageData(data, width, height) {
     width = data;
     data = new Uint8ClampedArray(width * height * 4);
   }
-  if (!(data instanceof Uint8ClampedArray) || width <= 0 || height <= 0 ||
+  // Tested by tag: a worker's arrays come from its own context (see workers.js).
+  if (Object.prototype.toString.call(data) !== '[object Uint8ClampedArray]' || width <= 0 || height <= 0 ||
       data.length !== width * height * 4) {
     throw new TypeError('invalid ImageData constructor arguments');
   }

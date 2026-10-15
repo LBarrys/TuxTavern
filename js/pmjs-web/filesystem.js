@@ -189,6 +189,21 @@ var fsModule = {
     });
   },
   createReadStream: function(path, options) { return new FsReadStream(path, options); },
+  // Collects the bytes and stores the file when the stream ends or closes (Karryn's Prison's
+  // FastCutIns writes its sprite sheets this way).
+  createWriteStream: function(path) {
+    var chunks = [];
+    var stream = new (globalThis.__pmjsBuiltinRequire('stream').Writable)({
+      write: function(chunk, encoding, callback) { chunks.push(Buffer.from(chunk)); callback(); },
+      final: function(callback) {
+        try { fsModule.writeFileSync(path, Buffer.concat(chunks)); } catch (error) { callback(error); return; }
+        callback();
+      }
+    });
+    stream.path = path;
+    stream.close = function(callback) { stream.end(callback); };
+    return stream;
+  },
   writeFileSync: function(path, contents, options) {
     var writable = writablePath(path);
     var host = writable !== null ? NativeHost.storage : NativeHost.fs;

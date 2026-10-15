@@ -33,7 +33,8 @@ globalThis.fetch = function(url) {
           } }),
           text: function() { return Promise.resolve(text()); },
           json: function() { return Promise.resolve().then(function() { return JSON.parse(text()); }); },
-          arrayBuffer: function() { return Promise.resolve(body.slice(0)); }
+          arrayBuffer: function() { return Promise.resolve(body.slice(0)); },
+          blob: function() { return Promise.resolve(new Blob([body])); }
         });
       } catch (error) { reject(error); }
     });

@@ -28,6 +28,7 @@
     "js/pmjs-web/document.js",
     "js/pmjs-web/script-loader.js",
     "js/pmjs-web/requests.js",
+    "js/pmjs-web/workers.js",
     "js/pmjs-pixi7/setup.js",
     "js/pmjs-mv/bitmap.js",
     "js/pmjs-mv/fonts.js",

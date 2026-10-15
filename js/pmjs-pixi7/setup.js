@@ -16,3 +16,8 @@ if (!globalThis.PIXI || typeof PIXI.Container !== 'function') {
 if (PIXI.VERSION !== pmjsPixi7RuntimeGame.pixiVersion) {
   throw new Error('inspected Pixi ' + pmjsPixi7RuntimeGame.pixiVersion + ' but loaded ' + PIXI.VERSION);
 }
+// Assets loads textures through Image, which PMJS decodes natively, not createImageBitmap in a
+// blob-URL worker (Karryn's Prison's FastCutIns loads its sprite sheets with Assets).
+if (PIXI.Assets && typeof PIXI.Assets.setPreferences === 'function') {
+  PIXI.Assets.setPreferences({ preferWorkers: false, preferCreateImageBitmap: false });
+}
