@@ -1,6 +1,6 @@
 # Using PMJS
 
-[rpgm](https://github.com/LBarrys/rpgm) runs games on PMJS with `RPGM_PMJS=1 rpgm GAME`.
+`tuxtavern GAME` runs MV/MZ games on PMJS; this page is for running `pmjs` directly.
 Directly, after [building and installing](building.md):
 
 ## Run a game

@@ -1,73 +1,60 @@
-# PMJS for rpgm
+# TuxTavern
 
-A fork of [PMJS](https://github.com/bbbreaddd/pmjs) for [rpgm](https://github.com/LBarrys/rpgm), which runs
-RPG Maker MV/MZ games on Alpine Linux (musl) and Wayland: `RPGM_PMJS=1 rpgm GAME`.
+Runs Windows RPG Maker XP/VX/VX Ace/MV/MZ games natively on Alpine Linux (musl). Wayland only.
+No Wine, no browser.
 
-Differences from upstream:
+| Game | Runs on |
+|---|---|
+| MV, MZ, `package.nw` | PMJS (this repository) |
+| XP, VX, VX Ace | mkxp-z |
+| Enigma Virtual Box `.exe` | unpacked, then as above |
 
-- Builds with distribution tools ([Alpine](docs/building.md#alpine)): CMake 4 accepted; text uses FreeType.
-- Alpine package from the checkout: `git pull && doas sh tools/apk.sh`.
-- Leaves out upstream's handheld parts: the Skia65 text backend (exactly Clang 20.1.2), ARM64 release
-  packaging and PortMaster.
-- A burst of image loads (a game preloading thousands) is decoded when first drawn, as in a browser;
-  `PMJS_DEFER_IMAGES=1` defers every load, `=0` none.
-- The window opens at `package.json`'s size, as in NW.js, instead of filling the screen; it is resizable
-  and sharp on scaled displays.
-- Closer to NW.js: smooth stretched canvas drawing (MV window backgrounds), steady MV 60 Hz steps.
-- Faster with many images, filtered sprites, files or lighting plugins (Terrax); no GPU readbacks for sprite textures.
-- `pmjs prepare --adapter FILE` adds a launcher's adapter (rpgm's F8 cheat menu, `RPGM_PMJS_SKIP`).
-- `PMJS_PRESENT_FILTER=sharp`: whole-pixel enlargement, then smooth to the window.
-- Fixes for games that stopped: Node's `os`, `MouseEvent`, `style.setProperty`, MZ's `Main`, audio fades,
-  MV shadow tiles, sprites at NaN or with a released image, MZ fonts, plugins in subfolders.
-- A scene stuck on Now Loading says after 10 s what it waits for.
+## Install
 
-Upstream's README follows.
+```sh
+git clone https://github.com/LBarrys/TuxTavern && cd TuxTavern
+doas sh tools/apk.sh     # builds and installs the tuxtavern package; again after each git pull
+./build-mkxp-z.sh        # XP/VX/VX Ace; removes its build files after
+```
 
-# PMJS: Native Runtime for RPG Maker MV/MZ
+## Use
 
-Run RPG Maker MV/MZ games natively on Linux handhelds without NW.js or a browser. PMJS runs the game's original JavaScript through Node/V8 while native C++ handles rendering, audio, input, canvas operations, and storage.
+```sh
+tuxtavern [GAME_DIR | Game.exe]   # default: current directory
+tuxtavern --no-cheat GAME         # turn off the F8 cheat menu (god mode, no clip, speed, teleport, items...)
+tuxtavern --test GAME             # XP/VX/VX Ace: playtest
+tuxtavern --translate FILE GAME   # XP/VX/VX Ace: show FILE's {"text": "translation"}; new text is added
+TUXTAVERN_TRANSLATOR='trans -b :en' tuxtavern -t FILE GAME   # machine-translate empty entries
+tuxtavern --edit-save SAVE        # MV/MZ: edit a save as JSON in $EDITOR
+tuxtavern --info GAME             # show what was detected
+```
 
-RPG Maker MV games are essentially web-games, which means to run it, you have to run an entire browser. Low-end handhelds like the RG35XX Plus have a lot of limitations like 1GB of RAM, a really slow CPU, and an SD card for I/O. Not a great combination.
-PMJS replaces the browser side with the small set of APIs these games need. There is no DOM layout engine and no JavaScript renderer.
+- **Missing graphics or sounds:** extract the game's [RTP](https://www.rpgmakerweb.com/run-time-package)
+  to `~/.local/share/tuxtavern/rtp/` as `Standard`, `RPGVX` or `RPGVXAce`. `--info` names the one needed.
+- **A plugin stops an MV/MZ game** (e.g. one that builds HTML): `TUXTAVERN_SKIP=name,...` leaves it out.
+- **Your own fixes:** `*.tuxtavern.rb` (XP/VX/VX Ace) in the game folder run before the game's `Main`.
+- **A shim breaks a game:** `TUXTAVERN_RGSS_SKIP=name,...` skips files in `lib/rgss/`.
+- **Faster XP/VX/VX Ace (experimental, x86-64):** `TUXTAVERN_YJIT=1 tuxtavern GAME`.
+- **Garbled Japanese file names:** `apk add icu-data-full`.
 
+Saves stay in the game folder; everything else is in `~/.local/share/tuxtavern/` and `~/.cache/tuxtavern/`.
 
-PMJS is experimental and still has a lot of work to be done before I consider it usable. Currently, I'm focusing on getting it to work properly with OMORI on the RG35XX Plus.
+## Tests
 
-PMJS uses the stock RPG Maker MV 1.6.2 stack as its compatibility reference: PixiJS 4.5.4 and NW.js 0.29.0, which includes Chromium 65.0.3325.146 and Node.js 9.7.1.
+`sh test/launcher/run.sh` (launcher, cheats, shims); `npm test` and `ctest` (PMJS, see [building](docs/building.md)).
 
-The MZ reference is stock RPG Maker MZ 1.10.0, PixiJS 5.3.12 and NW.js 0.48.4, which includes Chromium 85.0.4183.121 and Node.js 14.12.0.
+## Credits
 
-## Requirements
+MV/MZ run on [PMJS](https://github.com/bbbreaddd/pmjs) (bread), here with rpgm's changes; XP/VX/VX Ace on
+[mkxp-z](https://github.com/mkxp-z/mkxp-z), extending its `win32_wrap.rb` and `kgl2_wrap.rb` (Ancurio,
+Splendide Imaginarius, white-axe). The launcher comes from rpgm, based on
+[rpgmakermlinux-cicpoffs](https://github.com/bakustarver/rpgmakermlinux-cicpoffs) (bakustarver), with ideas
+from [Kawariki](https://github.com/Orochimarufan/Kawariki) (Taeyeon Mori), [rmse](https://github.com/nathan-b/rmse)
+(Nathan Baker) and the cheat menus of [emerladCoder](https://github.com/emerladCoder/RPG-Maker-MV-Cheat-Menu-Plugin),
+[paramonos](https://github.com/paramonos/RPG-Maker-MV-MZ-Cheat-UI-Plugin) and
+[yeetay233](https://github.com/yeetay233/rpgm-cheatmenu). `lib/evb.js` ports
+[evbunpack](https://github.com/mos9527/evbunpack) (mos9527, Apache-2.0) and aplib (Sandor Nemes, GPL-3.0).
+Mostly written by Claude (Anthropic).
 
-- CMake 3.20 or newer
-- A C++20 compiler
-- Node.js and Node API headers
-- pkg-config
-- Git
-- SDL2, EGL, and OpenGL ES 3.0 or newer
-- libpng, zlib, libjpeg, FreeType, and HarfBuzz
-- FFmpeg libraries: avformat, avcodec, avutil, swresample, and swscale
-
-> [!NOTE]
-> I do use AI for this project. No, I am not proud of it. It's still very early in development so it's likely going to be a mess. Don't expect much right now.
-
-### Third-party software
-
-PMJS uses the following software
-
-- [Node.js](https://nodejs.org/) and [V8](https://v8.dev/) to execute game JavaScript
-- [SDL2](https://www.libsdl.org/) for windows, input, and platform integration
-- [EGL and OpenGL ES](https://www.khronos.org/opengles/) for native rendering
-- [libpng](http://www.libpng.org/pub/png/libpng.html) and zlib for PNG images
-- [libjpeg](https://ijg.org/) for JPEG images
-- [FreeType](https://freetype.org/) for glyph rasterization
-- [HarfBuzz](https://harfbuzz.github.io/) for text shaping
-- [FFmpeg](https://ffmpeg.org/) for audio and video decoding
-- [Effekseer](https://effekseer.github.io/) for RPG Maker MZ animation effects
-
-The build and test workflow uses CMake, pkg-config, ESLint, and Xvfb.
-
-## Build, install and run
-
-- [Building](docs/building.md)
-- [Using PMJS](docs/using.md): prepare and run games, saves and troubleshooting.
+GPL-3.0 as a whole. PMJS's files stay MIT (`LICENSE`); the shims in `lib/rgss/` are CC0; `REUSE.toml` says
+which is which.

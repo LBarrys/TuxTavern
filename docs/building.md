@@ -21,7 +21,7 @@ sudo apt-get install build-essential cmake ninja-build pkg-config git \
 ## Alpine
 
 As a package, rebuilt and upgraded after each `git pull`: `doas sh tools/apk.sh` (installs
-`pmjs@busylinux`, signed with `/root/keys/local.rsa`, as BusyLinux's `update.sh` does). By hand:
+`tuxtavern@busylinux`, PMJS and the launcher, signed with `/root/keys/local.rsa`, as BusyLinux's `update.sh` does). By hand:
 
 ```sh
 doas apk add build-base cmake samurai pkgconf git nodejs-dev linux-headers \
@@ -38,8 +38,8 @@ script (`exec /usr/lib/pmjs/bin/pmjs "$@"`), not a symlink. Do not strip the ins
 ## Get the source
 
 ```sh
-git clone https://github.com/LBarrys/pmjs-rpgm.git
-cd pmjs-rpgm
+git clone https://github.com/LBarrys/TuxTavern.git
+cd TuxTavern
 ```
 
 ## Build

@@ -19,9 +19,9 @@ const stubs = {
   apk: `echo "apk $*" >> "$LOG"
 case $1 in
 --print-arch) echo x86_64 ;;
-list) [ ! -f /var/lib/installed ] || echo "pmjs-$(cat /var/lib/installed) x86_64 {pmjs} (MIT) [installed]" ;;
+list) [ ! -f /var/lib/installed ] || echo "tuxtavern-$(cat /var/lib/installed) x86_64 {tuxtavern} (MIT) [installed]" ;;
 mkpkg) while [ $# -gt 0 ]; do
-    case $1 in --files) cp "$2/usr/bin/pmjs" /var/lib/wrapper ;; --output) : > "$2" ;; esac
+    case $1 in --files) cp "$2/usr/bin/tuxtavern" /var/lib/wrapper ;; --output) : > "$2" ;; esac
     shift
   done ;;
 esac`,
@@ -47,7 +47,7 @@ function run(root, installed) {
 }
 
 test('apk.sh packages the checkout and installs it from the local repository', { skip: !usable && 'needs Alpine, root and unshare' }, () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pmjs-apk-'));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tuxtavern-apk-'));
   fs.mkdirSync(path.join(root, 'bin'));
   fs.mkdirSync(path.join(root, 'state', 'etc', 'apk'), { recursive: true });
   fs.writeFileSync(path.join(root, 'state', 'etc', 'apk', 'repositories'), 'https://alpine/edge/main\n');
@@ -62,18 +62,18 @@ test('apk.sh packages the checkout and installs it from the local repository', {
   const mkpkg = first.calls.find(call => call.startsWith('apk mkpkg'));
   assert.match(mkpkg, new RegExp(`version:${version}-r0 `), 'a newer day starts at r0');
   assert.match(mkpkg, /depends:nodejs so:libSDL2-2\.0\.so\.0 .* ffmpeg-libswscale --sign-key \/root\/keys\/local\.rsa/);
-  assert.deepEqual(first.calls.slice(-2), ['apk add -u pmjs@busylinux', 'apk del -q .pmjs-build'],
-    'build tools stay until pmjs is installed');
+  assert.deepEqual(first.calls.slice(-2), ['apk add -u tuxtavern@busylinux', 'apk del -q .tuxtavern-build'],
+    'build tools stay until TuxTavern is installed');
   assert.ok(first.calls.includes('openssl genrsa'), 'a missing signing key is created');
   assert.equal(fs.readFileSync(path.join(root, 'state', 'var', 'lib', 'wrapper'), 'utf8'),
-    '#!/bin/sh\nexec /usr/lib/pmjs/bin/pmjs "$@"\n');
+    '#!/bin/sh\nexec /usr/lib/tuxtavern/bin/tuxtavern "$@"\n');
   assert.ok(fs.existsSync(path.join(root, 'state', 'etc', 'apk', 'keys', 'local.rsa.pub')));
-  assert.deepEqual(fs.readdirSync(repo), [`pmjs-${version}-r0.apk`]);
+  assert.deepEqual(fs.readdirSync(repo), [`tuxtavern-${version}-r0.apk`]);
 
   const second = run(root, `${version}-r0`);
   assert.ok(second.calls.some(call => call.includes(`version:${version}-r1 `)), 'the same day goes one past');
   assert.ok(!second.calls.some(call => call.startsWith('openssl')), 'the key is kept');
-  assert.deepEqual(fs.readdirSync(repo), [`pmjs-${version}-r1.apk`], 'the old package goes');
+  assert.deepEqual(fs.readdirSync(repo), [`tuxtavern-${version}-r1.apk`], 'the old package goes');
   assert.equal(fs.readFileSync(path.join(root, 'state', 'etc', 'apk', 'repositories'), 'utf8'),
     'https://alpine/edge/main\nv3 @busylinux /var/lib/busylinux/repo\n', 'the repository is added once');
   assert.deepEqual(fs.readdirSync(path.join(root, 'state', 'var', 'tmp')), [], 'build files go');

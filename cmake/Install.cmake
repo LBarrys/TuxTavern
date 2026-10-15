@@ -1,7 +1,8 @@
 find_program(NODE_EXECUTABLE node REQUIRED)
 
 install(TARGETS pmjs_native LIBRARY DESTINATION lib)
-install(PROGRAMS bin/pmjs DESTINATION bin)
+install(PROGRAMS bin/pmjs tuxtavern DESTINATION bin)
+install(DIRECTORY lib/ DESTINATION share/tuxtavern)
 install(DIRECTORY js runner profiles DESTINATION share/pmjs
   FILES_MATCHING PATTERN "*.js" PATTERN "*.cjs" PATTERN "*.json" PATTERN "*.ttf" PATTERN "*.LICENSE")
 install(FILES tools/build-js-runtime.mjs tools/game-inspect.mjs tools/pmjs.mjs
