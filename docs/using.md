@@ -35,7 +35,8 @@ with a separate directory for each game. If unset, these use `~/.cache` and
 
 Node with Node-API 8 or newer, SDL2, EGL and GLES 3.0 or newer, and the libraries
 PMJS was built with. The compatibility references are MV 1.6.2/Pixi 4.5.4 and
-MZ 1.10.0/Pixi 5.3.12. Game and plugin support is still experimental.
+MZ 1.10.0/Pixi 5.3.12; MV on Pixi 7.4.2 (pixi-rpgm, as in Karryn's Prison) is newer.
+Game and plugin support is still experimental.
 
 ## Troubleshooting
 

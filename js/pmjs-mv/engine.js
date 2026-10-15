@@ -21,3 +21,6 @@ NativeHost.runtime.loadScript('js/rpg_objects.js');
 NativeHost.runtime.loadScript('js/rpg_scenes.js');
 NativeHost.runtime.loadScript('js/rpg_sprites.js');
 NativeHost.runtime.loadScript('js/rpg_windows.js');
+(globalThis.PMJS_RUNTIME_GAME && PMJS_RUNTIME_GAME.scripts || []).forEach(function(script) {
+  NativeHost.runtime.loadScript(script);
+});

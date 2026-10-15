@@ -42,7 +42,23 @@ const output = outputArgument ? path.resolve(outputArgument) : null;
 const supportedEngines = {
   mv: { profile: 'mv', pixiMajor: 4, bootstrap: 'js/pmjs-mv/bootstrap.js', pluginAdapters: true },
   mz: { profile: 'mz', pixiMajor: 5, bootstrap: 'js/pmjs-mz/bootstrap.js', pluginAdapters: false },
+  'mv-pixi7': { profile: 'mv-pixi7', pixiMajor: 7, bootstrap: 'js/pmjs-mv/bootstrap.js', pluginAdapters: true },
 };
+
+// The scripts index.html loads before rpg_core.js, in order, as NW.js would. MV games on Pixi 7
+// (Karryn's Prison) bring their own: @pixi/tilemap, pixi-rpgm, a logger.
+// NW.js runs index.html's scripts in order: libraries before rpg_core.js, the game's own
+// between the last rpg_*.js and plugins.js (which, with main.js, PMJS loads itself).
+function pageScripts(gameDir) {
+  const html = fs.readFileSync(path.join(gameDir, 'index.html'), 'utf8');
+  const scripts = [...html.matchAll(/<script[^>]*\ssrc\s*=\s*["']([^"']+)["']/gi)].map(match => match[1]);
+  const core = scripts.findIndex(src => /(^|\/)rpg_core\.js$/i.test(src));
+  if (core < 0) throw new Error(`${gameDir}/index.html does not load rpg_core.js`);
+  const engineEnd = scripts.findLastIndex(src => /(^|\/)rpg_\w+\.js$/i.test(src)) + 1;
+  const plugins = scripts.findIndex(src => /(^|\/)plugins\.js$/i.test(src));
+  return { libraries: scripts.slice(0, core),
+    scripts: scripts.slice(engineEnd, plugins < 0 ? engineEnd : plugins) };
+}
 
 // Structural validation only: the runtime optimization registry remains the
 // single authority for which IDs exist. Unknown IDs fail at startup instead.
@@ -127,7 +143,9 @@ function resolveCapabilityManifest(manifest, manifestPath) {
   } catch (error) {
     throw new Error(`cannot inspect game: ${error.message}`);
   }
-  const engine = supportedEngines[inspection.engine];
+  const engineKey = inspection.engine === 'mv' && Number.parseInt(inspection.pixiVersion, 10) === 7
+    ? 'mv-pixi7' : inspection.engine;
+  const engine = supportedEngines[engineKey];
   if (!engine) {
     throw new Error(`detected unsupported engine '${inspection.engine}' in ${inspection.gameDir}`);
   }
@@ -141,7 +159,7 @@ function resolveCapabilityManifest(manifest, manifestPath) {
   if (detectedPixiMajor !== engine.pixiMajor) {
     throw new Error(`engine ${inspection.engine} requires Pixi ${engine.pixiMajor}.x; detected ${inspection.pixiVersion}`);
   }
-  if (inspection.engine === 'mv' && !inspection.pixiTilemapPath) {
+  if (engineKey === 'mv' && !inspection.pixiTilemapPath) {
     throw new Error('detected MV but could not find pixi-tilemap.js');
   }
   detectedRuntime = {
@@ -152,6 +170,7 @@ function resolveCapabilityManifest(manifest, manifestPath) {
     pixiTilemapPath: inspection.pixiTilemapPath &&
       inspection.pixiTilemapPath.replaceAll(path.sep, '/'),
   };
+  if (engineKey === 'mv-pixi7') Object.assign(detectedRuntime, pageScripts(inspection.gameDir));
 
   const profileName = engine.profile;
   const profile = loadProfile(profileName);

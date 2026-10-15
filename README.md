@@ -5,7 +5,7 @@ No Wine, no browser.
 
 | Game | Runs on |
 |---|---|
-| MV, MZ, `package.nw` | PMJS (this repository) |
+| MV (Pixi 4 or 7), MZ, `package.nw` | PMJS (this repository) |
 | XP, VX, VX Ace | mkxp-z |
 | Enigma Virtual Box `.exe` | unpacked, then as above |
 

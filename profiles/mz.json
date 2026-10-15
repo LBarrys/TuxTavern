@@ -37,6 +37,7 @@
     "js/pmjs-mz/engine.js",
     "js/pmjs-mz/rendering.js",
     "js/pmjs-mz/menu-background.js",
+    "js/pmjs-pixi5/screen-graphics.js",
     "js/pmjs-mz/display.js",
     "js/pmjs-mz/effects.js",
     "js/pmjs-mz/animations.js",

@@ -236,6 +236,36 @@ test('process.versions and process.version reflect host Node and NW.js compatibi
   assert.equal(context.process.versions['node-webkit'], '0.29.0');
 });
 
+// Karryn's Prison's logger (pino) finds its workers from require('process').mainModule, as in NW.js.
+test('require(process) is the page process, as in NW.js', () => {
+  const context = { process: { platform: 'linux', arch: 'x64', versions: {} },
+    nativePlatform: { platform: 'linux', arch: 'x64' }, PMJS: { config: {} } };
+  vm.createContext(context);
+  vm.runInContext(fs.readFileSync(path.join(jsDir, 'pmjs-web/modules.js'), 'utf8'), context);
+  assert.equal(context.require('process'), context.process);
+  assert.equal(context.require('node:process'), context.process);
+  assert.equal(context.require('process').mainModule.filename, '/game/index.html');
+});
+
+// NW.js pages get Node's built-ins. Those that touch no files come from the host; worker_threads
+// stays out (workers would load real paths), so Karryn's Prison's logger falls back to its mock.
+test('pure Node built-ins come from the host; worker_threads does not', () => {
+  const host = require;
+  const context = { process: { platform: 'linux', arch: 'x64', versions: {} },
+    nativePlatform: { platform: 'linux', arch: 'x64' }, PMJS: { config: {} },
+    __pmjsBuiltinRequire: name => host(name), NativeHost: { fs: { exists: () => false } } };
+  vm.createContext(context);
+  for (const file of ['filesystem.js', 'modules.js']) {
+    vm.runInContext(fs.readFileSync(path.join(jsDir, 'pmjs-web', file), 'utf8'), context);
+  }
+  for (const name of ['assert', 'events', 'stream', 'string_decoder', 'util', 'url', 'tty']) {
+    assert.equal(context.require(name), host(name), name);
+    assert.equal(context.require('node:' + name), host(name), 'node:' + name);
+  }
+  assert.equal(context.require('node:os').homedir(), '/save');
+  assert.throws(() => context.require('worker_threads'), /worker_threads/);
+});
+
 test('FPSMeter defines the standard method surface, returns this from methods, and propagates library errors', () => {
   const stubContext = {
     window: {},

@@ -66,6 +66,7 @@ try {
     return node;
   }
   runModule(c, 'js/pmjs-pixi5/filters.js');
+  runModule(c, 'js/pmjs-pixi5/screen-graphics.js');
   runModule(c, 'js/pmjs-mz/display.js');
   const sources = new Map();
   let failures = 0;

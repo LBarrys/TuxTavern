@@ -230,7 +230,7 @@ PMJS.methods.wrap({
   wrap: function(guestTerminate) {
     return function() {
       var result = guestTerminate.apply(this, arguments);
-      PMJS.pixi4.releaseSceneResources(this._spriteset);
+      (PMJS.pixi4 || PMJS.pixi7).releaseSceneResources(this._spriteset);
       return result;
     };
   }

@@ -359,7 +359,9 @@
     encodedFilters.reverse().forEach(function(filter) {
       var begin = addRecord(parent, 6, 0, 0xffffff, filter.kind, identity, 1);
       var offset = begin * valueStride;
-      values.set(filter.parameters, offset + 7);
+      // The packet holds ten parameters at 7 and eleven more at 22 (17-21 are the clip).
+      values.set(filter.parameters.slice(0, 10), offset + 7);
+      values.set(filter.parameters.slice(10, 21), offset + 22);
       values[offset + 33] = 1;
       values[offset + 34] = filter.blendMode;
     });
@@ -478,7 +480,9 @@
     if (encodedNode && encodedNode.nearest) {
       metadata[index * metadataStride + 5] |= 8;
     }
-    if (kind === 9) {
+    if (kind === 4 && encodedNode.animation) {
+      values.set(encodedNode.animation, index * valueStride + 15);
+    } else if (kind === 9) {
       if (!schema.effects) reject('render.effekseer', node);
       var effectOffset = index * valueStride;
       values.set(encodedNode.effect.viewport, effectOffset);

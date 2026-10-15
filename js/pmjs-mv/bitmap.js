@@ -61,7 +61,7 @@ Bitmap.snap = function(stage) {
   var bitmap = new Bitmap(Graphics.width, Graphics.height);
   if (!stage) return bitmap;
   var renderer = Graphics._renderer;
-  PMJS.pixi4.renderStageToCanvas(stage, bitmap._canvas,
+  (PMJS.pixi4 || PMJS.pixi7).renderStageToCanvas(stage, bitmap._canvas,
     renderer && renderer.roundPixels, renderer);
   pmjsBitmapCanvasChanged(bitmap);
   if (stage.worldTransform && typeof stage.worldTransform.identity === 'function') {

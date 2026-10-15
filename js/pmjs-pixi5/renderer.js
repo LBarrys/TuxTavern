@@ -11,8 +11,11 @@
       clearBeforeRender: true,
       autoDensity: false
     }, options || {});
-    if (PIXI.settings && NativeHost.render.configurePixiFragmentPrecision) {
-      NativeHost.render.configurePixiFragmentPrecision(PIXI.settings.PRECISION_FRAGMENT);
+    // Pixi 7 moved the setting to Program (reading the old one warns).
+    var precision = PIXI.Program && PIXI.Program.defaultFragmentPrecision ||
+      PIXI.settings && PIXI.settings.PRECISION_FRAGMENT;
+    if (precision && NativeHost.render.configurePixiFragmentPrecision) {
+      NativeHost.render.configurePixiFragmentPrecision(precision);
     }
     var resolution = Math.max(0.000001, Number(options.resolution) || 1);
     function releaseTargetImage(target) {
@@ -65,6 +68,14 @@
       },
       render: function(stage, renderTexture, clear, transform, skipUpdateTransform) {
         if (!stage) return;
+        if (renderTexture && !renderTexture.baseTexture) {
+          // Pixi 7: render(displayObject, { renderTexture, clear, transform, skipUpdateTransform }).
+          var renderOptions = renderTexture;
+          renderTexture = renderOptions.renderTexture;
+          clear = renderOptions.clear;
+          transform = renderOptions.transform;
+          skipUpdateTransform = renderOptions.skipUpdateTransform;
+        }
         var prepared = PMJS.pixi5.prepareRender(this, stage,
           !!(renderTexture || transform || skipUpdateTransform));
         var shouldClear = clear === undefined ? this.clearBeforeRender : !!clear;

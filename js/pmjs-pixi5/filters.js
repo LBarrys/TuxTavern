@@ -1,8 +1,9 @@
 'use strict';
 
 (function() {
-  var BlurFilter = PIXI.filters && PIXI.filters.BlurFilter;
-  var AlphaFilter = PIXI.filters && PIXI.filters.AlphaFilter;
+  // Pixi 7 exports filters on PIXI; PIXI.filters.* still works there but warns.
+  var BlurFilter = PIXI.BlurFilter || PIXI.filters && PIXI.filters.BlurFilter;
+  var AlphaFilter = PIXI.AlphaFilter || PIXI.filters && PIXI.filters.AlphaFilter;
   var stockBlur = BlurFilter && new BlurFilter();
   var stockAlpha = AlphaFilter && new AlphaFilter();
   var blurApply = stockBlur && stockBlur.apply;

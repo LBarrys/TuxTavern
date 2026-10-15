@@ -132,12 +132,17 @@ function loadCommonJs(filename) {
   return module.exports;
 }
 
+var hostBuiltins = new Set(['crypto', 'buffer', 'zlib', 'assert', 'events', 'stream',
+  'string_decoder', 'util', 'url', 'tty']);
+
 function requireModule(request, parentDirectory) {
-  if (globalThis.__pmjsBuiltinRequire &&
-      (request === 'crypto' || request === 'buffer' ||
-       request === 'zlib' || request === 'node:zlib')) {
+  if (request.indexOf('node:') === 0) request = request.slice(5);
+  // Pure built-ins (no files, no threads) come from the host, as NW.js gives them
+  // (Karryn's Prison's pino logger needs util, events, stream...).
+  if (globalThis.__pmjsBuiltinRequire && hostBuiltins.has(request)) {
     return globalThis.__pmjsBuiltinRequire(request);
   }
+  if (request === 'process') return globalThis.process;
   if (request === 'path') return pathModule;
   if (request === 'fs') return fsModule;
   if (request === 'os') {

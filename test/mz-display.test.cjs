@@ -33,6 +33,7 @@ function harness(options) {
     constructor(alpha) { this.alpha = alpha; this.enabled = true; }
   } };
   runModule(context, 'js/pmjs-pixi5/filters.js');
+  runModule(context, 'js/pmjs-pixi5/screen-graphics.js');
   runModule(context, 'js/pmjs-mz/display.js');
   context.PMJS.methods.install();
   return fixture;
