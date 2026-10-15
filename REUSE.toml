@@ -65,3 +65,15 @@ path = ["src/unicode_default_ignorables.hpp", "third_party/unicode.LICENSE"]
 precedence = "override"
 SPDX-FileCopyrightText = "1991-2024 Unicode, Inc."
 SPDX-License-Identifier = "Unicode-3.0"
+
+[[annotations]]
+path = ["tuxtavern", "build-mkxp-z.sh", "lib/*.js", "test/launcher/**"]
+precedence = "override"
+SPDX-FileCopyrightText = "2026 rpgm and TuxTavern contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = ["lib/rgss/**"]
+precedence = "override"
+SPDX-FileCopyrightText = "2026 rpgm and TuxTavern contributors"
+SPDX-License-Identifier = "CC0-1.0"

@@ -1,0 +1,257 @@
+#!/bin/sh
+set -eu
+
+VERSION=0.1.0
+self=$(readlink -f "$0")
+here=$(dirname "$self")
+# A source checkout keeps lib/ beside this script; an install puts it under share/.
+lib=$here/lib
+[ -d "$lib/rgss" ] || lib=$here/../share/tuxtavern
+
+die() { printf 'tuxtavern: %s\n' "$*" >&2; exit 1; }
+have() { command -v "$1" >/dev/null 2>&1; }
+# An install keeps pmjs beside this script.
+pmjs=$here/pmjs
+[ -x "$pmjs" ] || pmjs=$(command -v pmjs 2>/dev/null || true)
+ci_glob() { printf '%s\n' "$1" | awk '{ for (i = 1; i <= length($0); i++) { c = substr($0, i, 1); u = toupper(c); l = tolower(c); printf "%s", (u != l ? "[" l u "]" : c) } }'; }
+find_ci() {
+	# shellcheck disable=SC2046
+	for f in "$game"/$(ci_glob "$1"); do
+		[ -e "$f" ] && { printf '%s\n' "${f#"$game"/}"; return 0; }
+	done
+	return 0
+}
+has() { [ -n "$(find_ci "$1")" ]; }
+evb_exe() {
+	for f in "$game"/*.[eE][xX][eE]; do
+		[ -f "$f" ] && head -c 4096 "$f" | tr '\000' '\n' | grep -qF .enigma1 && { echo "$f"; return 0; }
+	done
+	return 1
+}
+
+usage() {
+	cat <<EOF
+Usage: tuxtavern [-T | -C | -t FILE | -i] [GAME_DIR | GAME.exe]
+       tuxtavern -e SAVE_FILE
+
+Runs a Windows RPG Maker XP/VX/VX Ace/MV/MZ game natively (default: the current directory).
+
+  -T, --test      XP/VX/VX Ace: playtest mode (F9 debug menu)
+  -C, --no-cheat  turn off the F8 cheat menu (on by default)
+  -t, --translate FILE  XP/VX/VX Ace: show FILE's translations ({"text": "translation"});
+                  new text is added to it with an empty translation
+  -i, --info      show what was detected
+  -e, --edit-save MV/MZ: open a save as JSON in \$EDITOR, write it back on exit
+  -h, --help      show this help
+  -V, --version   show the version
+
+Games run on Wayland only. RTPs go in ~/.local/share/tuxtavern/rtp/ (XP: Standard;
+VX: RPGVX; VX Ace: RPGVXAce). Environment: TUXTAVERN_SKIP (MV/MZ plugins to leave out,
+e.g. ones that build HTML), TUXTAVERN_RGSS_SKIP (shims to leave out),
+TUXTAVERN_MKXPZ_PRELOAD (mkxp-z's scripts/preload, if not found), TUXTAVERN_YJIT=1
+(XP/VX/VX Ace: try Ruby's JIT compiler; experimental, x86-64 only), TUXTAVERN_TRANSLATOR
+(with -t: a command that reads text on stdin and prints its translation, used to fill in
+empty translations, e.g. 'trans -b :en').
+EOF
+}
+
+mode=run test='' cheat=1 nocheat='' translate=''
+while [ $# -gt 0 ]; do
+	case $1 in
+	-T | --test) test=1 ;;
+	-C | --no-cheat) cheat='' ;;
+	-t | --translate)
+		[ $# -ge 2 ] || die "--translate needs a file"
+		[ ! -d "$2" ] || die "--translate takes a JSON file, not a folder (playtest is -T)"
+		translate=$2; shift ;;
+	-i | --info) mode=info ;;
+	-e | --edit-save) mode=edit-save ;;
+	-h | --help) usage; exit 0 ;;
+	-V | --version) echo "tuxtavern $VERSION"; exit 0 ;;
+	--) shift; break ;;
+	-*) die "unknown option $1 (see --help)" ;;
+	*) break ;;
+	esac
+	shift
+done
+[ $# -le 1 ] || die "expected one game path (see --help)"
+target=${1:-.}
+[ -e "$target" ] || die "no such file or directory: $target"
+
+if [ "$mode" = edit-save ]; then
+	[ -f "$target" ] || die "--edit-save takes a save file, e.g. www/save/file1.rpgsave"
+	have node || die "--edit-save needs node (apk add nodejs)"
+	tmp=$(mktemp -d)
+	trap 'rm -rf "$tmp"' EXIT INT TERM
+	node "$lib/savejson.js" decode "$target" "$tmp/save.json" || exit 1
+	cp "$tmp/save.json" "$tmp/before.json"
+	# shellcheck disable=SC2086
+	${EDITOR:-vi} "$tmp/save.json"
+	if cmp -s "$tmp/save.json" "$tmp/before.json"; then echo "Unchanged; nothing written."; exit 0; fi
+	if ! node "$lib/savejson.js" encode "$tmp/save.json" "$target"; then
+		cp "$tmp/save.json" "$target.json"
+		die "not written; your edit is kept in $target.json"
+	fi
+	echo "Wrote $target (the original is kept as $target.bak)"
+	exit 0
+fi
+[ -d "$target" ] || target=$(dirname "$target")
+game=$(cd "$target" && pwd -P)
+nw=$(find_ci package.nw)
+[ -z "$nw" ] || [ ! -d "$game/$nw" ] || game=$(cd "$game/$nw" && pwd -P)
+data="${XDG_DATA_HOME:-$HOME/.local/share}/tuxtavern"
+id=$(printf %s "$game" | md5sum | cut -c1-12)
+unpacked="$data/unpacked/$id"
+rtp="$data/rtp"
+
+if has www/js/rpg_core.js || has js/rpg_core.js; then engine='mv'
+elif has js/rmmz_core.js; then engine='mz'
+elif has package.nw; then engine='nwjs-zip'
+elif has 'data/*.r?data*' || { has game.ini && has 'game.rgss*'; }; then engine='rgss'
+elif packed=$(evb_exe); then engine='evb'
+else engine=
+fi
+
+mkxp_preload_dir() {
+	[ -z "${TUXTAVERN_MKXPZ_PRELOAD:-}" ] || { echo "$TUXTAVERN_MKXPZ_PRELOAD"; return 0; }
+	m=$(command -v mkxp-z 2>/dev/null) || return 1
+	m=$(dirname "$(readlink -f "$m")")
+	for p in "$m/../lib/mkxp-z/scripts/preload" "$m/scripts/preload"; do
+		[ -f "$p/win32_wrap.rb" ] && { (cd "$p" && pwd -P); return 0; }
+	done
+	return 1
+}
+rtp_names() {
+	ini=$(find_ci game.ini)
+	[ -z "$ini" ] || tr -d '\r' <"$game/$ini" | sed -n 's/^RTP[1-3]\{0,1\} *= *\(..*\)$/\1/p'
+}
+json() { printf '"%s"' "$(printf %s "$1" | sed 's/[\\"]/\\&/g')"; }
+
+case $mode in
+info)
+	echo "tuxtavern: $VERSION"
+	echo "game:    $game"
+	echo "engine:  ${engine:-not recognized}"
+	core=$(find_ci www/js/rpg_core.js)
+	[ -n "$core" ] || core=$(find_ci js/rpg_core.js)
+	[ -n "$core" ] || core=$(find_ci js/rmmz_core.js)
+	[ -z "$core" ] || sed -n "s/^Utils\.RPGMAKER_VERSION *= *.\([0-9.]*\).*/version: \1/p" "$game/$core"
+	case $engine in
+	'') ;;
+	evb) echo "packed:  $(basename "$packed") (Enigma Virtual Box), unpacked on first run to $unpacked" ;;
+	nwjs-zip) echo "packed:  $(find_ci package.nw), unpacked on first run to $unpacked" ;;
+	rgss)
+		if have mkxp-z; then echo "runtime: $(command -v mkxp-z)"; else echo "runtime: mkxp-z not installed (./build-mkxp-z.sh)"; fi
+		echo "config:  written by tuxtavern to $data/mkxp/$id"
+		[ -z "$(find_ci mkxp.json)" ] || echo "         merged with the game's $(find_ci mkxp.json)"
+		rtp_names | while read -r name; do
+			if [ -d "$rtp/$name" ]; then echo "rtp:     $name, installed"; else echo "rtp:     $name, not installed in $rtp/$name"; fi
+		done ;;
+	mv | mz)
+		if [ -n "$pmjs" ]; then echo "runtime: $pmjs"
+		else echo "runtime: pmjs not installed (doas sh tools/apk.sh in a TuxTavern checkout)"
+		fi ;;
+	esac
+	exit 0 ;;
+esac
+
+[ -n "${WAYLAND_DISPLAY:-}" ] || die "TuxTavern runs games on Wayland only, and WAYLAND_DISPLAY is not set"
+if [ -n "$translate" ]; then
+	tdir=$(cd "$(dirname "$translate")" 2>/dev/null && pwd -P) || die "no such folder for $translate"
+	translate="$tdir/$(basename "$translate")"
+	[ -e "$translate" ] || printf '{}\n' >"$translate" || die "cannot create $translate"
+	case $engine in mv | mz) echo "tuxtavern: --translate works for XP/VX/VX Ace games only, for now" >&2 ;; esac
+fi
+# shellcheck disable=SC3045
+ulimit -n "$(ulimit -H -n)" 2>/dev/null || true
+
+# MV/MZ on PMJS. Saves go to the game's save folder, where NW.js keeps them; PMJS's asset
+# cache to ours.
+run_pmjs() {
+	[ -n "$pmjs" ] || die "MV/MZ games need pmjs (doas sh tools/apk.sh in a TuxTavern checkout)"
+	[ -z "$test" ] || echo "tuxtavern: -T works for XP/VX/VX Ace games only" >&2
+	dir=$game
+	www=$(find_ci www)
+	[ -z "$www" ] || [ ! -d "$game/$www/js" ] || dir="$game/$www"
+	cache="${XDG_CACHE_HOME:-$HOME/.cache}/tuxtavern/pmjs/$id"
+	mkdir -p "$cache" || die "cannot create $cache"
+	printf '{ "assetPreparation": { "cacheRoot": %s } }\n' "$(json "$cache/assets")" >"$cache/config.json"
+	set -- --game "$dir" --config "$cache/config.json"
+	skip=
+	for name in $(printf '%s' "${TUXTAVERN_SKIP:-}" | tr ',' ' '); do skip="$skip${skip:+, }$(json "$name")"; done
+	if [ -n "$cheat$skip" ]; then
+		pmjs_adapter "$skip" >"$cache/tuxtavern.js" || die "cannot write $cache/tuxtavern.js"
+		set -- "$@" --adapter "$cache/tuxtavern.js"
+	fi
+	"$pmjs" prepare "$@" >&2 || exit 1
+	export SDL_VIDEODRIVER=wayland
+	exec "$pmjs" run --game "$dir" --save-root "$dir/save"
+}
+
+# The one PMJS adapter: the plugins to leave out ($1, JSON strings), switched off before any
+# loads (a name matches with or without its folder), and the cheat menu.
+pmjs_adapter() {
+	# shellcheck disable=SC2016
+	[ -z "$1" ] || printf 'PMJS.phases.on("beforePlugins", "tuxtavern.skip", function () {\n\tvar skip = [%s];\n\t$plugins.forEach(function (p) {\n\t\tif (p.status && (skip.indexOf(p.name) >= 0 || skip.indexOf(p.name.split("/").pop()) >= 0)) {\n\t\t\tp.status = false;\n\t\t\tconsole.log("tuxtavern: TUXTAVERN_SKIP leaves out " + p.name);\n\t\t}\n\t});\n});\n' "$1"
+	[ -z "$cheat" ] || pmjs_cheats
+}
+
+# The cheat menu: editor.js's model, the on-screen menu, and the hook that installs them
+# once the game's plugins have loaded.
+pmjs_cheats() {
+	printf '(function () {\nvar editor = (function () { var module = { exports: {} };\n'
+	cat "$lib/editor.js"
+	printf '\nreturn module.exports; })();\nvar cheats = (function () { var module = { exports: {} };\n'
+	cat "$lib/pmjs-cheats.js"
+	printf '\nreturn module.exports; })();\n'
+	printf "PMJS.phases.on('afterGuestPlugins', 'tuxtavern.cheats', function () { cheats.install(globalThis, editor); });\n})();\n"
+}
+
+case $engine in
+mv | mz) run_pmjs ;;
+nwjs-zip | evb)
+	have node || die "unpacking this game needs node (apk add nodejs)"
+	[ "$engine" = evb ] || packed="$game/$(find_ci package.nw)"
+	if [ ! -f "$unpacked/.tuxtavern-unpacked" ] || [ -n "$(find "$packed" -newer "$unpacked/.tuxtavern-unpacked")" ]; then
+		mkdir -p "$unpacked" || die "cannot create $unpacked"
+		node "$lib/evb.js" "$packed" "$unpacked" || exit 1
+		touch "$unpacked/.tuxtavern-unpacked"
+	fi
+	[ -n "$cheat" ] || nocheat=1
+	exec sh "$self" ${test:+--test} ${nocheat:+--no-cheat} ${translate:+--translate "$translate"} "$unpacked" ;;
+rgss)
+	have mkxp-z || die "XP/VX/VX Ace games need mkxp-z (./build-mkxp-z.sh builds it)"
+	pre=$(mkxp_preload_dir || true)
+	[ -z "$pre" ] || export TUXTAVERN_MKXPZ_PRELOAD="$pre"
+	scripts=$(find_ci 'data/scripts.r*data*')
+	[ -n "$scripts" ] || scripts=$(find_ci 'game.rgss*')
+	case $(printf %s "$scripts" | tr '[:upper:]' '[:lower:]') in
+	*.rxdata | *.rgssad) rgss=1 ;; *.rvdata | *.rgss2a) rgss=2 ;; *) rgss=3 ;;
+	esac
+	conf="$data/mkxp/$id"
+	mkdir -p "$conf" || die "cannot create $conf"
+	paths=''
+	for name in $(rtp_names); do
+		if [ -d "$rtp/$name" ]; then paths="$paths${paths:+, }$(json "$rtp/$name")"
+		else echo "tuxtavern: the game names the $name RTP; if graphics or sounds are missing, extract it to $rtp/$name" >&2
+		fi
+	done
+	stdlib=''
+	[ -z "$pre" ] || [ ! -d "$pre/../../stdlib" ] || stdlib=$(json "$(cd "$pre/../../stdlib" && pwd -P)")
+	keys="\"gameFolder\": $(json "$game"), \"preloadScript\": [$(json "$lib/rgss/all.rb")], \"enableReset\": false, \"RTP\": [$paths], \"rubyLoadpath\": [$stdlib]"
+	if [ -n "${TUXTAVERN_YJIT:-}" ]; then
+		keys="$keys, \"YJITEnable\": true"
+		[ "$(uname -m)" = x86_64 ] || echo "tuxtavern: TUXTAVERN_YJIT needs x86-64; mkxp-z's Ruby 3.1 has no YJIT on $(uname -m)" >&2
+	fi
+	own=$(find_ci mkxp.json)
+	if [ -n "$own" ] && K="$keys," awk '!done && /^[ \t]*\{/ { i = index($0, "{"); $0 = substr($0, 1, i) " " ENVIRON["K"] substr($0, i + 1); done = 1 } { print } END { exit !done }' "$game/$own" >"$conf/mkxp.json"; then
+		! grep -v '^[[:space:]]*//' "$game/$own" | grep -q '"preloadScript"' || echo "tuxtavern: $own sets its own preloadScript, so TuxTavern's fixes are left out" >&2
+	else
+		[ -z "$own" ] || echo "tuxtavern: cannot read $own; its settings are left out" >&2
+		printf '{\n\t%s\n}\n' "$keys" >"$conf/mkxp.json" || die "cannot write $conf/mkxp.json"
+	fi
+	cd "$conf"
+	export SDL_VIDEODRIVER=wayland SRCDIR="$game" TUXTAVERN_SHIM_DIR="$lib/rgss" TUXTAVERN_RGSS_VERSION="$rgss" TUXTAVERN_CHEAT="$cheat" TUXTAVERN_TRANSLATE="$translate"
+	if [ -n "$test" ]; then exec mkxp-z test; else exec mkxp-z; fi ;;
+*) die "no RPG Maker XP/VX/VX Ace/MV/MZ game found in $game" ;;
+esac
