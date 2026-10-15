@@ -152,7 +152,25 @@ function FsReadStream(path, options) {
   return stream;
 }
 
+// Node's fs.Stats and fs.Dirent (types as in Node: 1 file, 2 directory); bundled copies of
+// Node code extend fs.Dirent (Karryn's Prison's ImageReplacer, through fast-glob).
+function FsStats(directory) { this._directory = directory; }
+FsStats.prototype.isDirectory = function() { return this._directory; };
+FsStats.prototype.isFile = function() { return !this._directory; };
+function FsDirent(name, type, path) {
+  this.name = name;
+  this.parentPath = this.path = path;
+  this._type = type;
+}
+FsDirent.prototype.isFile = function() { return this._type === 1; };
+FsDirent.prototype.isDirectory = function() { return this._type === 2; };
+['isSymbolicLink', 'isBlockDevice', 'isCharacterDevice', 'isFIFO', 'isSocket'].forEach(function(name) {
+  FsStats.prototype[name] = FsDirent.prototype[name] = function() { return false; };
+});
+
 var fsModule = {
+  Stats: FsStats,
+  Dirent: FsDirent,
   existsSync: function(path) {
     var writable = writablePath(path);
     return writable !== null && NativeHost.storage
@@ -256,8 +274,8 @@ var fsModule = {
     entries = gameDirectoryEntries(path, entries);
     if (!options || !options.withFileTypes) return entries;
     return entries.map(function(name) {
-      var stat = fsModule.statSync(pathModule.join(path, name));
-      return { name: name, isDirectory: stat.isDirectory, isFile: stat.isFile };
+      var directory = fsModule.statSync(pathModule.join(path, name)).isDirectory();
+      return new FsDirent(name, directory ? 2 : 1, path);
     });
   },
   statSync: function(path) {
@@ -276,8 +294,7 @@ var fsModule = {
       error.code = 'ENOENT';
       throw error;
     }
-    return { isDirectory: function() { return directory; },
-      isFile: function() { return !directory; } };
+    return new FsStats(directory);
   },
   stat: function(path, options, callback) {
     if (typeof options === 'function') { callback = options; options = null; }
@@ -287,13 +304,27 @@ var fsModule = {
     PMJS.tasks.enqueue(function() { callback(error, result); });
   }
 };
-// NW.js's fs.promises (Karryn's Prison's logger and mod manager), from the calls above.
-fsModule.promises = {
-  access: function(path) {
-    return new Promise(function(resolve) { fsModule.statSync(path); resolve(); });
-  }
+// The callback and promise forms NW.js pages have (Karryn's Prison's logger, mod manager and
+// mods), from the calls above; there are no links, so lstat is stat and realpath normalizes.
+fsModule.lstatSync = fsModule.statSync;
+fsModule.realpathSync = function(path) {
+  fsModule.statSync(path);
+  return normalizePath(path);
 };
-['readFile', 'writeFile', 'appendFile', 'mkdir', 'unlink', 'rename', 'readdir', 'stat'].forEach(function(name) {
+fsModule.accessSync = function(path) { fsModule.statSync(path); };
+['readdir', 'lstat', 'realpath', 'access'].forEach(function(name) {
+  fsModule[name] = function() {
+    var args = Array.prototype.slice.call(arguments);
+    var callback = args.pop();
+    if (typeof callback !== 'function') throw new TypeError(name + ' requires a callback');
+    var result, error = null;
+    try { result = fsModule[name + 'Sync'].apply(fsModule, args); } catch (caught) { error = caught; }
+    PMJS.tasks.enqueue(function() { callback(error, result); });
+  };
+});
+fsModule.promises = {};
+['readFile', 'writeFile', 'appendFile', 'mkdir', 'unlink', 'rename', 'readdir', 'stat', 'lstat', 'realpath',
+  'access'].forEach(function(name) {
   fsModule.promises[name] = function() {
     var args = arguments;
     return new Promise(function(resolve) { resolve(fsModule[name + 'Sync'].apply(fsModule, args)); });

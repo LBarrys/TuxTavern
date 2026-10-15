@@ -111,7 +111,7 @@ test('document ID lookup follows attachment, removal, and live canvas IDs', () =
 
 // Karryn's Prison's sweetalert injects its style into querySelector('head') at load.
 test('document querySelector finds simple tag, id and class selectors', () => {
-  const { document } = harness();
+  const realm = harness(), { document } = realm;
   assert.equal(document.querySelector('head'), document.head);
   const div = document.createElement('div');
   div.id = 'popup';
@@ -128,6 +128,7 @@ test('document querySelector finds simple tag, id and class selectors', () => {
   div.appendChild(span);
   assert.equal(document.body.querySelector('.swal2-popup'), span, 'elements search their descendants');
   assert.equal(span.querySelector('span'), null, 'an element is not its own descendant');
+  assert.ok(span instanceof realm.Element && span instanceof realm.HTMLElement, 'elements are Elements');
 });
 
 test('reflected image draws use the affine path', () => {

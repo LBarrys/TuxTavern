@@ -79,6 +79,8 @@ documentTarget.getElementsByTagName = function(tagName) {
   return elements;
 };
 
+// Libraries test their arguments with instanceof Element (Karryn's Prison's sweetalert).
+globalThis.Element = globalThis.HTMLElement = GenericElement;
 globalThis.HTMLCanvasElement = CanvasElement;
 globalThis.HTMLImageElement = NativeImage;
 globalThis.HTMLVideoElement = VideoElement;
