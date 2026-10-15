@@ -51,44 +51,22 @@ if (typeof ImageCache !== 'undefined') {
   });
 }
 
-if (typeof ImageCache !== 'undefined' && ImageCache.prototype._truncateCache) {
-  var pmjsImageCacheTruncateMethods = globalThis.PMJS && globalThis.PMJS.methods;
-  if (pmjsImageCacheTruncateMethods &&
-      typeof pmjsImageCacheTruncateMethods.own === 'function') {
-    pmjsImageCacheTruncateMethods.own({
-      key: 'ImageCache._truncateCache',
-      id: 'pmjs.mv.image-cache-budget',
-      getTarget: function() { return ImageCache.prototype || null; },
-      method: '_truncateCache',
-      replace: function(guestTruncate) {
-        var wrapped = function() {
-          try {
-            var items = this._items;
-            var sizeLeft = ImageCache.limit;
-            var self = this;
-            // Held images stay whatever their order: while a game preloads thousands, this
-            // runs after every load and sorting them each time took seconds.
-            if (Object.keys(items).every(function(k){ return self._mustBeHeld(items[k]); })) return;
-            var sorted = Object.keys(items).map(function(k){ return items[k]; }).sort(function(a,b){ return b.touch - a.touch; });
-            sorted.forEach(function(item){
-              if (sizeLeft > 0 || self._mustBeHeld(item)) {
-                var bmp = item.bitmap;
-                sizeLeft -= bmp.width * bmp.height;
-              } else {
-                delete items[item.key];
-              }
-            });
-            return;
-          } catch (e) {
-            PMJS.compat.hit('imageCache.truncateError', e && e.message || '');
-          }
-          return guestTruncate.apply(this, arguments);
-        };
-        wrapped._pmjsImageCacheBudget = true;
-        return wrapped;
-      }
-    });
-  }
+// Held images stay whatever their order, so while a game preloads thousands (SAO) the
+// game's truncate, which sorts every item after each load, has nothing to drop.
+if (typeof ImageCache !== 'undefined' && ImageCache.prototype._truncateCache &&
+    globalThis.PMJS && PMJS.methods && typeof PMJS.methods.wrap === 'function') {
+  PMJS.methods.wrap({
+    key: 'ImageCache._truncateCache', id: 'pmjs.mv.image-cache-held',
+    getTarget: function() { return ImageCache.prototype || null; },
+    method: '_truncateCache',
+    wrap: function(guestTruncate) {
+      return function() {
+        var items = this._items, self = this;
+        if (items && Object.keys(items).every(function(key) { return self._mustBeHeld(items[key]); })) return;
+        return guestTruncate.apply(this, arguments);
+      };
+    }
+  });
 }
 
 // Pending images must be held by MV's ImageCache. Once a Bitmap becomes ready,
