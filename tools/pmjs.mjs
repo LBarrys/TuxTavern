@@ -10,11 +10,13 @@ const root = path.resolve(process.argv[2]);
 const share = path.join(root, 'share/pmjs');
 const info = JSON.parse(fs.readFileSync(path.join(root, 'build-info.json'), 'utf8'));
 const args = process.argv.slice(3);
+const guestDelimiter = args.indexOf('--');
+const guestArguments = guestDelimiter < 0 ? [] : args.splice(guestDelimiter).slice(1);
 const command = args.shift();
 const help = `PMJS ${info.version} (${info.source.commit.slice(0, 12)}${info.source.dirty ? ', modified' : ''})
 Usage:
   pmjs prepare --game DIR [--state DIR] [--config FILE] [--manifest FILE] [--adapter FILE]
-  pmjs run --game DIR [--state DIR] [--save-root DIR]
+  pmjs run --game DIR [--state DIR] [--save-root DIR] [-- GAME_ARGUMENT ...]
   pmjs self-test [--graphics]
   pmjs --version
 Prepared files default to the user cache; saves default to the user data directory.
@@ -94,10 +96,12 @@ async function main() {
     throw new Error('prepared runtime or configuration changed; run pmjs prepare again');
   }
   const saveRoot = options['--save-root'] || path.join(process.env.XDG_DATA_HOME || path.join(os.homedir(), '.local/share'), 'pmjs', id, 'saves');
-  const { run } = await import('../runner/index.cjs');
+  const { runSupervised } = await import('../runner/supervisor.cjs');
   console.log(`[pmjs] build=${info.source.commit} package=${record.packageSha256}`);
-  await run({ addon: path.join(root, 'lib/pmjs_native.node'), gameRoot: game,
-    bootstrap: path.join(state, record.bootstrap), saveRoot, config: record.config || undefined });
+  const result = await runSupervised({ addon: path.join(root, 'lib/pmjs_native.node'), gameRoot: game,
+    bootstrap: path.join(state, record.bootstrap), saveRoot, config: record.config || undefined, guestArguments });
+  if (result.signal) process.kill(process.pid, result.signal);
+  else process.exitCode = result.code;
 }
 
 main().catch(error => { console.error(`[pmjs] ${error.stack || error}`); process.exitCode = 1; });
