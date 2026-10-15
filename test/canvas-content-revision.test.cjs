@@ -109,6 +109,22 @@ test('document ID lookup follows attachment, removal, and live canvas IDs', () =
   assert.equal(document.getElementById('replacement'), null);
 });
 
+// Karryn's Prison's sweetalert injects its style into querySelector('head') at load.
+test('document querySelector finds simple tag, id and class selectors', () => {
+  const { document } = harness();
+  assert.equal(document.querySelector('head'), document.head);
+  const div = document.createElement('div');
+  div.id = 'popup';
+  div.className = 'swal2-container shown';
+  document.body.appendChild(div);
+  assert.equal(document.querySelector('#popup'), div);
+  assert.equal(document.querySelector('.shown'), div);
+  const divs = document.querySelectorAll('div');
+  assert.equal(divs.length, 1);
+  assert.equal(divs[0], div);
+  assert.equal(document.querySelector('div > span'), null);
+});
+
 test('reflected image draws use the affine path', () => {
   const context = harness();
   const canvas = new context.CanvasElement();

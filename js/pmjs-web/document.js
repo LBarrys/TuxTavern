@@ -67,6 +67,23 @@ documentTarget.getElementById = function(id) {
   }
   return find(this.body) || find(this.head);
 };
+// Simple selectors only (tag, #id, .class), as style loaders use (Karryn's Prison's sweetalert).
+documentTarget.querySelectorAll = function(selector) {
+  selector = String(selector).trim();
+  var match = /^(#|\.)?([\w-]+)$/.exec(selector);
+  if (!match) return [];
+  var found = [];
+  (function walk(node) {
+    var classes = String(node.className || '').split(/\s+/);
+    if (match[1] === '#' ? node.id === match[2] : match[1] === '.' ? classes.indexOf(match[2]) >= 0 :
+      String(node.tagName || '').toLowerCase() === match[2].toLowerCase()) found.push(node);
+    (node.children || []).forEach(walk);
+  })(this.documentElement);
+  return found;
+};
+documentTarget.querySelector = function(selector) {
+  return this.querySelectorAll(selector)[0] || null;
+};
 documentTarget.getElementsByTagName = function(tagName) {
   var elements = String(tagName).toLowerCase() === 'head' ? [this.head] : [];
   elements.item = function(index) { return this[index] || null; };
