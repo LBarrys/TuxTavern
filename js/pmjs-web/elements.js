@@ -131,6 +131,24 @@ function GenericElement(tagName) {
 
 GenericElement.prototype = Object.create(EventTarget.prototype);
 GenericElement.prototype.constructor = GenericElement;
+// Simple selectors only (tag, #id, .class), as Karryn's Prison's sweetalert uses.
+GenericElement.prototype.querySelectorAll = function(selector) {
+  var match = /^(#|\.)?([\w-]+)$/.exec(String(selector).trim());
+  var found = [];
+  if (!match) return found;
+  (function walk(node) {
+    (node.children || []).forEach(function(child) {
+      var classes = String(child.className || '').split(/\s+/);
+      if (match[1] === '#' ? child.id === match[2] : match[1] === '.' ? classes.indexOf(match[2]) >= 0 :
+        String(child.tagName || '').toLowerCase() === match[2].toLowerCase()) found.push(child);
+      walk(child);
+    });
+  })(this);
+  return found;
+};
+GenericElement.prototype.querySelector = function(selector) {
+  return this.querySelectorAll(selector)[0] || null;
+};
 GenericElement.prototype.appendChild = function(child) {
   for (var ancestor = this; ancestor; ancestor = ancestor.parentNode) {
     if (ancestor === child) throw new Error('Cannot append an ancestor');

@@ -123,6 +123,11 @@ test('document querySelector finds simple tag, id and class selectors', () => {
   assert.equal(divs.length, 1);
   assert.equal(divs[0], div);
   assert.equal(document.querySelector('div > span'), null);
+  const span = document.createElement('span');
+  span.className = 'swal2-popup';
+  div.appendChild(span);
+  assert.equal(document.body.querySelector('.swal2-popup'), span, 'elements search their descendants');
+  assert.equal(span.querySelector('span'), null, 'an element is not its own descendant');
 });
 
 test('reflected image draws use the affine path', () => {

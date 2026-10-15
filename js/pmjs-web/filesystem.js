@@ -243,13 +243,22 @@ var fsModule = {
     try { this.renameSync(from, to); } catch (caught) { error = caught; }
     PMJS.tasks.enqueue(function() { if (callback) callback(error); });
   },
-  readdirSync: function(path) {
+  readdirSync: function(path, options) {
     var writable = writablePath(path);
     var entries = writable !== null && NativeHost.storage
       ? NativeHost.storage.readDirectory(writable)
       : NativeHost.fs.readDirectory(gamePath(path));
-    if (entries === null) throw new Error('ENOENT: ' + path);
-    return gameDirectoryEntries(path, entries);
+    if (entries === null) {
+      var error = new Error('ENOENT: ' + path);
+      error.code = 'ENOENT';
+      throw error;
+    }
+    entries = gameDirectoryEntries(path, entries);
+    if (!options || !options.withFileTypes) return entries;
+    return entries.map(function(name) {
+      var stat = fsModule.statSync(pathModule.join(path, name));
+      return { name: name, isDirectory: stat.isDirectory, isFile: stat.isFile };
+    });
   },
   statSync: function(path) {
     var writable = writablePath(path);
@@ -278,3 +287,15 @@ var fsModule = {
     PMJS.tasks.enqueue(function() { callback(error, result); });
   }
 };
+// NW.js's fs.promises (Karryn's Prison's logger and mod manager), from the calls above.
+fsModule.promises = {
+  access: function(path) {
+    return new Promise(function(resolve) { fsModule.statSync(path); resolve(); });
+  }
+};
+['readFile', 'writeFile', 'appendFile', 'mkdir', 'unlink', 'rename', 'readdir', 'stat'].forEach(function(name) {
+  fsModule.promises[name] = function() {
+    var args = arguments;
+    return new Promise(function(resolve) { resolve(fsModule[name + 'Sync'].apply(fsModule, args)); });
+  };
+});
