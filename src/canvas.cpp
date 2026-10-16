@@ -5,6 +5,8 @@
 
 #include <ft2build.h>
 #include FT_FREETYPE_H
+#include FT_GLYPH_H
+#include FT_STROKER_H
 #include <png.h>
 #include <webp/encode.h>
 #include <jpeglib.h>
@@ -164,6 +166,33 @@ static std::optional<GlyphMask> createStrokeMask(const GlyphMask& base, int stro
     }
   }
   return stroked;
+}
+
+// Canvas strokeText strokes the glyph outline with round joins, half the width on each side.
+// Growing the coverage mask instead reaches only about 1.4 px of a 2 px half-width on
+// diagonals, so outlines came out lighter than in Chromium (Karryn's Prison's window text).
+static std::optional<GlyphMask> strokeOutlineMask(FT_Face face, FT_UInt glyphIndex, int strokeWidth) {
+  if (FT_Load_Glyph(face, glyphIndex, FT_LOAD_DEFAULT) != 0 ||
+      face->glyph->format != FT_GLYPH_FORMAT_OUTLINE) return std::nullopt;
+  FT_Stroker stroker = nullptr;
+  if (FT_Stroker_New(face->glyph->library, &stroker) != 0) return std::nullopt;
+  FT_Stroker_Set(stroker, static_cast<FT_Fixed>(strokeWidth) * 32,
+                 FT_STROKER_LINECAP_ROUND, FT_STROKER_LINEJOIN_ROUND, 0);
+  FT_Glyph glyph = nullptr;
+  std::optional<GlyphMask> result;
+  if (FT_Get_Glyph(face->glyph, &glyph) == 0 && FT_Glyph_Stroke(&glyph, stroker, 1) == 0 &&
+      FT_Glyph_To_Bitmap(&glyph, FT_RENDER_MODE_NORMAL, nullptr, 1) == 0) {
+    const auto* bitmap = reinterpret_cast<FT_BitmapGlyph>(glyph);
+    GlyphMask mask;
+    if (normalizeFreeTypeBitmap(bitmap->bitmap, mask.coverage, mask.width, mask.height)) {
+      mask.bitmapLeft = bitmap->left;
+      mask.bitmapTop = bitmap->top;
+      result = std::move(mask);
+    }
+  }
+  if (glyph) FT_Done_Glyph(glyph);
+  FT_Stroker_Done(stroker);
+  return result;
 }
 
 using FontStrikeId = std::uint32_t;
@@ -452,7 +481,8 @@ struct CanvasStore::FontState {
         resultMask = &strokeIt->mask;
       } else {
         stats.strokeMaskMisses++;
-        auto stroked = createStrokeMask(cached.fillMask, strokeWidth);
+        auto stroked = strokeOutlineMask(strike->face, glyphIndex, strokeWidth);
+        if (!stroked) stroked = createStrokeMask(cached.fillMask, strokeWidth);
         if (!stroked) return std::nullopt;
 
         cached.strokeMasks.push_back(StrokeMaskEntry{strokeWidth, std::move(*stroked)});
