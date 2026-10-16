@@ -124,6 +124,9 @@ XMLHttpRequest.prototype.send = function() {
         contents = binary ? NativeHost.fs.readBytes(alternate) : NativeHost.fs.readText(alternate);
       }
       if (contents !== null && binary) contents = requestArrayBuffer(contents);
+      // Text is decoded as browsers do, without a leading byte order mark
+      // (Karryn's Prison's RemtairyLines parses its BOM-prefixed JSON).
+      else if (contents !== null) contents = String(contents).replace(/^\uFEFF/, '');
     } catch (_) {
       contents = null;
     }
