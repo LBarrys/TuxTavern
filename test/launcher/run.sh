@@ -73,7 +73,7 @@ require('fs').writeFileSync(process.argv[1], evb({ name: '%DEFAULT FOLDER%', chi
 	# shellcheck disable=SC2016
 	printf '#!/bin/sh\necho "pmjs $* driver=${SDL_VIDEODRIVER:-}"\nfor a; do case $a in *.js) cat "$a" ;; esac; done\n' >"$fx/bin/pmjs" && chmod +x "$fx/bin/pmjs"
 	# shellcheck disable=SC2016
-	printf '#!/bin/sh\necho "mkxp-z rgss=$TUXTAVERN_RGSS_VERSION driver=$SDL_VIDEODRIVER cheat=$TUXTAVERN_CHEAT translate=$TUXTAVERN_TRANSLATE pwd=$PWD args=$*"; cat mkxp.json\n' >"$fx/bin/mkxp-z" && chmod +x "$fx/bin/mkxp-z"
+	printf '#!/bin/sh\necho "mkxp-z rgss=$TUXTAVERN_RGSS_VERSION driver=$SDL_VIDEODRIVER cheat=$TUXTAVERN_CHEAT pwd=$PWD args=$*"; cat mkxp.json\n' >"$fx/bin/mkxp-z" && chmod +x "$fx/bin/mkxp-z"
 	mkdir -p "$fx/lib/mkxp-z/scripts/preload" "$fx/lib/mkxp-z/stdlib" "$fx/data/tuxtavern/rtp/Standard"
 	: >"$fx/lib/mkxp-z/scripts/preload/win32_wrap.rb"
 
@@ -102,17 +102,6 @@ require('fs').writeFileSync(process.argv[1], evb({ name: '%DEFAULT FOLDER%', chi
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" XDG_CACHE_HOME="$fx/cache" sh ./tuxtavern -C "$fx/packed" 2>&1)
 	case $out in *--adapter*) fail=$((fail + 1)); echo "FAIL --no-cheat did not reach the unpacked game" ;; *) pass=$((pass + 1)); echo "  ok --no-cheat reaches a packed game after unpacking" ;; esac
 	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" sh ./tuxtavern "$fx/nwdir" 2>&1); check 'a package.nw folder runs without unpacking' "pmjs run --game $fx/nwdir/Package.nw "
-
-	mkdir -p "$fx/my words"
-	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./tuxtavern --translate "$fx/my words/ja en.json" "$fx/xp" 2>&1)
-	check '--translate reaches XP/VX/VX Ace games, spaces and all' "translate=$fx/my words/ja en.json"
-	out=$(cat "$fx/my words/ja en.json"); check 'and creates the dictionary' '{}'
-	out=$(cd "$fx/my words" && PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh "$OLDPWD/tuxtavern" -t rel.json "$fx/xp" 2>&1)
-	check 'a relative dictionary path is made absolute (-t)' "translate=$fx/my words/rel.json"
-	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" sh ./tuxtavern -t "$fx/my words/mv.json" "$fx/mv" 2>&1); check '--translate says MV/MZ is not done yet' 'XP/VX/VX Ace games only, for now'
-	out=$(PATH="$fx/bin:$PATH" sh ./tuxtavern --translate 2>&1); check '--translate needs a file' 'needs a file'
-	out=$(PATH="$fx/bin:$PATH" sh ./tuxtavern -t "$fx/mv" 2>&1); check 'a game folder given to -t gets a hint' 'playtest is -T'
-	out=$(PATH="$fx/bin:$PATH" sh ./tuxtavern --translate "$fx/nodir/x.json" "$fx/mv" 2>&1); check 'a missing folder is refused' 'no such folder'
 
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./tuxtavern "$fx/xp" 2>&1); check 'XP runs as RGSS1' 'rgss=1'; check 'mkxp-z is told to use Wayland' 'driver=wayland'
 	check 'mkxp-z starts from the config TuxTavern wrote' "pwd=$fx/data/tuxtavern/mkxp/"

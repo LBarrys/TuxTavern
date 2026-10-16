@@ -23,8 +23,6 @@ doas sh tools/apk.sh     # builds and installs the tuxtavern package; again afte
 tuxtavern [GAME_DIR | Game.exe]   # default: current directory
 tuxtavern --no-cheat GAME         # turn off the F8 cheat menu (god mode, no clip, speed, teleport, items...)
 tuxtavern --test GAME             # XP/VX/VX Ace: playtest
-tuxtavern --translate FILE GAME   # XP/VX/VX Ace: show FILE's {"text": "translation"}; new text is added
-TUXTAVERN_TRANSLATOR='trans -b :en' tuxtavern -t FILE GAME   # machine-translate empty entries
 tuxtavern --edit-save SAVE        # MV/MZ: edit a save as JSON in $EDITOR
 tuxtavern --info GAME             # show what was detected
 ```

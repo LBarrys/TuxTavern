@@ -38,8 +38,6 @@ Runs a Windows RPG Maker XP/VX/VX Ace/MV/MZ game natively (default: the current 
 
   -T, --test      XP/VX/VX Ace: playtest mode (F9 debug menu)
   -C, --no-cheat  turn off the F8 cheat menu (on by default)
-  -t, --translate FILE  XP/VX/VX Ace: show FILE's translations ({"text": "translation"});
-                  new text is added to it with an empty translation
   -i, --info      show what was detected
   -e, --edit-save MV/MZ: open a save as JSON in \$EDITOR, write it back on exit
   -h, --help      show this help
@@ -49,21 +47,15 @@ Games run on Wayland only. RTPs go in ~/.local/share/tuxtavern/rtp/ (XP: Standar
 VX: RPGVX; VX Ace: RPGVXAce). Environment: TUXTAVERN_SKIP (MV/MZ plugins to leave out,
 e.g. ones that build HTML), TUXTAVERN_RGSS_SKIP (shims to leave out),
 TUXTAVERN_MKXPZ_PRELOAD (mkxp-z's scripts/preload, if not found), TUXTAVERN_YJIT=1
-(XP/VX/VX Ace: try Ruby's JIT compiler; experimental, x86-64 only), TUXTAVERN_TRANSLATOR
-(with -t: a command that reads text on stdin and prints its translation, used to fill in
-empty translations, e.g. 'trans -b :en').
+(XP/VX/VX Ace: try Ruby's JIT compiler; experimental, x86-64 only).
 EOF
 }
 
-mode=run test='' cheat=1 nocheat='' translate=''
+mode=run test='' cheat=1 nocheat=''
 while [ $# -gt 0 ]; do
 	case $1 in
 	-T | --test) test=1 ;;
 	-C | --no-cheat) cheat='' ;;
-	-t | --translate)
-		[ $# -ge 2 ] || die "--translate needs a file"
-		[ ! -d "$2" ] || die "--translate takes a JSON file, not a folder (playtest is -T)"
-		translate=$2; shift ;;
 	-i | --info) mode=info ;;
 	-e | --edit-save) mode=edit-save ;;
 	-h | --help) usage; exit 0 ;;
@@ -156,12 +148,6 @@ info)
 esac
 
 [ -n "${WAYLAND_DISPLAY:-}" ] || die "TuxTavern runs games on Wayland only, and WAYLAND_DISPLAY is not set"
-if [ -n "$translate" ]; then
-	tdir=$(cd "$(dirname "$translate")" 2>/dev/null && pwd -P) || die "no such folder for $translate"
-	translate="$tdir/$(basename "$translate")"
-	[ -e "$translate" ] || printf '{}\n' >"$translate" || die "cannot create $translate"
-	case $engine in mv | mz) echo "tuxtavern: --translate works for XP/VX/VX Ace games only, for now" >&2 ;; esac
-fi
 # shellcheck disable=SC3045
 ulimit -n "$(ulimit -H -n)" 2>/dev/null || true
 
@@ -218,7 +204,7 @@ nwjs-zip | evb)
 		touch "$unpacked/.tuxtavern-unpacked"
 	fi
 	[ -n "$cheat" ] || nocheat=1
-	exec sh "$self" ${test:+--test} ${nocheat:+--no-cheat} ${translate:+--translate "$translate"} "$unpacked" ;;
+	exec sh "$self" ${test:+--test} ${nocheat:+--no-cheat} "$unpacked" ;;
 rgss)
 	have mkxp-z || die "XP/VX/VX Ace games need mkxp-z (./build-mkxp-z.sh builds it)"
 	pre=$(mkxp_preload_dir || true)
@@ -251,7 +237,7 @@ rgss)
 		printf '{\n\t%s\n}\n' "$keys" >"$conf/mkxp.json" || die "cannot write $conf/mkxp.json"
 	fi
 	cd "$conf"
-	export SDL_VIDEODRIVER=wayland SRCDIR="$game" TUXTAVERN_SHIM_DIR="$lib/rgss" TUXTAVERN_RGSS_VERSION="$rgss" TUXTAVERN_CHEAT="$cheat" TUXTAVERN_TRANSLATE="$translate"
+	export SDL_VIDEODRIVER=wayland SRCDIR="$game" TUXTAVERN_SHIM_DIR="$lib/rgss" TUXTAVERN_RGSS_VERSION="$rgss" TUXTAVERN_CHEAT="$cheat"
 	if [ -n "$test" ]; then exec mkxp-z test; else exec mkxp-z; fi ;;
 *) die "no RPG Maker XP/VX/VX Ace/MV/MZ game found in $game" ;;
 esac

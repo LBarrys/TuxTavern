@@ -56,7 +56,6 @@ RpgmShims.load_one(here, 'input_poll')
 RpgmShims.load_one(here, 'lenient')
 RpgmShims.load_one(here, 'patches')
 RpgmShims.load_one(here, 'cheats') unless ENV['TUXTAVERN_CHEAT'].to_s.empty?
-RpgmShims.load_one(here, 'translate') unless ENV['TUXTAVERN_TRANSLATE'].to_s.empty?
 
 if mkxpz.nil?
   begin
