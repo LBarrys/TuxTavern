@@ -370,7 +370,9 @@ struct CanvasStore::FontState {
     strike->pixelSize = pixelSize;
     strike->face = created;
     strike->shapingFont = hb_ft_font_create_referenced(created);
-    hb_ft_font_set_load_flags(strike->shapingFont, FT_LOAD_NO_HINTING);
+    // Shape with hinted advances, as Chromium's canvas does with hinted glyphs: unhinted
+    // advances rounded per glyph shift letters by a pixel (Karryn's Prison's menus).
+    hb_ft_font_set_load_flags(strike->shapingFont, FT_LOAD_DEFAULT);
 
     FontStrike* ptr = strike.get();
     strikeLookup.emplace(key, strike->id);
@@ -540,6 +542,12 @@ struct CanvasStore::FontState {
     auto& layout = *result;
     ++stats.shapeTextCalls;
     layout.shaped = shapeText(key.text, available, stats.fallbackShapeCalls);
+    // Hinted glyphs advance by whole pixels, kerning included, as in Chromium's canvas.
+    layout.shaped.advanceX = 0;
+    for (auto& glyph : layout.shaped.glyphs) {
+      glyph.xAdvance = std::round(glyph.xAdvance);
+      layout.shaped.advanceX += glyph.xAdvance;
+    }
     layout.metrics.width = layout.shaped.advanceX;
     if (layout.shaped.glyphs.empty()) {
       const auto face = strikes[available.front().strikeId]->face;
