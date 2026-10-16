@@ -142,3 +142,15 @@ test('Pixi 7 text redraws at the renderer resolution and draws as a sprite', () 
   assert.ok(rows.some(row => row.m[2] === 9), 'Karryn\'s Prison window text draws');
   assert.deepEqual(text.updates, [[true, 2, true]]);
 });
+
+test('a bound texture counts as uploaded for FastCutIns', () => {
+  const f = harness(), c = f.context;
+  c.Graphics = { _width: 8, _height: 8 };
+  c.Utils = { isOptionValid: () => false };
+  runModule(c, 'js/pmjs-pixi7/renderer.js');
+  c.Graphics._createRenderer();
+  const renderer = c.Graphics._renderer;
+  const baseTexture = { valid: true, _glTextures: {} };
+  renderer.texture.bind(baseTexture);
+  assert.ok(baseTexture._glTextures[renderer.CONTEXT_UID]);
+});

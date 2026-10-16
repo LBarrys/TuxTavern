@@ -8,7 +8,13 @@ Graphics._createRenderer = function() {
   // Pixi 7's Renderer prototype has getters for these; own values shadow them.
   Object.defineProperties(renderer, {
     textureGC: { value: { maxIdle: 1, run: function() {} } },
-    plugins: { value: { tilemap: { tileAnim: [0, 0] } } }
+    plugins: { value: { tilemap: { tileAnim: [0, 0] } } },
+    // Karryn's Prison's FastCutIns binds a sprite sheet until it sees a GL texture for this
+    // context; the native renderer uploads it when drawn.
+    CONTEXT_UID: { value: 0 },
+    texture: { value: { bind: function(baseTexture) {
+      if (baseTexture && baseTexture._glTextures) baseTexture._glTextures[0] = true;
+    } } }
   });
   // PNG whatever the format asked for: the save thumbnails only need an image.
   renderer.extract.base64 = function(target, format, quality, frame) {
