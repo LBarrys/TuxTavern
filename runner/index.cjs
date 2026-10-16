@@ -322,6 +322,7 @@ async function run(input) {
     native.storage = createStorage(options.saveRoot);
     native.fs = createGameFilesystem(native.fs, path.join(options.saveRoot, 'game-files'));
     if (options.assetPreparation.enabled) {
+      const portableIndex = require('./asset-index.cjs').loadAssetIndex(options.assetIndex, native, options);
       let cancelled = false;
       let preparationFailed = false;
       let preparationError;
@@ -357,6 +358,7 @@ async function run(input) {
       try {
         preparation = await prepareAssets({ gameRoot: options.gameRoot,
           cacheRoot: options.assetPreparation.cacheRoot, recipes: options.assetPreparation.recipes, native,
+          portableIndex, portableAssetRoot: portableIndex && path.dirname(options.assetIndex),
           verifyHashes: options.assetPreparation.verifyHashes,
           shouldCancel: () => cancelled,
           onProgress: progress => {
@@ -367,6 +369,8 @@ async function run(input) {
         if (!cancelled && options.assetPreparation.maps) {
           preparation.maps = await prepareMaps({ gameRoot: options.gameRoot,
             cacheRoot: options.assetPreparation.cacheRoot, native, width: options.width, height: options.height,
+            portableIndex: portableIndex?.maps,
+            portableAssetRoot: portableIndex && path.dirname(options.assetIndex),
             verifyHashes: options.assetPreparation.verifyHashes,
             shouldCancel: () => cancelled, onProgress: progress => { current = progress; showProgress(); } });
         }
@@ -514,5 +518,5 @@ async function run(input) {
   }
 }
 
-module.exports = { run, validate, progressLines, stageProgress, stageKeyOf, parseTimingConfig, resolveSwapDefault, advanceDeadline,
+module.exports = { run, validate, resolveDefaults, progressLines, stageProgress, stageKeyOf, parseTimingConfig, resolveSwapDefault, advanceDeadline,
   PMJS_MV_LOGIC_HZ, PMJS_SUPPORTED_RENDER_HZ };
