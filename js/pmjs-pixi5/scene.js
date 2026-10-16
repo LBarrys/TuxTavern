@@ -298,6 +298,16 @@
     return index;
   }
 
+  // An unrotated rectangle mask is a clip, as Pixi scissors it (Karryn's Prison's FastCutIns
+  // crops portraits this way); other masks are a gap.
+  function maskClip(node) {
+    var mask = node.mask.maskObject || node.mask;
+    var world = mask.worldTransform;
+    if (typeof mask.isFastRect !== 'function' || !mask.isFastRect() || !world || world.b || world.c) {
+      reject('render.mask', node);
+    }
+    return mask.getBounds();
+  }
   function writeNode(node, parent, clip) {
     if (!node || !node.visible || !node.renderable || visibleAlpha(node) <= 0) return;
     var transform = localTransform(node);
@@ -320,7 +330,7 @@
     var contract = renderContract(node);
     if (contract && contract.prepare) contract.prepare(node, renderOwner);
     if (clip) parent = clipRecord(parent, clip);
-    if (node.mask) reject('render.mask', node);
+    if (node.mask) parent = clipRecord(parent, maskClip(node));
     var prepared = preparedSprites && preparedSprites.get(node);
     if (prepared) {
       var cached = addRecord(parent, 1, prepared.resource, 0xffffff, 0, identity, 1);

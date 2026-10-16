@@ -154,3 +154,18 @@ test('a bound texture counts as uploaded for FastCutIns', () => {
   renderer.texture.bind(baseTexture);
   assert.ok(baseTexture._glTextures[renderer.CONTEXT_UID]);
 });
+
+test('a rectangle mask clips its container; other masks are a gap', () => {
+  const f = harness(), c = f.context;
+  const portrait = new c.PIXI.Container();
+  portrait.addChild(new c.Sprite(f.texture(5)));
+  let fast = true;
+  portrait.mask = { isFastRect: () => fast, worldTransform: { a: 1, b: 0, c: 0, d: 1 },
+    getBounds: () => ({ x: 10, y: 20, width: 30, height: 40 }) };
+  const rows = f.render(portrait);
+  const clip = rows.find(row => row.m[5] & 1);
+  assert.deepEqual(clip.v.slice(17, 21), [10, 20, 40, 60], 'FastCutIns crops a portrait');
+  assert.ok(rows.some(row => row.m[2] === 5));
+  fast = false;
+  assert.throws(() => f.render(portrait), /render\.mask/);
+});
