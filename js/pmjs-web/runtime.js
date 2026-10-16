@@ -316,8 +316,16 @@ globalThis.location = {
   pathname: '/game/index.html',
   search: ''
 };
+// Marks and measures are kept nowhere: Karryn's Prison's FastCutIns times its sprite sheet loads.
 globalThis.performance = {
-  now: function() { return NativeHost.runtime.now(); }
+  now: function() { return NativeHost.runtime.now(); },
+  mark: function() {},
+  measure: function() {},
+  clearMarks: function() {},
+  clearMeasures: function() {},
+  getEntries: function() { return []; },
+  getEntriesByName: function() { return []; },
+  getEntriesByType: function() { return []; }
 };
 var nativeBootStarted = performance.now();
 function nativeBootPhase(name) {

@@ -24,6 +24,8 @@ test('web runtime keeps V8 RegExp and String built-ins', () => {
   assert.equal(vm.runInContext('RegExp.prototype.exec', context), exec);
   assert.deepEqual(Array.from(vm.runInContext('"a\\n\\nb".split(/[\\r\\n]+/)', context)),
     ['a', 'b']);
+  vm.runInContext('performance.mark("a"); performance.measure("load", "a", "b")', context);
+  assert.equal(vm.runInContext('performance.getEntriesByName("load").length', context), 0);
 });
 
 test('virtual file aliases are configured data', () => {
