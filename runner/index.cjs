@@ -137,10 +137,10 @@ function parseTimingConfig(env) {
   }
   const uncappedFlag = source.PMJS_UNCAPPED === '1';
   const raw = source.PMJS_RENDER_HZ;
+  // Unset draws as fast as it can: 60 frames shown on a 144/165 Hz screen judder
+  // (Karryn's Prison on a 165 Hz display). PMJS_RENDER_HZ=60 paces it to save power.
   if (raw === undefined || raw === '') {
-    if (uncappedFlag) return { logicHz: PMJS_MV_LOGIC_HZ, renderHz: 0, uncapped: true, renderPeriod: Infinity, catchupMode };
-    return { logicHz: PMJS_MV_LOGIC_HZ, renderHz: 60, uncapped: false,
-      renderPeriod: 1000 / 60, catchupMode };
+    return { logicHz: PMJS_MV_LOGIC_HZ, renderHz: 0, uncapped: true, renderPeriod: Infinity, catchupMode };
   }
   const renderHz = Number(raw);
   if (renderHz === 0) {

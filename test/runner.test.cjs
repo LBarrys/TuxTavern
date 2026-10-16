@@ -243,7 +243,9 @@ test('runner closes the host on frame failure and preserves the original error',
   assert.equal(quits, 1);
 });
 test('timing config pins MV logic at 60 Hz and validates render rates', () => {
-  assert.deepEqual(parseTimingConfig({}), { logicHz: 60, renderHz: 60,
+  assert.deepEqual(parseTimingConfig({}), { logicHz: 60, renderHz: 0,
+    uncapped: true, renderPeriod: Infinity, catchupMode: 'burst' }, 'uncapped unless set');
+  assert.deepEqual(parseTimingConfig({ PMJS_RENDER_HZ: '60' }), { logicHz: 60, renderHz: 60,
     uncapped: false, renderPeriod: 1000 / 60, catchupMode: 'burst' });
   assert.equal(parseTimingConfig({ PMJS_RENDER_HZ: '30' }).renderPeriod, 1000 / 30);
   assert.equal(parseTimingConfig({ PMJS_RENDER_HZ: '120' }).renderHz, 120);
@@ -260,7 +262,8 @@ test('timing config pins MV logic at 60 Hz and validates render rates', () => {
   assert.deepEqual(parseTimingConfig({ PMJS_LOGIC_HZ: '60' }).logicHz, 60);
 });
 test('uncapped render defaults the swap interval to 0 unless set', () => {
-  assert.equal(resolveSwapDefault({}, parseTimingConfig({})), null);
+  assert.equal(resolveSwapDefault({}, parseTimingConfig({ PMJS_RENDER_HZ: '60' })), null);
+  assert.equal(resolveSwapDefault({}, parseTimingConfig({})), '0');
   assert.equal(resolveSwapDefault({ PMJS_SWAP_INTERVAL: '1' },
     parseTimingConfig({ PMJS_RENDER_HZ: '0' })), null);
   assert.equal(resolveSwapDefault({}, parseTimingConfig({ PMJS_RENDER_HZ: '0' })), '0');
