@@ -1,7 +1,9 @@
 'use strict';
 
 PMJS.phases.on('afterGuestPlugins', 'pmjs.plugins.yanfly.core-transforms', function() {
-  if (!globalThis.Yanfly || !Yanfly.Core || typeof Sprite !== 'function') return;
+  // Pixi 7 games (Karryn's Prison) have no Pixi 4 render preflight to register with.
+  if (!globalThis.Yanfly || !Yanfly.Core || typeof Sprite !== 'function' ||
+      !globalThis.pmjsPixiRenderPreflight) return;
   var predecessor = Yanfly.Core.Sprite_updateTransform;
   var method = Sprite.prototype.updateTransform;
   var reviewed = function() {
