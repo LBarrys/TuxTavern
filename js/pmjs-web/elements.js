@@ -170,6 +170,9 @@ GenericElement.prototype.removeChild = function(child) {
 GenericElement.prototype.remove = function() {
   if (this.parentNode) this.parentNode.removeChild(this);
 };
+// Canvases and images aren't GenericElements but are attached to them (Karryn's Prison's
+// FastCutIns removes its preview canvases).
+CanvasElement.prototype.remove = GenericElement.prototype.remove;
 GenericElement.prototype.insertBefore = function(child, reference) {
   this.appendChild(child);
   var index = reference ? this.children.indexOf(reference) : -1;

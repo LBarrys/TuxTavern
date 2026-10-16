@@ -24,6 +24,7 @@ var IMAGE_BURST = 64;
 
 NativeImage.prototype = Object.create(EventTarget.prototype);
 NativeImage.prototype.constructor = NativeImage;
+NativeImage.prototype.remove = GenericElement.prototype.remove;
 Object.defineProperty(NativeImage.prototype, 'src', {
   get: function() { return this._src; },
   set: function(url) {

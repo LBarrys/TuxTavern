@@ -111,7 +111,7 @@ test('document ID lookup follows attachment, removal, and live canvas IDs', () =
 
 // Karryn's Prison's sweetalert injects its style into querySelector('head') at load.
 test('document querySelector finds simple tag, id and class selectors', () => {
-  const realm = harness(), { document } = realm;
+  const realm = harness(), { document } = realm, context = realm;
   assert.equal(document.querySelector('head'), document.head);
   const div = document.createElement('div');
   div.id = 'popup';
@@ -136,7 +136,7 @@ test('document querySelector finds simple tag, id and class selectors', () => {
 
 // Karryn's Prison's FastCutIns builds its progress display with innerHTML, then queries it.
 test('innerHTML parses elements, attributes and text that can then be queried', () => {
-  const realm = harness(), { document } = realm;
+  const realm = harness(), { document } = realm, context = realm;
   const panel = document.createElement('div');
   panel.classList.add('container');
   panel.innerHTML = `
@@ -167,6 +167,12 @@ test('innerHTML parses elements, attributes and text that can then be queried', 
   assert.equal(row.childNodes.length, 2);
   panel.remove();
   assert.equal(document.body.children.indexOf(panel), -1);
+  const preview = document.createElement('canvas'), picture = new context.Image();
+  row.prepend(preview, picture);
+  preview.remove();
+  picture.remove();
+  assert.equal(row.children.length, 2, 'FastCutIns removes its preview canvas');
+  preview.remove();
 });
 
 test('reflected image draws use the affine path', () => {
