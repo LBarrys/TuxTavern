@@ -134,6 +134,41 @@ test('document querySelector finds simple tag, id and class selectors', () => {
   assert.equal(typeof realm.onmessage, 'function', 'strict code can assign window.onmessage');
 });
 
+// Karryn's Prison's FastCutIns builds its progress display with innerHTML, then queries it.
+test('innerHTML parses elements, attributes and text that can then be queried', () => {
+  const realm = harness(), { document } = realm;
+  const panel = document.createElement('div');
+  panel.classList.add('container');
+  panel.innerHTML = `
+    <div class="row header"><div id="title">Checking &amp; poses</div>
+      <div><span id="totalProgress">0</span>%</div></div>
+    <!-- a comment -->
+    <svg class="border-loader" viewBox="0 14 150 38"><defs><path id="gentle-wave" d="M-160 44c30 0" /></defs>
+      <g class="parallax1"><use xlink:href="#gentle-wave" x="50" y="-12"/></g></svg><br>tail`;
+  document.body.prepend(panel);
+  assert.equal(document.body.children[0], panel);
+  const title = panel.querySelector('#title');
+  assert.equal(title.textContent, 'Checking & poses');
+  title.innerHTML = 'Speeding up';
+  panel.querySelector('#totalProgress').innerText = '50';
+  assert.match(panel.textContent, /Speeding up\s*50%/);
+  assert.equal(panel.querySelector('.parallax1').children[0].getAttribute('xlink:href'), '#gentle-wave');
+  assert.equal(panel.querySelector('svg').getAttribute('class'), 'border-loader');
+  assert.equal(panel.children.at(-2).tagName, 'BR', 'br holds no content');
+  assert.equal(panel.children.at(-1).textContent, 'tail');
+  assert.match(panel.outerHTML, /^<div class="container">\s*<div class="row header"><div id="title">/);
+  panel.classList.toggle('done');
+  assert.equal(panel.className, 'container done');
+  assert.equal(panel.classList.contains('row'), false);
+  const row = document.createElement('div');
+  row.append('task ', document.createElement('b'));
+  panel.insertBefore(row, panel.children[0]);
+  assert.equal(panel.children[0], row);
+  assert.equal(row.childNodes.length, 2);
+  panel.remove();
+  assert.equal(document.body.children.indexOf(panel), -1);
+});
+
 test('reflected image draws use the affine path', () => {
   const context = harness();
   const canvas = new context.CanvasElement();

@@ -170,8 +170,42 @@ GenericElement.prototype.removeChild = function(child) {
 GenericElement.prototype.remove = function() {
   if (this.parentNode) this.parentNode.removeChild(this);
 };
-GenericElement.prototype.setAttribute = function(name, value) { this[name] = String(value); };
-GenericElement.prototype.getAttribute = function(name) { return this[name] || null; };
+GenericElement.prototype.insertBefore = function(child, reference) {
+  this.appendChild(child);
+  var index = reference ? this.children.indexOf(reference) : -1;
+  if (index >= 0) this.children.splice(index, 0, this.children.pop());
+  return child;
+};
+function elementNodes(nodes) {
+  return Array.prototype.map.call(nodes, function(node) {
+    return typeof node === 'string' ? documentTarget.createTextNode(node) : node;
+  });
+}
+GenericElement.prototype.prepend = function() {
+  var first = this.children[0];
+  elementNodes(arguments).forEach(function(node) { this.insertBefore(node, first); }, this);
+};
+GenericElement.prototype.append = function() {
+  elementNodes(arguments).forEach(function(node) { this.appendChild(node); }, this);
+};
+// class and style are the element's className and style declarations; other attributes are properties.
+GenericElement.prototype.setAttribute = function(name, value) {
+  name = String(name);
+  value = String(value);
+  if (name === 'class') this.className = value;
+  else if (name === 'style') {
+    value.split(';').forEach(function(rule) {
+      var colon = rule.indexOf(':');
+      if (colon > 0) this.style.setProperty(rule.slice(0, colon).trim(), rule.slice(colon + 1).trim());
+    }, this);
+  } else this[name] = value;
+};
+GenericElement.prototype.getAttribute = function(name) {
+  var value = name === 'class' ? this.className : this[name];
+  // An emptied value reads as absent: removeAttribute blanks accessor-backed attributes (src).
+  return value === undefined || value === null || value === '' || typeof value === 'object' ? null : String(value);
+};
+GenericElement.prototype.hasAttribute = function(name) { return this.getAttribute(name) !== null; };
 GenericElement.prototype.removeAttribute = function(name) {
   name = String(name);
   if (Object.prototype.hasOwnProperty.call(this, name)) {
@@ -186,41 +220,110 @@ GenericElement.prototype.getElementsByTagName = function() { return []; };
 function escapeElementText(text) {
   return String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
+function decodeElementText(text) {
+  return text.replace(/&(#x[0-9a-f]+|#\d+|amp|lt|gt|quot|apos|nbsp);/gi, function(_, entity) {
+    if (entity[0] === '#') return String.fromCodePoint(parseInt(entity.slice(entity[1].toLowerCase() === 'x' ? 2 : 1), entity[1].toLowerCase() === 'x' ? 16 : 10));
+    return { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: '\u00a0' }[entity.toLowerCase()];
+  });
+}
+// Enough HTML for markup that mods build and then query (Karryn's Prison's FastCutIns progress
+// display): elements, attributes, text and comments. Nothing draws it.
+var voidElements = /^(area|base|br|col|embed|hr|img|input|link|meta|source|track|wbr)$/i;
+function parseElementHtml(parent, html) {
+  var stack = [parent];
+  var token = /<!--[\s\S]*?-->|<\/([\w:-]+)\s*>|<([\w:-]+)((?:\s+[^\s=>/]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+))?)*)\s*(\/?)>|[^<]+|</g;
+  var match;
+  while ((match = token.exec(html))) {
+    var top = stack[stack.length - 1];
+    if (match[1]) {
+      var name = match[1].toUpperCase();
+      for (var depth = stack.length - 1; depth > 0; depth--) {
+        if (stack[depth].tagName === name) { stack.length = depth; break; }
+      }
+    } else if (match[2]) {
+      var element = documentTarget.createElement(match[2]);
+      var attribute = /([^\s=>/]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g, pair;
+      while ((pair = attribute.exec(match[3]))) {
+        var value = pair[2] !== undefined ? pair[2] : pair[3] !== undefined ? pair[3] : pair[4];
+        element.setAttribute(pair[1], decodeElementText(value === undefined ? '' : value));
+      }
+      top.appendChild(element);
+      if (!match[4] && !voidElements.test(match[2])) stack.push(element);
+    } else if (match[0].indexOf('<!--') !== 0) {
+      top.appendChild(documentTarget.createTextNode(decodeElementText(match[0])));
+    }
+  }
+}
 Object.defineProperties(GenericElement.prototype, {
   textContent: {
     configurable: true,
     get: function() {
-      var text = this._innerHTML === undefined ? this._textContent || '' :
-        this._innerHTML.replace(/<[^>]*>/g, '').replace(/&(#x[0-9a-f]+|#\d+|amp|lt|gt|quot|apos);/gi, function(_, entity) {
-          if (entity[0] === '#') return String.fromCodePoint(parseInt(entity.slice(entity[1].toLowerCase() === 'x' ? 2 : 1), entity[1].toLowerCase() === 'x' ? 16 : 10));
-          return { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" }[entity.toLowerCase()];
-        });
-      return text + this.children.map(function(child) { return child.textContent || ''; }).join('');
+      return (this._textContent || '') + this.children.map(function(child) { return child.textContent || ''; }).join('');
     },
     set: function(value) {
       this.children.forEach(function(child) { child.parentNode = null; });
       this.children = [];
-      this._innerHTML = undefined;
       this._textContent = value === null ? '' : String(value);
     }
+  },
+  innerText: {
+    configurable: true,
+    get: function() { return this.textContent; },
+    set: function(value) { this.textContent = value; }
   },
   innerHTML: {
     configurable: true,
     get: function() {
-      return (this._innerHTML === undefined ? escapeElementText(this._textContent || '') : this._innerHTML) +
+      return escapeElementText(this._textContent || '') +
         this.children.map(function(child) { return child.outerHTML || ''; }).join('');
     },
     set: function(value) {
       this.textContent = '';
-      this._innerHTML = value === null ? '' : String(value);
+      parseElementHtml(this, value === null ? '' : String(value));
     }
   },
   outerHTML: {
     get: function() {
       if (this.tagName === '#TEXT') return escapeElementText(this.textContent);
       var tag = this.tagName.toLowerCase();
-      return '<' + tag + (this.id ? ' id="' + escapeElementText(this.id).replace(/"/g, '&quot;') + '"' : '') +
-        '>' + this.innerHTML + '</' + tag + '>';
+      var attributes = ['id', 'className'].filter(function(name) { return this[name]; }, this)
+        .map(function(name) {
+          return ' ' + (name === 'className' ? 'class' : name) + '="' +
+            escapeElementText(this[name]).replace(/"/g, '&quot;') + '"';
+        }, this).join('');
+      return '<' + tag + attributes + '>' + (voidElements.test(tag) ? '' : this.innerHTML + '</' + tag + '>');
+    }
+  },
+  childNodes: {
+    configurable: true,
+    get: function() { return this.children; }
+  },
+  classList: {
+    configurable: true,
+    get: function() {
+      var element = this;
+      function names() { return String(element.className || '').split(/\s+/).filter(Boolean); }
+      function set(list) { element.className = list.join(' '); }
+      return {
+        get length() { return names().length; },
+        item: function(index) { return names()[index] || null; },
+        contains: function(name) { return names().indexOf(String(name)) >= 0; },
+        add: function() {
+          var list = names();
+          Array.prototype.forEach.call(arguments, function(name) { if (list.indexOf(String(name)) < 0) list.push(String(name)); });
+          set(list);
+        },
+        remove: function() {
+          var removed = Array.prototype.map.call(arguments, String);
+          set(names().filter(function(name) { return removed.indexOf(name) < 0; }));
+        },
+        toggle: function(name, force) {
+          var present = this.contains(name);
+          if (force === undefined ? present : !force) this.remove(name); else this.add(name);
+          return !present || force === true;
+        },
+        toString: function() { return names().join(' '); }
+      };
     }
   }
 });
