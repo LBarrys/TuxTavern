@@ -125,7 +125,9 @@ constexpr const char* fragmentSource = R"(#version 300 es
   uniform bool spriteColorEnabled;
   uniform vec4 spriteColorTone;
   uniform vec4 spriteBlendColor;
-  in vec2 vertexUv;
+  // Half-precision texture coordinates miss texel centres by a third of a texel across an
+  // 816x624 target, blurring an MV screen tone's content toward the bottom-right.
+  in highp vec2 vertexUv;
   in vec2 filterCoord;
   in vec4 vertexColor;
   in vec4 vertexUvClamp;
@@ -252,11 +254,11 @@ constexpr const char* fragmentSource = R"(#version 300 es
     }
     return abs(sum);
   }
-  vec4 sampleImage(vec2 uv) {
+  vec4 sampleImage(highp vec2 uv) {
     return texture(image, vec2(uv.x, imageYDown ? 1.0 - uv.y : uv.y));
   }
   void main() {
-    vec2 sampleUv = vertexUv;
+    highp vec2 sampleUv = vertexUv;
     if (pixiFilterKind == 1) {
       bool pixi5 = pixiFilterParameters[9] == 1.0;
       // Native filter textures have inverted Y; retain stock interpolation before rounding.
