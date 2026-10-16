@@ -152,3 +152,30 @@ test('large finite ellipses keep path construction bounded', () => {
   assert.ok(context._subpath.length <= 8193);
   assert.ok(context._subpath.every(point => point.every(Number.isFinite)));
 });
+
+test('quadratic and cubic curves follow their control points (FTKR_SkillTreeSystem tree lines)', () => {
+  const { context } = drawing();
+  context.beginPath();
+  context.moveTo(0, 0);
+  context.quadraticCurveTo(10, 0, 10, 10);
+  near(context._currentPathPoint[0], 10); near(context._currentPathPoint[1], 10);
+  const middle = context._subpath[Math.floor(context._subpath.length / 2)];
+  assert.ok(middle[0] > 5 && middle[1] < 5, 'bends toward the control point');
+  context.bezierCurveTo(10, 20, 20, 20, 20, 10);
+  near(context._currentPathPoint[0], 20); near(context._currentPathPoint[1], 10);
+  assert.equal(context._path.length, 1);
+  context.beginPath();
+  context.quadraticCurveTo(4, 5, 6, 7);
+  assert.deepEqual(Array.from(context._subpath[0]), [4, 5], 'starts a subpath at the control point');
+  context.bezierCurveTo(NaN, 0, 0, 0, 0, 0);
+  near(context._currentPathPoint[0], 6);
+
+  const stroked = drawing();
+  stroked.context.lineWidth = 2;
+  stroked.context.beginPath();
+  stroked.context.moveTo(4, 4);
+  stroked.context.quadraticCurveTo(60, 4, 60, 60);
+  stroked.context.stroke();
+  assert.ok(stroked.alpha(46, 18) > 0, 'the stroked curve is drawn');
+  assert.equal(stroked.alpha(32, 32), 0, 'not its chord');
+});

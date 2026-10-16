@@ -1048,6 +1048,36 @@ CanvasContext2D.prototype.ellipse = function(x, y, radiusX, radiusY, rotation, s
   }
   append(start + sweep);
 };
+// Curves become line segments, about one per two device pixels of control polygon
+// (Karryn's Prison's FTKR_SkillTreeSystem draws its tree lines with quadraticCurveTo).
+function curveTo(context, points) {
+  points = points.map(Number);
+  if (!points.every(Number.isFinite)) return;
+  if (!context._currentPathPoint) context.moveTo(points[0], points[1]);
+  var controls = [context._currentPathPoint].concat([0, 2, 4].slice(0, points.length / 2)
+    .map(function(index) { return [points[index], points[index + 1]]; }));
+  var t = context._transform, scale = Math.sqrt(Math.abs(t[0] * t[3] - t[1] * t[2]));
+  var length = 0;
+  for (var index = 1; index < controls.length; index++) {
+    length += Math.hypot(controls[index][0] - controls[index - 1][0], controls[index][1] - controls[index - 1][1]);
+  }
+  var segments = Math.min(1024, Math.max(1, Math.ceil(length * scale / 2)));
+  for (var step = 1; step <= segments; step++) {
+    var level = controls, f = step / segments;
+    while (level.length > 1) {
+      level = level.slice(1).map(function(point, at) {
+        return [level[at][0] + (point[0] - level[at][0]) * f, level[at][1] + (point[1] - level[at][1]) * f];
+      });
+    }
+    context.lineTo(level[0][0], level[0][1]);
+  }
+}
+CanvasContext2D.prototype.quadraticCurveTo = function(cpx, cpy, x, y) {
+  curveTo(this, [cpx, cpy, x, y]);
+};
+CanvasContext2D.prototype.bezierCurveTo = function(cp1x, cp1y, cp2x, cp2y, x, y) {
+  curveTo(this, [cp1x, cp1y, cp2x, cp2y, x, y]);
+};
 CanvasContext2D.prototype.rect = function(x, y, width, height) {
   this.moveTo(x, y); this.lineTo(x + width, y); this.lineTo(x + width, y + height);
   this.lineTo(x, y + height); this.closePath();
