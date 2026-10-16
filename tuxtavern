@@ -21,6 +21,12 @@ find_ci() {
 	done
 	return 0
 }
+# The game's own mkxp.json. rpgm, the old launcher, wrote one into the game folder that loads
+# shims from its own install (LonaRPG), so that one is not the game's.
+game_mkxp() {
+	f=$(find_ci mkxp.json)
+	[ -z "$f" ] || head -n 2 "$game/$f" | grep -q '^[[:space:]]*// Written by rpgm\.' || echo "$f"
+}
 has() { [ -n "$(find_ci "$1")" ]; }
 evb_exe() {
 	for f in "$game"/*.[eE][xX][eE]; do
@@ -135,7 +141,9 @@ info)
 	rgss)
 		if have mkxp-z; then echo "runtime: $(command -v mkxp-z)"; else echo "runtime: mkxp-z not installed (./build-mkxp-z.sh)"; fi
 		echo "config:  written by tuxtavern to $data/mkxp/$id"
-		[ -z "$(find_ci mkxp.json)" ] || echo "         merged with the game's $(find_ci mkxp.json)"
+		if [ -n "$(game_mkxp)" ]; then echo "         merged with the game's $(game_mkxp)"
+		elif [ -n "$(find_ci mkxp.json)" ]; then echo "         the game's $(find_ci mkxp.json) was written by rpgm and is left out"
+		fi
 		rtp_names | while read -r name; do
 			if [ -d "$rtp/$name" ]; then echo "rtp:     $name, installed"; else echo "rtp:     $name, not installed in $rtp/$name"; fi
 		done ;;
@@ -229,7 +237,8 @@ rgss)
 		keys="$keys, \"YJITEnable\": true"
 		[ "$(uname -m)" = x86_64 ] || echo "tuxtavern: TUXTAVERN_YJIT needs x86-64; mkxp-z's Ruby 3.1 has no YJIT on $(uname -m)" >&2
 	fi
-	own=$(find_ci mkxp.json)
+	own=$(game_mkxp)
+	[ -n "$own" ] || [ -z "$(find_ci mkxp.json)" ] || echo "tuxtavern: $(find_ci mkxp.json) was written by rpgm; it is left out (delete it to stop this message)" >&2
 	if [ -n "$own" ] && K="$keys," awk '!done && /^[ \t]*\{/ { i = index($0, "{"); $0 = substr($0, 1, i) " " ENVIRON["K"] substr($0, i + 1); done = 1 } { print } END { exit !done }' "$game/$own" >"$conf/mkxp.json"; then
 		! grep -v '^[[:space:]]*//' "$game/$own" | grep -q '"preloadScript"' || echo "tuxtavern: $own sets its own preloadScript, so TuxTavern's fixes are left out" >&2
 	else

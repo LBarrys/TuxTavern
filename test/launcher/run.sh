@@ -31,6 +31,8 @@ mkdir -p "$fx/nwdir/Package.nw/js"; : >"$fx/nwdir/Secretary.exe"; : >"$fx/nwdir/
 echo '{"main": "index.html"}' >"$fx/nwdir/Package.nw/package.json"; : >"$fx/nwdir/Package.nw/index.html"
 echo 'Utils.RPGMAKER_VERSION = "1.9.0";' >"$fx/nwdir/Package.nw/js/rmmz_core.js"
 printf '// settings {\n{\n\t// "preloadScript": ["old.rb"],\n\t"windowTitle": "VX",\n}\n' >"$fx/vx/mkxp.json"
+mkdir -p "$fx/lona"; : >"$fx/lona/Game.ini"; : >"$fx/lona/Game.rgss3a"
+printf '{\n\t// Written by rpgm. Delete this file to go back to mkxp-z'"'"'s own defaults.\n\t"preloadScript": ["/gone/rpgm/lib/rgss/all.rb"],\n\t"enableReset": false\n}\n' >"$fx/lona/mkxp.json"
 mkdir -p "$fx/pre"; : >"$fx/pre/Game.ini"; : >"$fx/pre/Game.rgss3a"; printf '{ "preloadScript": ["mine.rb"] }\n' >"$fx/pre/mkxp.json"
 : >"$fx/mv/Game.exe"
 printf 'MZ\000\000.enig\000ma1' >"$fx/exe/Game.exe"
@@ -45,6 +47,7 @@ run --info "$fx/zip"; check 'package.nw is detected' 'engine:  nwjs-zip'
 run --info "$fx/xp"; check 'XP is detected' 'engine:  rgss'; check 'TuxTavern writes the config' 'config:  written by tuxtavern'
 check 'the RTP the game names is reported' 'rtp:     Standard, not installed'
 run --info "$fx/vx"; check 'detection ignores letter case' 'engine:  rgss'; check "a game's own mkxp.json is found" "merged with the game's mkxp.json"
+run --info "$fx/lona"; check "an mkxp.json rpgm wrote is not the game's (LonaRPG)" 'was written by rpgm and is left out'
 run --info "$fx/vxa"; check 'an archive-only game is detected' 'engine:  rgss'
 run --info "$fx/nwdir"; check 'a package.nw folder is the game' "game:    $fx/nwdir/Package.nw"; check 'and what is in it is detected' 'engine:  mz'
 run --info "$fx/nwdir/Secretary.exe"; check 'also when started from the exe next to it' 'engine:  mz'
@@ -118,6 +121,9 @@ require('fs').writeFileSync(process.argv[1], evb({ name: '%DEFAULT FOLDER%', chi
 	check 'comments before the object are left alone' '// settings {'
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./tuxtavern "$fx/pre" 2>&1); check "a game's own preloadScript is respected and said so" 'sets its own preloadScript'
 	check 'its config is still written' '"preloadScript": ["mine.rb"]'
+	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./tuxtavern "$fx/lona" 2>&1); check "an mkxp.json rpgm wrote is left out" 'was written by rpgm; it is left out'
+	case $out in *gone/rpgm*) fail=$((fail + 1)); echo "FAIL rpgm's preloadScript reached mkxp-z" ;; *) pass=$((pass + 1)); echo "  ok so its old preloadScript does not reach mkxp-z" ;; esac
+	check "and TuxTavern's shims load instead" 'rgss/all.rb"]'
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./tuxtavern "$fx/xpa" 2>&1); check 'an XP archive-only game runs as RGSS1' 'rgss=1'
 	check 'a missing RTP is pointed out' "extract it to $fx/data/tuxtavern/rtp/RPGVX"
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./tuxtavern "$fx/vxa" 2>&1); check 'a VX archive-only game runs as RGSS2' 'rgss=2'
