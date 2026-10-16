@@ -211,14 +211,16 @@ int main() try {
     return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
   };
   std::size_t walked = 0;
-  double walk = 1e9;
-  for (int run = 0; run < 3; ++run) walk = std::min(walk, timed([&] {
-    walked = 0;
-    for (const auto& entry : std::filesystem::recursive_directory_iterator(large.path()))
-      walked += std::filesystem::is_regular_file(entry.symlink_status());
-  }));
-  double index = 1e9;
-  for (int run = 0; run < 3; ++run) index = std::min(index, timed([&] { pmjs::Vfs indexed(large.path()); }));
+  double walk = 1e9, index = 1e9;
+  // Alternate the two so a busy machine (ctest -j8) slows both alike.
+  for (int run = 0; run < 5; ++run) {
+    walk = std::min(walk, timed([&] {
+      walked = 0;
+      for (const auto& entry : std::filesystem::recursive_directory_iterator(large.path()))
+        walked += std::filesystem::is_regular_file(entry.symlink_status());
+    }));
+    index = std::min(index, timed([&] { pmjs::Vfs indexed(large.path()); }));
+  }
   require(walked == 20000, "large fixture was not written");
   require(index < walk * 4.5, "indexing took " + std::to_string(index) + " ms against a " +
           std::to_string(walk) + " ms walk");

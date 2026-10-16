@@ -68,8 +68,21 @@ struct Push {
 
 std::atomic<int> landedPushes{0};
 
+// Keys pressed before the dialog starts listening count as held and are ignored, so a busy
+// machine (ctest -j8) could hang the test: wait until the dialog's loop drains a marker event.
+void awaitListening() {
+  SDL_Event marker{};
+  marker.type = SDL_USEREVENT;
+  if (SDL_PushEvent(&marker) != 1) {
+    std::cerr << "SDL_PushEvent failed\n";
+    std::exit(1);
+  }
+  while (SDL_PeepEvents(nullptr, 0, SDL_PEEKEVENT, SDL_USEREVENT, SDL_USEREVENT) > 0) SDL_Delay(5);
+}
+
 void after(std::vector<Push> pushes) {
   std::thread([pushes]() {
+    awaitListening();
     for (const auto& push : pushes) {
       std::this_thread::sleep_for(
         std::chrono::milliseconds(push.atMilliseconds));
@@ -81,6 +94,7 @@ void after(std::vector<Push> pushes) {
 
 void afterQuit(int milliseconds) {
   std::thread([milliseconds]() {
+    awaitListening();
     std::this_thread::sleep_for(std::chrono::milliseconds(milliseconds));
     pushQuit();
     ++landedPushes;
@@ -210,6 +224,7 @@ int main() {
   check(threw, "over-capacity message throws instead of truncating");
 
   std::thread([]() {
+    awaitListening();
     std::this_thread::sleep_for(std::chrono::milliseconds(400));
     pushKeyRepeat(SDLK_RETURN);
     ++landedPushes;

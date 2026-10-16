@@ -211,7 +211,7 @@ if(BUILD_TESTING)
   target_link_libraries(pmjs-dialog-modal-test PRIVATE pmjs_runtime)
   add_test(NAME native-dialog-modal COMMAND
     ${XVFB_RUN} -a $<TARGET_FILE:pmjs-dialog-modal-test>)
-  set_tests_properties(native-dialog-modal PROPERTIES ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1")
+  set_tests_properties(native-dialog-modal PROPERTIES ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1" TIMEOUT 120)
   target_include_directories(pmjs-platform-input-test PRIVATE src)
   target_compile_options(pmjs-platform-input-test PRIVATE -Wall -Wextra -Wpedantic)
   target_link_libraries(pmjs-platform-input-test PRIVATE ${PMJS_PLATFORM_LIBS})
