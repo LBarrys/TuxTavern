@@ -31,6 +31,7 @@ tuxtavern --info GAME             # show what was detected
 
 - **Missing graphics or sounds:** extract the game's [RTP](https://www.rpgmakerweb.com/run-time-package)
   to `~/.local/share/tuxtavern/rtp/` as `Standard`, `RPGVX` or `RPGVXAce`. `--info` names the one needed.
+- **MV/MZ stutters on a 144/165 Hz screen:** `PMJS_RENDER_HZ=0 tuxtavern GAME` (draws as fast as it can; more power).
 - **A plugin stops an MV/MZ game** (e.g. one that builds HTML): `TUXTAVERN_SKIP=name,...` leaves it out.
 - **Your own fixes:** `*.tuxtavern.rb` (XP/VX/VX Ace) in the game folder run before the game's `Main`.
 - **A shim breaks a game:** `TUXTAVERN_RGSS_SKIP=name,...` skips files in `lib/rgss/`.
