@@ -122,7 +122,7 @@ function assertDisableOptimizationsShape(value, configPath) {
 const PMJS_MV_LOGIC_HZ = 60;
 const PMJS_SUPPORTED_RENDER_HZ = [30, 60, 120];
 
-function parseTimingConfig(env) {
+function parseTimingConfig(env, refreshRate = 0) {
   const source = env || {};
   if (source.PMJS_LOGIC_HZ !== undefined && source.PMJS_LOGIC_HZ !== '' &&
       Number(source.PMJS_LOGIC_HZ) !== PMJS_MV_LOGIC_HZ) {
@@ -140,9 +140,13 @@ function parseTimingConfig(env) {
   }
   const uncappedFlag = source.PMJS_UNCAPPED === '1';
   const raw = source.PMJS_RENDER_HZ;
-  // Unset draws as fast as it can: 60 frames shown on a 144/165 Hz screen judder
-  // (Karryn's Prison on a 165 Hz display). PMJS_RENDER_HZ=60 paces it to save power.
+  // Unset draws as fast as it can above 60 Hz: 60 frames shown on a 144/165 Hz screen judder
+  // (Karryn's Prison on a 165 Hz display). At 60 Hz or less it is paced to 60, which looks
+  // the same and saves power; an unknown rate counts as fast.
   if (raw === undefined || raw === '') {
+    if (!uncappedFlag && refreshRate > 0 && refreshRate <= 61) {
+      return { logicHz: PMJS_MV_LOGIC_HZ, renderHz: 60, uncapped: false, renderPeriod: 1000 / 60, catchupMode };
+    }
     return { logicHz: PMJS_MV_LOGIC_HZ, renderHz: 0, uncapped: true, renderPeriod: Infinity, catchupMode };
   }
   const renderHz = Number(raw);
@@ -163,13 +167,12 @@ function parseTimingConfig(env) {
     renderPeriod: 1000 / renderHz, catchupMode };
 }
 
+// With neither set, the native side picks from the display's refresh rate, as parseTimingConfig does.
 function resolveSwapDefault(env, timing) {
   const source = env || {};
-  if (timing.uncapped && (source.PMJS_SWAP_INTERVAL === undefined ||
-      source.PMJS_SWAP_INTERVAL === '')) {
-    return '0';
-  }
-  return null;
+  if (source.PMJS_SWAP_INTERVAL !== undefined && source.PMJS_SWAP_INTERVAL !== '') return null;
+  if ((source.PMJS_RENDER_HZ === undefined || source.PMJS_RENDER_HZ === '') && source.PMJS_UNCAPPED !== '1') return 'auto';
+  return timing.uncapped ? '0' : null;
 }
 
 function advanceDeadline(deadline, now, period) {
@@ -293,12 +296,9 @@ async function run(input) {
     throw new Error('Greenworks backend must export initAPI and isSteamRunning');
   }
 
-  const timing = parseTimingConfig(hostProcess.env);
+  let timing = parseTimingConfig(hostProcess.env);
   const swapDefault = resolveSwapDefault(hostProcess.env, timing);
-  if (swapDefault !== null) {
-    hostProcess.env.PMJS_SWAP_INTERVAL = swapDefault;
-    console.log('[pmjs] uncapped render: defaulting PMJS_SWAP_INTERVAL=0 (was unset)');
-  }
+  if (swapDefault !== null) hostProcess.env.PMJS_SWAP_INTERVAL = swapDefault;
   if (!hostProcess.env.PMJS_WINDOW_SIZE && options.windowSize) {
     hostProcess.env.PMJS_WINDOW_SIZE = options.windowSize;
   }
@@ -307,6 +307,12 @@ async function run(input) {
     width: options.width, height: options.height, windowTitle: options.title,
     ...(options.imageWarmCacheBytes === undefined ? {} :
       { imageWarmCacheBytes: options.imageWarmCacheBytes }) });
+  if (swapDefault === 'auto') {
+    const refreshRate = native.runtime.windowState ? native.runtime.windowState().refreshRate : 0;
+    timing = parseTimingConfig(hostProcess.env, refreshRate);
+    console.log(`[pmjs] display_hz=${refreshRate || 'unknown'}: ` +
+      (timing.uncapped ? 'drawing uncapped, no vsync' : 'drawing at 60 with vsync'));
+  }
   let pendingInvalidations = 0, retryInvalidationAt = 0;
   let invalidateImages, invalidateMaps;
   let dispatcher;

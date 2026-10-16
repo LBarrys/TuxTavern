@@ -53,13 +53,16 @@ void printLoadedLibraries() {
   std::cout.flush();
 }
 
-int swapIntervalFromEnvironment() {
+// auto: no vsync above 60 Hz (or when the rate is unknown), where uncapped drawing is
+// smoother; vsync at 60 Hz or less, where it gains nothing and costs power.
+int swapIntervalFromEnvironment(int refreshRate) {
   const char* value = std::getenv("PMJS_SWAP_INTERVAL");
   if (!value || !*value) return 1;
+  if (std::string(value) == "auto") return refreshRate > 0 && refreshRate <= 61 ? 1 : 0;
   char* end = nullptr;
   const long parsed = std::strtol(value, &end, 10);
   if (!end || *end != '\0' || parsed < -1 || parsed > 1) {
-    throw std::runtime_error("PMJS_SWAP_INTERVAL must be -1, 0, or 1");
+    throw std::runtime_error("PMJS_SWAP_INTERVAL must be -1, 0, 1, or auto");
   }
   return static_cast<int>(parsed);
 }
@@ -432,7 +435,10 @@ Platform::Platform(int width, int height, std::string title) {
             << " drawable=" << drawable.first << "x" << drawable.second
             << '\n';
   SDL_ClearError();
-  requestedSwapInterval_ = swapIntervalFromEnvironment();
+  SDL_DisplayMode mode{};
+  const int displayIndex = SDL_GetWindowDisplayIndex(window_);
+  if (displayIndex >= 0 && SDL_GetCurrentDisplayMode(displayIndex, &mode) == 0) refreshRate_ = mode.refresh_rate;
+  requestedSwapInterval_ = swapIntervalFromEnvironment(refreshRate_);
   const int swapResult = SDL_GL_SetSwapInterval(requestedSwapInterval_);
   swapIntervalAccepted_ = swapResult == 0;
   swapInterval_ = SDL_GL_GetSwapInterval();

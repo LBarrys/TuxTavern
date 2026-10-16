@@ -344,14 +344,24 @@ test('timing config pins MV logic at 60 Hz and validates render rates', () => {
   assert.throws(() => parseTimingConfig({ PMJS_LOGIC_HZ: '30' }), /PMJS_LOGIC_HZ/);
   assert.deepEqual(parseTimingConfig({ PMJS_LOGIC_HZ: '60' }).logicHz, 60);
 });
+// Uncapped drawing only pays above 60 Hz (Karryn's Prison on a 165 Hz screen); at 60 Hz it is
+// paced with vsync, as before, to save power. An unknown rate counts as fast.
+test('unset render rate follows the display: uncapped above 60 Hz, paced at 60 Hz', () => {
+  assert.equal(parseTimingConfig({}, 165).uncapped, true);
+  assert.equal(parseTimingConfig({}, 0).uncapped, true);
+  assert.deepEqual(parseTimingConfig({}, 60), { logicHz: 60, renderHz: 60,
+    uncapped: false, renderPeriod: 1000 / 60, catchupMode: 'burst' });
+  assert.equal(parseTimingConfig({}, 59).renderHz, 60);
+  assert.equal(parseTimingConfig({ PMJS_RENDER_HZ: '0' }, 60).uncapped, true, 'a set rate wins');
+  assert.equal(resolveSwapDefault({}, parseTimingConfig({})), 'auto', 'the native side picks vsync');
+  assert.equal(resolveSwapDefault({ PMJS_SWAP_INTERVAL: '1' }, parseTimingConfig({})), null);
+});
 test('uncapped render defaults the swap interval to 0 unless set', () => {
-  assert.equal(resolveSwapDefault({}, parseTimingConfig({ PMJS_RENDER_HZ: '60' })), null);
-  assert.equal(resolveSwapDefault({}, parseTimingConfig({})), '0');
-  assert.equal(resolveSwapDefault({ PMJS_SWAP_INTERVAL: '1' },
-    parseTimingConfig({ PMJS_RENDER_HZ: '0' })), null);
-  assert.equal(resolveSwapDefault({}, parseTimingConfig({ PMJS_RENDER_HZ: '0' })), '0');
-  assert.equal(resolveSwapDefault({ PMJS_SWAP_INTERVAL: '' },
-    parseTimingConfig({ PMJS_UNCAPPED: '1' })), '0');
+  const swap = env => resolveSwapDefault(env, parseTimingConfig(env));
+  assert.equal(swap({ PMJS_RENDER_HZ: '60' }), null);
+  assert.equal(swap({ PMJS_RENDER_HZ: '0', PMJS_SWAP_INTERVAL: '1' }), null);
+  assert.equal(swap({ PMJS_RENDER_HZ: '0' }), '0');
+  assert.equal(swap({ PMJS_UNCAPPED: '1', PMJS_SWAP_INTERVAL: '' }), '0');
 });
 test('overdue scheduler skips expired deadlines without adding a full-period sleep', () => {
   const period = 1000 / 60;

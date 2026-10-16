@@ -60,6 +60,7 @@ class Platform {
   void finishGpuWork();
   void swap();
   int requestedSwapInterval() const { return requestedSwapInterval_; }
+  int refreshRate() const { return refreshRate_; }
   bool swapIntervalAccepted() const { return swapIntervalAccepted_; }
   int swapInterval() const { return swapInterval_; }
   void printGraphicsDiagnostics() const;
@@ -91,6 +92,7 @@ class Platform {
   bool windowVisible_ = true;
   bool swapIntervalAccepted_ = false;
   int requestedSwapInterval_ = 1;
+  int refreshRate_ = 0;
   int swapInterval_ = 0;
 };
 
