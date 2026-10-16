@@ -30,6 +30,7 @@
     "js/pmjs-web/script-loader.js",
     "js/pmjs-web/requests.js",
     "js/pmjs-web/workers.js",
+    "js/pmjs-web/alerts.js",
     "js/pmjs-pixi5/setup.js",
     "js/pmjs-pixi5/scene.js",
     "js/pmjs-pixi5/filters.js",
