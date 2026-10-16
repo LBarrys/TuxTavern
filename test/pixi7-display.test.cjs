@@ -31,7 +31,12 @@ function harness() {
     apply() {}
   }
   ColorMatrixFilter.prototype.program = {};
-  Object.assign(context.PIXI, { ColorMatrixFilter,
+  class Text extends Sprite {
+    constructor(texture) { super(texture); this._autoResolution = true; this._resolution = 1; this.updates = []; }
+    updateText(respectDirty) { this.updates.push([respectDirty, this._resolution, this.dirty]); }
+    _render() {}
+  }
+  Object.assign(context.PIXI, { Text, ColorMatrixFilter,
     tilemap: { Tilemap, CompositeTilemap, POINT_STRUCT_SIZE: 14 } });
   class MvSprite extends Sprite { _render() {} }
   class MvTilingSprite extends TilingSprite { _render() {} }
@@ -126,4 +131,14 @@ test('the native renderer takes Pixi 7 render options', () => {
   renderer.render(stage, { clear: false, skipUpdateTransform: true });
   assert.equal(f.submissions.length, 1);
   assert.ok(!f.targets.some(target => target[0] === 'render'), 'no renderTexture: drawn to the screen');
+});
+
+test('Pixi 7 text redraws at the renderer resolution and draws as a sprite', () => {
+  const f = harness(), c = f.context;
+  class DisposableText extends c.PIXI.Text {}
+  const text = new DisposableText(f.texture(9));
+  f.renderer.resolution = 2;
+  const rows = f.render(text);
+  assert.ok(rows.some(row => row.m[2] === 9), 'Karryn\'s Prison window text draws');
+  assert.deepEqual(text.updates, [[true, 2, true]]);
 });

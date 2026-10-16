@@ -22,6 +22,18 @@
     encode: function() { return { kind: 0, resource: 0 }; }
   });
 
+  // Text._render redraws its canvas, at the renderer's resolution, before drawing it as a sprite
+  // (Karryn's Prison draws window text as DisposableText).
+  pixi.registerRenderContract(PIXI.Text && PIXI.Text.prototype, {
+    prepare: function(node, renderer) {
+      if (node._autoResolution && renderer && node._resolution !== renderer.resolution) {
+        node._resolution = renderer.resolution;
+        node.dirty = true;
+      }
+      node.updateText(true);
+    }
+  });
+
   var tilemap = PIXI.tilemap;
   var stride = tilemap.POINT_STRUCT_SIZE;
   var layers = new WeakMap();

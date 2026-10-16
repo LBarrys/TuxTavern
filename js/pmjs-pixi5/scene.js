@@ -318,6 +318,7 @@
   }
   function writePreparedNode(node, parent, clip, transform) {
     var contract = renderContract(node);
+    if (contract && contract.prepare) contract.prepare(node, renderOwner);
     if (clip) parent = clipRecord(parent, clip);
     if (node.mask) reject('render.mask', node);
     var prepared = preparedSprites && preparedSprites.get(node);
