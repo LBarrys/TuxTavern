@@ -36,3 +36,34 @@ test('Pixi 7 extract: base64 and image are Promises, pixels is synchronous', asy
   assert.equal(pixels.length, 8);
   assert.equal(pixels[0], 7);
 });
+
+// Plugins' clickable sprites (eventMode, on('pointertap')): PMJS sends mouse presses and the wheel
+// to the document, and a release there is over the game, not "outside" the canvas.
+test('Pixi 7 event system hears document presses and releases over the canvas', () => {
+  const listeners = {};
+  const document = { addEventListener(type, fn) { listeners[type] = fn; }, removeEventListener() {} };
+  function EventSystem(renderer) {
+    this.renderer = renderer;
+    this.onPointerDown = (event) => { this.down = event; };
+    this.onWheel = () => {};
+    this.onPointerUp = (event) => { this.upTarget = event.target; this.upButton = event.button; };
+  }
+  EventSystem.prototype.init = function() { this.domElement = this.renderer.view; };
+  EventSystem.prototype.destroy = function() {};
+  const view = {};
+  const context = vm.createContext({
+    document, Object, Utils: { isOptionValid: () => false },
+    Graphics: { width: 4, height: 4, _canvas: view },
+    PMJS: { pixi7: {} },
+    PIXI: { EventSystem, Renderer: function(options) { return { view: options.view, extract: {} }; } },
+  });
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '../js/pmjs-pixi7/renderer.js'), 'utf8'), context);
+  context.Graphics._createRenderer();
+  const events = context.Graphics._renderer.events;
+  assert.ok(events instanceof EventSystem);
+  listeners.mousedown({ clientX: 3 });
+  assert.equal(events.down.clientX, 3);
+  events.onPointerUp({ target: document, button: 2 });
+  assert.equal(events.upTarget, view);
+  assert.equal(events.upButton, 2);
+});

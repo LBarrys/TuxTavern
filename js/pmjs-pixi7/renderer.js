@@ -16,6 +16,26 @@ Graphics._createRenderer = function() {
       if (baseTexture && baseTexture._glTextures) baseTexture._glTextures[0] = true;
     } } }
   });
+  // Pixi 7's event system: sprites that react to the mouse (eventMode, on('pointerdown')) in
+  // plugins and mods. PMJS delivers mouse input to the document, not the canvas, so presses and
+  // the wheel are passed on; moves and releases already reach the document and window. A release
+  // is over the canvas, not "outside" it, as the game fills the window.
+  if (PIXI.EventSystem) {
+    if (Graphics._pmjsEvents) {
+      document.removeEventListener('mousedown', Graphics._pmjsEvents.onPointerDown, true);
+      document.removeEventListener('wheel', Graphics._pmjsEvents.onWheel, true);
+      Graphics._pmjsEvents.destroy();
+    }
+    var events = Graphics._pmjsEvents = new PIXI.EventSystem(renderer);
+    Object.defineProperty(renderer, 'events', { value: events });
+    var onPointerUp = events.onPointerUp;
+    events.onPointerUp = function(event) {
+      onPointerUp(Object.create(event, { target: { value: events.domElement }, composedPath: { value: undefined } }));
+    };
+    events.init({});
+    document.addEventListener('mousedown', events.onPointerDown, true);
+    document.addEventListener('wheel', events.onWheel, true);
+  }
   // PNG whatever the format asked for: the save thumbnails only need an image. Pixi 7's
   // base64 and image return Promises; canvas and pixels do not.
   function base64(target, format, quality, frame) {

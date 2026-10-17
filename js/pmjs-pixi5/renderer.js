@@ -62,6 +62,9 @@
       transparent: !!options.transparent,
       clearBeforeRender: options.clearBeforeRender !== false,
       roundPixels: !!options.roundPixels,
+      // Own, as Pixi 7's getter reads a system this renderer does not have; its event system
+      // hit-tests the stage last drawn to the screen.
+      lastObjectRendered: null,
       gl: {
         isContextLost: function() { return false; },
         flush: function() {}
@@ -105,6 +108,7 @@
           return;
         }
         NativeHost.render.setScreenRenderSize(this.width, this.height);
+        this.lastObjectRendered = stage;
         if (shouldClear) {
           NativeHost.render.setClearColor(0, 0, 0, this.transparent ? 0 : 1);
         }

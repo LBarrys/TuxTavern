@@ -812,3 +812,14 @@ test('native renderer generates textures, prepares, and answers Pixi 7 renderer 
   renderer.background.alpha = 0;
   assert.equal(renderer.transparent, true);
 });
+
+test('the renderer remembers the stage last drawn, for Pixi 7 event hit-testing', () => {
+  const fixture = createContext(), c = fixture.context;
+  runModule(c, 'js/pmjs-pixi5/scene.js');
+  runModule(c, 'js/pmjs-pixi5/renderer.js');
+  const renderer = new c.PIXI.Renderer({});
+  assert.ok(Object.prototype.hasOwnProperty.call(renderer, 'lastObjectRendered'));
+  const stage = new c.PIXI.Container();
+  renderer.render(stage);
+  assert.equal(renderer.lastObjectRendered, stage);
+});
