@@ -83,26 +83,55 @@ test('MZ ScreenSprite validates reached child producers and rejects unsupported 
     g.filters = [new c.PIXI.filters.AlphaFilter(0.5)];
     const original = g[name]; g[name] = function() { return original.apply(this, arguments); };
     const before = f.submissions.length;
-    assert.throws(() => f.render(screen), /render\.(render-method|screen-graphics)/, name);
+    assert.throws(() => f.render(screen), /render\.(render-method|graphics-method)/, name);
     assert.equal(f.submissions.length, before);
     screen.alpha = 0;
     assert.doesNotThrow(() => f.render(screen), 'inactive producer overrides are not reached');
   }
   for (const mutate of [g => { g.shader = {}; }, g => { g.pluginName = 'custom'; },
     g => { g.geometry.updateBatches = function() {}; },
-    g => { g.geometry.graphicsData[0].shape.type = 2; },
-    g => { g.geometry.graphicsData[0].holes.push({}); },
-    g => { g.geometry.graphicsData[0].fillStyle.texture = {}; },
-    g => { g.geometry.graphicsData[0].matrix = {}; },
-    g => { g.geometry.graphicsData[0].lineStyle.visible = true; }]) {
+    g => { g.geometry.bounds = { minX: 0, minY: 0, maxX: 1, maxY: 1 }; g.geometry.graphicsData[0].fillStyle.texture = {}; }]) {
     const screen = new c.ScreenSprite(); mutate(screen._graphics);
     const before = f.submissions.length;
     assert.throws(() => f.render(screen), /render\./);
     assert.equal(f.submissions.length, before);
   }
-  const standalone = new c.PIXI.Graphics();
-  standalone.beginFill(0xffffff).drawRect(0, 0, 1, 1);
-  assert.throws(() => f.render(standalone), /render.screen-graphics/);
+});
+
+// Any other Graphics (plugin gauges, circles, outlines, holes) is drawn on a canvas and shown as
+// a sprite, redrawn only when its geometry changes.
+test('Graphics other than the ScreenSprite rectangle draw through a canvas', () => {
+  const f = harness(), c = f.context;
+  const g = new c.PIXI.Graphics();
+  g.beginFill(0x00ff00).drawRect(2, 3, 10, 6);
+  const data = g.geometry.graphicsData[0];
+  data.shape = { type: 2, x: 7, y: 6, radius: 5 };
+  data.lineStyle = { visible: true, width: 2, color: 0xff0000, alpha: 1, alignment: 0.5 };
+  Object.assign(g.geometry, { dirty: 1, bounds: { minX: 1, minY: 0, maxX: 13, maxY: 12 } });
+  const draws = () => f.canvases.flatMap(canvas => canvas.paths || []);
+  const OriginalCanvas = c.CanvasElement;
+  c.CanvasElement = class extends OriginalCanvas {
+    getContext() {
+      const ctx = super.getContext(), canvas = this;
+      canvas.paths = canvas.paths || [];
+      for (const name of ['setTransform', 'clearRect', 'beginPath', 'rect', 'moveTo', 'arc', 'fill', 'stroke'])
+        ctx[name] = (...args) => canvas.paths.push([name, name === 'fill' ? ctx.fillStyle : name === 'stroke' ? ctx.strokeStyle : args[0]]);
+      return ctx;
+    }
+  };
+  let packet = f.render(g);
+  const row = i => Array.from(packet.metadata.slice(i * 7, i * 7 + 7));
+  const sprite = Array.from({ length: packet.count }, (_, i) => row(i)).find(m => m[0] === 1);
+  assert.ok(sprite, 'a circle with an outline is drawn, not rejected');
+  assert.ok(draws().some(([name]) => name === 'arc'));
+  assert.ok(draws().some(([name, style]) => name === 'fill' && style === 'rgba(0,255,0,1)'));
+  assert.ok(draws().some(([name, style]) => name === 'stroke' && style === 'rgba(255,0,0,1)'));
+  const count = draws().length;
+  f.render(g);
+  assert.equal(draws().length, count, 'unchanged geometry is not redrawn');
+  g.geometry.dirty++;
+  f.render(g);
+  assert.ok(draws().length > count, 'changed geometry is redrawn');
 });
 
 test('MZ tiles retain resources on transfer and repaint only at authored uploads', () => {

@@ -10,7 +10,7 @@ function createMzContext(options) {
   Container.prototype.renderAdvanced = function() {};
   Container.prototype._render = function() {};
   Container.prototype.destroy = function() { this.destroyed = true; };
-  context.PIXI.SHAPES = { RECT: 1 };
+  context.PIXI.SHAPES = { POLY: 0, RECT: 1, CIRC: 2, ELIP: 3, RREC: 4 };
   context.PIXI.Texture = { WHITE: {} };
   class Graphics extends Container {
     constructor() {
