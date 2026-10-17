@@ -88,7 +88,33 @@ test('@pixi/tilemap tiles become native tile layers; shadows and animation carry
   assert.equal(f.created.length, 1, 'unchanged tiles reuse the native layer');
 
   layer.pointsBuf[13] = 0.5;
+  layer.modificationMarker = 0;
   assert.throws(() => f.render(map), /render\.tile-options/, 'per-tile alpha is a reported gap');
+});
+
+// As Pixi's own tilemap renderer: tiles are rebuilt after clear() (which zeroes the marker), or
+// when the tileset or a bitmap changes, and not read again while unchanged.
+test('@pixi/tilemap layers are rebuilt only when cleared, retiled or redrawn', () => {
+  const f = harness(), c = f.context;
+  const texture = f.texture(7);
+  const layer = new c.PIXI.tilemap.Tilemap([texture.baseTexture]);
+  layer.modificationMarker = 0;
+  layer.pointsBuf.push(0, 0, 0, 0, 48, 48, 0, 0, 0, 0, 1024, 1024, 1, 1);
+  f.render(layer);
+  assert.equal(layer.modificationMarker, 14);
+  layer.pointsBuf[2] = 8;
+  f.render(layer);
+  assert.equal(f.created.length, 1, 'unchanged marker: the buffer is not read');
+  layer.modificationMarker = 0;
+  f.render(layer);
+  assert.equal(f.created.length, 2, 'cleared tiles are rebuilt');
+  assert.equal(f.created[1].points[2], 8);
+  texture.baseTexture.resource.source.__pmjsContentRevision = 1;
+  f.render(layer);
+  assert.equal(f.created.length, 3, 'a redrawn bitmap is uploaded again');
+  layer.tileset = [f.texture(9).baseTexture];
+  f.render(layer);
+  assert.deepEqual(f.created[3].handles, [9], 'a new tileset is used');
 });
 
 test('MV sprites draw nothing until their bitmap is ready, and upload it when dirty', () => {

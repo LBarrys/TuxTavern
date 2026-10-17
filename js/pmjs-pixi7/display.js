@@ -65,11 +65,29 @@
     layers.delete(layer);
   }
 
+  // @pixi/tilemap zeroes modificationMarker when its tiles are cleared, so a marker that matches
+  // the buffer, with the same tileset, shadow and bitmap contents, means nothing changed.
+  function unchanged(layer, previous) {
+    var tileset = layer.tileset || [];
+    return layer.modificationMarker === layer.pointsBuf.length && previous.length === layer.pointsBuf.length &&
+      previous.shadowColor === String(layer.shadowColor) && previous.tileset.length === tileset.length &&
+      previous.tileset.every(function(base, index) { return base === tileset[index]; }) &&
+      previous.sources.every(function(source, index) {
+        var native = pixi.nativeSource(source);
+        return native && native.handle === previous.handles[index] &&
+          (source.__pmjsContentRevision || 0) === previous.revisions[index];
+      });
+  }
   // @pixi/tilemap keeps 14 values per tile; the native layer takes 9:
   // u, v, x, y, width, height, animX, animY, texture.
   function tileLayer(layer, renderer) {
     var buffer = layer.pointsBuf;
-    var handles = [], revisions = [], indices = new Map(), points = [];
+    var animation = layer.tileAnim || renderer && renderer.plugins && renderer.plugins.tilemap.tileAnim || [0, 0];
+    var previous = layers.get(layer);
+    if (previous && unchanged(layer, previous)) {
+      return { kind: 4, resource: previous.handle, nearest: true, animation: [animation[0], animation[1]] };
+    }
+    var handles = [], revisions = [], sources = [], indices = new Map(), points = [];
     var shadowWidth = 1, shadowHeight = 1, shadow = null;
     for (var i = 0; i < buffer.length; i += stride) {
       if (buffer[i + 9] < 0) {
@@ -95,18 +113,17 @@
       if (!indices.has(native.handle)) {
         indices.set(native.handle, handles.length);
         handles.push(native.handle);
+        sources.push(source);
         revisions.push(source.__pmjsContentRevision || 0);
       }
       points.push(buffer[i], buffer[i + 1], buffer[i + 2], buffer[i + 3], buffer[i + 4], buffer[i + 5],
         buffer[i + 7], buffer[i + 8], indices.get(native.handle));
     }
-    var animation = layer.tileAnim || renderer && renderer.plugins && renderer.plugins.tilemap.tileAnim || [0, 0];
     if (!points.length) {
       releaseLayer(layer);
       return { kind: 0, resource: 0 };
     }
     var signature = handles.join(':') + '/' + revisions.join(':');
-    var previous = layers.get(layer);
     if (!previous || previous.signature !== signature || previous.points.length !== points.length ||
         points.some(function(value, index) { return value !== previous.points[index]; })) {
       var handle = NativeHost.render.createTileLayer(new Float32Array(points), handles);
@@ -116,6 +133,9 @@
       layers.set(layer, previous);
       finalizer.register(layer, previous, previous);
     }
+    Object.assign(previous, { length: buffer.length, tileset: (layer.tileset || []).slice(),
+      shadowColor: String(layer.shadowColor), sources: sources, handles: handles, revisions: revisions });
+    layer.modificationMarker = buffer.length;
     return { kind: 4, resource: previous.handle, nearest: true, animation: [animation[0], animation[1]] };
   }
 
