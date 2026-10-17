@@ -40,6 +40,7 @@
     "js/pmjs-mz/rendering.js",
     "js/pmjs-mz/menu-background.js",
     "js/pmjs-pixi5/screen-graphics.js",
+    "js/pmjs-pixi5/nine-slice.js",
     "js/pmjs-mz/display.js",
     "js/pmjs-mz/effects.js",
     "js/pmjs-mz/animations.js",

@@ -49,6 +49,7 @@
     "js/pmjs-pixi5/filters.js",
     "js/pmjs-pixi5/renderer.js",
     "js/pmjs-pixi5/screen-graphics.js",
+    "js/pmjs-pixi5/nine-slice.js",
     "js/pmjs-pixi7/display.js",
     "js/pmjs-pixi7/renderer.js",
     "js/pmjs-rpgmaker/native-audio.js",
