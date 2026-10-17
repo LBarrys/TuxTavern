@@ -16,8 +16,9 @@ Graphics._createRenderer = function() {
       if (baseTexture && baseTexture._glTextures) baseTexture._glTextures[0] = true;
     } } }
   });
-  // PNG whatever the format asked for: the save thumbnails only need an image.
-  renderer.extract.base64 = function(target, format, quality, frame) {
+  // PNG whatever the format asked for: the save thumbnails only need an image. Pixi 7's
+  // base64 and image return Promises; canvas and pixels do not.
+  function base64(target, format, quality, frame) {
     var canvas = new CanvasElement();
     canvas.width = Graphics.width;
     canvas.height = Graphics.height;
@@ -31,6 +32,25 @@ Graphics._createRenderer = function() {
       canvas = crop;
     }
     return canvas.toDataURL();
+  }
+  renderer.extract.base64 = function(target, format, quality, frame) {
+    try { return Promise.resolve(base64(target, format, quality, frame)); }
+    catch (error) { return Promise.reject(error); }
+  };
+  renderer.extract.image = function(target, format, quality, frame) {
+    return renderer.extract.base64(target, format, quality, frame).then(function(url) {
+      return new Promise(function(resolve, reject) {
+        var image = new Image();
+        image.onload = function() { resolve(image); };
+        image.onerror = reject;
+        image.src = url;
+      });
+    });
+  };
+  renderer.extract.pixels = function(target, frame) {
+    var canvas = renderer.extract.canvas(target);
+    frame = frame || { x: 0, y: 0, width: canvas.width, height: canvas.height };
+    return new Uint8Array(canvas.getContext('2d').getImageData(frame.x, frame.y, frame.width, frame.height).data.buffer);
   };
 };
 

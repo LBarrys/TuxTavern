@@ -45,10 +45,10 @@
         vertices[corner * 2] = matrix.a * x + matrix.c * y + matrix.tx;
         vertices[corner * 2 + 1] = matrix.b * x + matrix.d * y + matrix.ty;
       }
-      var tint = 0;
+      var tint = 0, graphicsTint = pixi.color(graphics.tint), fillColor = pixi.color(fill.color);
       [16, 8, 0].forEach(function(shift) {
-        tint |= Math.floor(((graphics.tint >> shift) & 255) / 255 *
-          ((fill.color >> shift) & 255) / 255 * 255) << shift;
+        tint |= Math.floor(((graphicsTint >> shift) & 255) / 255 *
+          ((fillColor >> shift) & 255) / 255 * 255) << shift;
       });
       return { kind: 1, resource: pixi.nativeSource(screenCanvas).handle,
         tint: tint, alphaMultiplier: fill.alpha,

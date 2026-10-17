@@ -770,3 +770,45 @@ test('RenderTexture images remain usable until replacement, resize, or disposal'
   assert.equal(backing.released, true);
   assert.equal(base.__pmjsPixi5RenderCanvas, undefined);
 });
+
+// Pixi 7 (Karryn's Prison): colours as strings, generateTexture and the renderer properties
+// whose own getters reach systems the native renderer does not have.
+test('Pixi tints in any colour form reach the packet as 0xRRGGBB', () => {
+  const fixture = createContext(), c = fixture.context;
+  c.PIXI.Color = class { constructor(value) { this.value = value; } toNumber() { return parseInt(this.value.slice(1), 16); } };
+  runModule(c, 'js/pmjs-pixi5/scene.js');
+  runModule(c, 'js/pmjs-pixi5/renderer.js');
+  const sprite = new c.PIXI.Sprite({ baseTexture: { resource: { source: { _nativeImage: { handle: 5 } } }, resolution: 1 },
+    frame: { x: 0, y: 0, width: 4, height: 4 }, orig: { width: 4, height: 4 } });
+  sprite.tint = '#ff0000';
+  new c.PIXI.Application({ width: 8, height: 8 }).renderer.render(sprite);
+  const packet = fixture.submissions.at(-1);
+  const tints = Array.from({ length: packet.count }, (_, i) => packet.metadata[i * 7 + 3]);
+  assert.ok(tints.includes(0xff0000), 'string tint, not black: ' + tints);
+});
+
+test('native renderer generates textures, prepares, and answers Pixi 7 renderer properties', async () => {
+  const fixture = createContext(), c = fixture.context;
+  c.PIXI.VERSION = '7.4.2';
+  c.PIXI.Matrix = function(a, b, cc, d, tx, ty) { Object.assign(this, { a, b, c: cc, d, tx, ty }); };
+  c.PIXI.RenderTexture = { create: options => ({ options }) };
+  c.PIXI.Color = class { constructor(value) { this.value = value; } toNumber() { return parseInt(this.value.slice(1), 16); } };
+  runModule(c, 'js/pmjs-pixi5/scene.js');
+  runModule(c, 'js/pmjs-pixi5/renderer.js');
+  const renderer = c.PIXI.Renderer.create({ width: 8, height: 8 });
+  const rendered = [];
+  renderer.render = (object, options) => rendered.push([object, options]);
+  const object = { parent: null, getLocalBounds: () => ({ x: 10, y: 20, width: 30, height: 40 }) };
+  const texture = renderer.generateTexture(object);
+  assert.deepEqual([texture.options.width, texture.options.height, texture.options.resolution], [30, 40, 1]);
+  assert.equal(rendered[0][1].renderTexture, texture);
+  assert.deepEqual([rendered[0][1].transform.tx, rendered[0][1].transform.ty], [-10, -20]);
+  assert.equal(renderer.multisample, 0);
+  assert.equal(typeof renderer.rendererLogId, 'string');
+  await renderer.prepare.upload(object);
+  renderer.background.color = '#123456';
+  assert.equal(renderer.background.color, '#123456');
+  assert.equal(renderer.backgroundColor, 0x123456);
+  renderer.background.alpha = 0;
+  assert.equal(renderer.transparent, true);
+});

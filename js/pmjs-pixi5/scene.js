@@ -251,6 +251,14 @@
       0.0000001;
   }
 
+  // Pixi 7 tints take any colour ('#ff0000', [1, 0, 0]); the packet takes 0xRRGGBB.
+  function pixiColor(value) {
+    if (typeof value === 'number') return value;
+    if (value === undefined || value === null) return 0xffffff;
+    return PIXI.Color ? new PIXI.Color(value).toNumber() : 0xffffff;
+  }
+  PMJS.pixi5.color = pixiColor;
+
   function blendMode(node) {
     var mode = Number(node && node.blendMode) || 0;
     if (!Number.isInteger(mode) || mode < 0 || mode > 3) reject('render.blend-mode', node);
@@ -391,7 +399,7 @@
 
     var kind = 0;
     var resource = 0;
-    var tint = node.tint === undefined ? 0xffffff : node.tint;
+    var tint = pixiColor(node.tint);
     var frame = null;
     var texture = null;
     var localX = 0;
@@ -475,7 +483,7 @@
     if (encodedNode) {
       kind = encodedNode.kind;
       resource = encodedNode.resource;
-      if (encodedNode.tint !== undefined) tint = encodedNode.tint;
+      if (encodedNode.tint !== undefined) tint = pixiColor(encodedNode.tint);
       if (encodedNode.alpha !== undefined) alpha = encodedNode.alpha;
       if (encodedNode.alphaMultiplier !== undefined) alpha *= encodedNode.alphaMultiplier;
       if (encodedNode.sprite) {

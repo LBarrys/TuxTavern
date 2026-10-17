@@ -155,6 +155,51 @@
         return capture;
       }
     };
+    // Snapshot a display object into a RenderTexture, as Pixi's TextureGenerator does:
+    // generateTexture(object, scaleMode, resolution, region) on Pixi 5,
+    // generateTexture(object, { region, resolution, scaleMode }) on Pixi 7.
+    renderer.generateTexture = function(displayObject, options, resolution, region) {
+      var settings = options && typeof options === 'object' ? options :
+        { scaleMode: options, resolution: resolution, region: region };
+      var bounds = settings.region || displayObject.getLocalBounds(new PIXI.Rectangle(), true);
+      var targetResolution = settings.resolution || this.resolution;
+      var width = Math.max(bounds.width, 1 / targetResolution);
+      var height = Math.max(bounds.height, 1 / targetResolution);
+      var texture = Number.parseInt(PIXI.VERSION, 10) >= 6 ?
+        PIXI.RenderTexture.create({ width: width, height: height, scaleMode: settings.scaleMode,
+          resolution: targetResolution }) :
+        PIXI.RenderTexture.create(width, height, settings.scaleMode, targetResolution);
+      var transform = new PIXI.Matrix(1, 0, 0, 1, -bounds.x, -bounds.y);
+      this.render(displayObject, { renderTexture: texture, clear: false, transform: transform,
+        skipUpdateTransform: !!displayObject.parent });
+      return texture;
+    };
+    // Pixi's own getters for these reach systems the native renderer does not have.
+    renderer.multisample = 0;
+    renderer.rendererLogId = 'WebGL 2';
+    // Uploads happen when drawn; prepare.upload resolves at once (callback on Pixi 5, Promise on 7).
+    renderer.prepare = {
+      add: function() { return this; },
+      upload: function(item, done) {
+        if (typeof item === 'function') done = item;
+        var uploaded = Promise.resolve();
+        if (typeof done === 'function') uploaded.then(function() { done(); });
+        return uploaded;
+      }
+    };
+    // Pixi 7's renderer.background, over the color and transparency this renderer draws with.
+    var backgroundValue = renderer.backgroundColor;
+    renderer.background = {
+      get color() { return backgroundValue; },
+      set color(value) {
+        backgroundValue = value;
+        renderer.backgroundColor = PMJS.pixi5.color(value) & 0xffffff;
+      },
+      get alpha() { return renderer.transparent ? 0 : 1; },
+      set alpha(value) { renderer.transparent = Number(value) < 1; },
+      get clearBeforeRender() { return renderer.clearBeforeRender; },
+      set clearBeforeRender(value) { renderer.clearBeforeRender = !!value; }
+    };
     renderer.resize(options.width, options.height);
     return renderer;
   }
