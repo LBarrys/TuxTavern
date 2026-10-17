@@ -12,7 +12,7 @@
   });
   var stockUpdateBatches = PIXI.GraphicsGeometry && PIXI.GraphicsGeometry.prototype.updateBatches;
 
-  var canvases = new WeakMap();
+  var canvases = new WeakMap(), maskCanvases = new WeakMap();
   var SHAPES = PIXI.SHAPES;
 
   function css(color, alpha) {
@@ -49,9 +49,9 @@
     }
   }
   // Pixi's alignment puts (1 - alignment) of the line inside the shape and the rest outside.
-  function stroke(context, shape, line, resolution, width, height) {
-    if (!line || !line.visible || !(line.width > 0) || !(line.alpha > 0)) return;
-    context.strokeStyle = css(line.color, line.alpha);
+  function stroke(context, shape, line, resolution, width, height, opaque) {
+    if (!line || !line.visible || !(line.width > 0) || !(line.alpha > 0 || opaque)) return;
+    context.strokeStyle = opaque ? '#ffffff' : css(line.color, line.alpha);
     context.lineCap = line.cap || 'butt';
     context.lineJoin = line.join || 'miter';
     context.miterLimit = line.miterLimit || 10;
@@ -81,7 +81,8 @@
   function textured(style) {
     return style && style.visible && style.texture && style.texture !== PIXI.Texture.WHITE;
   }
-  function draw(graphics, resolution) {
+  // A mask draws its shapes opaque: Pixi stencils by geometry, whatever the fill alpha.
+  function draw(graphics, resolution, opaque) {
     graphics.geometry.graphicsData.forEach(function(data) {
       if (textured(data.fillStyle) || textured(data.lineStyle) || data.holes.some(function(hole) {
         return textured(hole.lineStyle);
@@ -94,7 +95,7 @@
     resolution = Math.min(resolution, 4096 / (right - left), 4096 / (bottom - top));
     var width = Math.max(1, Math.ceil((right - left) * resolution));
     var height = Math.max(1, Math.ceil((bottom - top) * resolution));
-    var entry = canvases.get(graphics);
+    var store = opaque ? maskCanvases : canvases, entry = store.get(graphics);
     var key = [graphics.geometry.dirty, resolution, left, top, width, height].join(':');
     if (entry && entry.key === key) return entry;
     var canvas = entry ? entry.canvas : new CanvasElement();
@@ -108,19 +109,19 @@
       context.setTransform(resolution * m.a, resolution * m.b, resolution * m.c, resolution * m.d,
         resolution * (m.tx - left), resolution * (m.ty - top));
       var fill = data.fillStyle;
-      if (fill && fill.visible && fill.alpha > 0) {
-        context.fillStyle = css(fill.color, fill.alpha);
+      if (fill && fill.visible && (fill.alpha > 0 || opaque)) {
+        context.fillStyle = opaque ? '#ffffff' : css(fill.color, fill.alpha);
         context.beginPath();
         trace(context, data.shape);
         data.holes.forEach(function(hole) { trace(context, hole.shape); });
         context.fill('evenodd');
       }
-      stroke(context, data.shape, data.lineStyle, resolution, width, height);
-      data.holes.forEach(function(hole) { stroke(context, hole.shape, hole.lineStyle, resolution, width, height); });
+      stroke(context, data.shape, data.lineStyle, resolution, width, height, opaque);
+      data.holes.forEach(function(hole) { stroke(context, hole.shape, hole.lineStyle, resolution, width, height, opaque); });
     });
     if (typeof canvas._pmjsContentChanged === 'function') canvas._pmjsContentChanged();
     entry = { canvas: canvas, key: key, left: left, top: top, right: right, bottom: bottom, resolution: resolution };
-    canvases.set(graphics, entry);
+    store.set(graphics, entry);
     return entry;
   }
   function worldVertices(matrix, points) {
@@ -139,6 +140,12 @@
     return rectangle.shape.type === SHAPES.RECT && !rectangle.holes.length && !rectangle.matrix &&
       !rectangle.lineStyle.visible && rectangle.fillStyle.texture === PIXI.Texture.WHITE && !rectangle.fillStyle.matrix;
   }
+
+  // The shapes of a Graphics mask, for the scene encoder's alpha mask.
+  pixi.graphicsMask = function(graphics) {
+    graphics.finishPoly();
+    return draw(graphics, 1, true);
+  };
 
   pixi.registerRenderContract(PIXI.Graphics.prototype, {
     encode: function(graphics, renderer) {
@@ -194,9 +201,11 @@
       getTarget: function() { return PIXI.Graphics.prototype; }, method: 'destroy',
       wrap: function(original) {
         return function() {
-          var entry = canvases.get(this);
-          if (entry && typeof entry.canvas._releaseNativeCanvas === 'function') entry.canvas._releaseNativeCanvas();
-          canvases.delete(this);
+          [canvases, maskCanvases].forEach(function(store) {
+            var entry = store.get(this);
+            if (entry && typeof entry.canvas._releaseNativeCanvas === 'function') entry.canvas._releaseNativeCanvas();
+            store.delete(this);
+          }, this);
           return original.apply(this, arguments);
         };
       }

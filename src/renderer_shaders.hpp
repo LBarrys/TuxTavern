@@ -116,7 +116,10 @@ constexpr const char* fragmentSource = R"(#version 300 es
   uniform bool targetYDown;
   uniform float screenHeight;
   uniform float maskAlpha;
-  uniform bool maskUsesRed;
+  // 0: alpha; 1: red times alpha (Pixi 4's sprite masks); 2: red alone of the
+  // premultiplied texture (Pixi 5 and 7's sprite masks).
+  uniform int maskUsesRed;
+  uniform bool maskPremultiplied;
   uniform int maskRotation;
   uniform vec2 maskLocalSize;
   uniform bool colorMatrixEnabled;
@@ -949,8 +952,9 @@ constexpr const char* fragmentSource = R"(#version 300 es
       vec2 maskPixel = maskFrame.xy + maskPoint * maskFrame.zw;
       vec2 maskUv = maskPixel / maskTextureSize;
       vec4 maskSample = texture(maskImage, maskUv);
-      float maskWeight = maskSample.a * maskAlpha *
-        (maskUsesRed ? maskSample.r : 1.0);
+      float maskWeight = maskUsesRed == 2 ?
+        (maskPremultiplied ? maskSample.r : maskSample.r * maskSample.a) * maskAlpha :
+        maskSample.a * maskAlpha * (maskUsesRed == 1 ? maskSample.r : 1.0);
       outputColor.a *= maskWeight;
       if (premultipliedInput) outputColor.rgb *= maskWeight;
     }

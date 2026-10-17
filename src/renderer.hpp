@@ -612,6 +612,7 @@ class Renderer {
   int maskScreenHeightUniform_ = -1;
   int maskAlphaUniform_ = -1;
   int maskUsesRedUniform_ = -1;
+  int maskPremultipliedUniform_ = -1;
   int maskRotationUniform_ = -1;
   int maskLocalSizeUniform_ = -1;
   int colorMatrixEnabledUniform_ = -1;

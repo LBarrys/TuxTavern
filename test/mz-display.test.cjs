@@ -405,3 +405,38 @@ test('prepared MZ uploads use immutable logical slots and retain untouched slots
   c.PMJS.pixi5.releaseRenderer(f.renderOwner);
   assert.deepEqual(released,[900,902,901]);
 });
+
+// Graphics and Sprite masks are native alpha masks (a circle portrait frame), inside the
+// mask's bounds; sprite masks read the premultiplied red channel, as Pixi 5 and 7 do.
+test('Graphics and Sprite masks become native alpha masks within their bounds', () => {
+  const f = harness(), c = f.context;
+  const masked = new c.PIXI.Container();
+  masked.addChild(f.sprite(321, 0, 0, 64, 64));
+  const shape = new c.PIXI.Graphics();
+  shape.beginFill(0xffffff, 0.3).drawRect(0, 0, 10, 10);
+  shape.geometry.graphicsData[0].shape = { type: 2, x: 32, y: 32, radius: 20 };
+  Object.assign(shape.geometry, { dirty: 1, bounds: { minX: 12, minY: 12, maxX: 52, maxY: 52 } });
+  shape.transform.worldTransform = { a: 1, b: 0, c: 0, d: 1, tx: 5, ty: 7 };
+  shape.getBounds = () => ({ x: 17, y: 19, width: 40, height: 40 });
+  shape.parent = masked;
+  masked.mask = shape;
+  const OriginalCanvas = c.CanvasElement;
+  c.CanvasElement = class extends OriginalCanvas {
+    getContext() {
+      const ctx = super.getContext();
+      for (const name of ['setTransform', 'clearRect', 'beginPath', 'rect', 'moveTo', 'arc', 'fill', 'stroke']) ctx[name] = () => {};
+      return ctx;
+    }
+  };
+  const packet = f.render(masked);
+  const rows = Array.from({ length: packet.count }, (_, i) => ({
+    m: Array.from(packet.metadata.slice(i * 7, i * 7 + 7)), v: Array.from(packet.values.slice(i * 41, i * 41 + 41)) }));
+  const mask = rows.find(row => row.m[0] === 6 && row.m[4] === 3);
+  assert.ok(mask, 'an alpha mask group');
+  assert.ok(mask.m[2] > 0, 'with the mask image');
+  assert.deepEqual(mask.v.slice(7, 13).map(value => value + 0), [1, 0, 0, 1, -5 - 11, -7 - 11], 'screen to mask image: inverse world, less the image origin');
+  assert.deepEqual(mask.v.slice(22, 24), [1, 0], 'full alpha, alpha channel');
+  assert.ok(rows.some(row => row.m[5] & 1 && row.v[17] === 17 && row.v[18] === 19), 'clipped to the mask bounds');
+  assert.ok(rows.some(row => row.m[0] === 7), 'the group closes');
+  assert.ok(rows.some(row => row.m[2] === 321), 'the content is drawn');
+});

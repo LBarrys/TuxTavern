@@ -237,7 +237,8 @@ bool Renderer::queueScene(std::uint32_t version, const std::uint32_t* metadata,
               command.filterParameters[10] < 0 ||
               command.filterParameters[10] > 1 ||
               (command.filterParameters[11] != 0 &&
-               command.filterParameters[11] != 1) ||
+               command.filterParameters[11] != 1 &&
+               command.filterParameters[11] != 2) ||
               command.filterParameters[12] < 0 ||
               command.filterParameters[12] > 14 ||
               std::fmod(command.filterParameters[12], 2.0F) != 0 ||

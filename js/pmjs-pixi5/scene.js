@@ -307,14 +307,60 @@
   }
 
   // An unrotated rectangle mask is a clip, as Pixi scissors it (Karryn's Prison's FastCutIns
-  // crops portraits this way); other masks are a gap.
+  // crops portraits this way). Graphics and Sprite masks are a native alpha mask inside their
+  // bounds; a mask that cannot be one clips to its bounds rather than hiding the object.
   function maskClip(node) {
     var mask = node.mask.maskObject || node.mask;
-    var world = mask.worldTransform;
-    if (typeof mask.isFastRect !== 'function' || !mask.isFastRect() || !world || world.b || world.c) {
-      reject('render.mask', node);
+    if (typeof mask.getBounds !== 'function') reject('render.mask', node);
+    if (!mask.parent && typeof mask.updateTransform === 'function') {
+      mask.parent = mask._tempDisplayObjectParent;
+      try { mask.updateTransform(); } finally { mask.parent = null; }
     }
-    return mask.getBounds();
+    var world = mask.worldTransform;
+    if (typeof mask.isFastRect === 'function' && mask.isFastRect() && world && !world.b && !world.c) {
+      return { bounds: mask.getBounds(), filter: null };
+    }
+    var filter = alphaMask(mask, world);
+    if (!filter) PMJS.compat.observed('render.mask-bounds', node.constructor && node.constructor.name || 'DisplayObject');
+    return { bounds: mask.getBounds(), filter: filter };
+  }
+  // Parameters as Pixi 4's: inverse world transform to the mask image, its frame in texels,
+  // alpha, channel (2: a sprite mask's premultiplied red, as Pixi 5 and 7 read it), texture
+  // rotation and size.
+  function alphaMask(mask, world) {
+    var determinant = world && world.a * world.d - world.b * world.c;
+    if (!determinant || !Number.isFinite(determinant)) return null;
+    var inverse = [world.d / determinant, -world.b / determinant, -world.c / determinant, world.a / determinant];
+    inverse.push(-(inverse[0] * world.tx + inverse[2] * world.ty), -(inverse[1] * world.tx + inverse[3] * world.ty));
+    var native, frame, left, top, width, height, sprite = false, rotation = 0;
+    if (PIXI.Graphics && mask instanceof PIXI.Graphics && PMJS.pixi5.graphicsMask) {
+      var entry = PMJS.pixi5.graphicsMask(mask);
+      if (!entry) return null;
+      native = nativeSource(entry.canvas);
+      frame = [0, 0, entry.canvas.width, entry.canvas.height];
+      left = entry.left; top = entry.top;
+      width = entry.canvas.width / entry.resolution; height = entry.canvas.height / entry.resolution;
+    } else if (mask instanceof PIXI.Sprite) {
+      var texture = mask.texture, base = texture && texture.baseTexture;
+      if (!base || texture.valid === false) return null;
+      native = nativeSource(textureSource(base));
+      var resolution = Math.max(0.000001, Number(base.resolution) || 1), area = texture.frame;
+      var original = texture.orig || area, trim = texture.trim, anchor = mask.anchor || { x: 0, y: 0 };
+      rotation = ((Number(texture.rotate) || 0) % 16 + 16) % 16;
+      if (rotation % 2) return null;
+      frame = [area.x * resolution, area.y * resolution, area.width * resolution, area.height * resolution];
+      left = (trim ? trim.x : 0) - anchor.x * original.width;
+      top = (trim ? trim.y : 0) - anchor.y * original.height;
+      width = trim ? trim.width : original.width; height = trim ? trim.height : original.height;
+      sprite = true;
+    } else {
+      return null;
+    }
+    if (!native || !(width > 0) || !(height > 0)) return null;
+    var alpha = sprite ? Math.max(0, Math.min(1, Number(mask.worldAlpha))) : 1;
+    return { kind: 3, resource: native.handle, blendMode: 0, neutral: false,
+      parameters: [inverse[0], inverse[1], inverse[2], inverse[3], inverse[4] - left, inverse[5] - top]
+        .concat(frame, [Number.isFinite(alpha) ? alpha : 1, sprite ? 2 : 0, rotation, width, height]) };
   }
   function writeNode(node, parent, clip) {
     if (!node || !node.visible || !node.renderable || visibleAlpha(node) <= 0) return;
@@ -338,7 +384,12 @@
     var contract = renderContract(node);
     if (contract && contract.prepare) contract.prepare(node, renderOwner);
     if (clip) parent = clipRecord(parent, clip);
-    if (node.mask) parent = clipRecord(parent, maskClip(node));
+    var maskFilter = null;
+    if (node.mask) {
+      var masking = maskClip(node);
+      parent = clipRecord(parent, masking.bounds);
+      maskFilter = masking.filter;
+    }
     var prepared = preparedSprites && preparedSprites.get(node);
     if (prepared) {
       var cached = addRecord(parent, 1, prepared.resource, 0xffffff, 0, identity, 1);
@@ -370,13 +421,15 @@
         }
       });
     }
+    // Pixi applies the mask inside the filters.
+    if (maskFilter) encodedFilters.unshift(maskFilter);
     if (supportedFilters && node.filterArea) {
       parent = clipRecord(parent, node.filterArea);
     } else if (encodedFilters.length && filterTarget && typeof node.getBounds === 'function') {
       parent = clipRecord(parent, node.getBounds(true));
     }
     encodedFilters.reverse().forEach(function(filter) {
-      var begin = addRecord(parent, 6, 0, 0xffffff, filter.kind, identity, 1);
+      var begin = addRecord(parent, 6, filter.resource || 0, 0xffffff, filter.kind, identity, 1);
       var offset = begin * valueStride;
       // The packet holds ten parameters at 7 and eleven more at 22 (17-21 are the clip).
       values.set(filter.parameters.slice(0, 10), offset + 7);

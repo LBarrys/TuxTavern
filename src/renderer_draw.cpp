@@ -1370,7 +1370,8 @@ void Renderer::renderScene() {
                     static_cast<float>(mask->height));
         glUniform1f(maskScreenHeightUniform_, rasterFrame[3] * rasterResolution);
         glUniform1f(maskAlphaUniform_, filter.filterParameters[10]);
-        glUniform1i(maskUsesRedUniform_, filter.filterParameters[11] != 0);
+        glUniform1i(maskUsesRedUniform_, static_cast<int>(filter.filterParameters[11]));
+        glUniform1i(maskPremultipliedUniform_, mask->premultiplied);
         glUniform1i(maskRotationUniform_,
                     static_cast<int>(filter.filterParameters[12]) / 2);
         glUniform2f(maskLocalSizeUniform_, filter.filterParameters[13],

@@ -116,3 +116,24 @@ checkQuadrants(submitNested(
   (parent) => maskGroup(parent, canvasB.handle, 0), true), 'canvas mask snapshot');
 native.canvas.release(canvasA.handle);
 native.canvas.release(canvasB.handle);
+
+// Pixi 5 and 7 sprite masks weight by the premultiplied red channel alone (mode 2); Pixi 4's
+// multiply red by alpha (mode 1), so a half-transparent white mask passes a quarter there.
+function submitSingle(handle, mode) {
+  const recs = [maskGroup(0xffffffff, handle, mode), spriteRecord(0), endRecord(0)];
+  const metadata = new Uint32Array(recs.length * MS), values = new Float32Array(recs.length * VS);
+  recs.forEach((rec, i) => { metadata.set(rec.metadata, i * MS); values.set(rec.values, i * VS); });
+  native.beginFrame();
+  native.scene.submit(schema.version, metadata, values, recs.length);
+  native.renderScene();
+  return native.canvas.captureScene();
+}
+const half = native.canvas.create(16, 16);
+native.canvas.writePixels(half.handle, 0, 0, 16, 16, Buffer.alloc(16 * 16 * 4, 128).map((v, i) => i % 4 === 3 ? 128 : 255));
+for (const [mode, expected] of [[1, 64], [2, 128]]) {
+  const frame = submitSingle(half.handle, mode);
+  const red = redAt(frame, 30, 30);
+  assert.ok(Math.abs(red - expected) <= 16, `mode ${mode}: red ${red}, expected about ${expected}`);
+  native.canvas.release(frame.handle);
+}
+native.canvas.release(half.handle);

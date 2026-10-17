@@ -290,6 +290,7 @@ void Renderer::queryFilterProgramUniforms() {
   maskScreenHeightUniform_ = glGetUniformLocation(program_, "screenHeight");
   maskAlphaUniform_ = glGetUniformLocation(program_, "maskAlpha");
   maskUsesRedUniform_ = glGetUniformLocation(program_, "maskUsesRed");
+  maskPremultipliedUniform_ = glGetUniformLocation(program_, "maskPremultiplied");
   maskRotationUniform_ = glGetUniformLocation(program_, "maskRotation");
   maskLocalSizeUniform_ = glGetUniformLocation(program_, "maskLocalSize");
   colorMatrixEnabledUniform_ = glGetUniformLocation(program_, "colorMatrixEnabled");

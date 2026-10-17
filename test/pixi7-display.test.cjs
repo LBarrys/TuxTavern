@@ -155,7 +155,7 @@ test('a bound texture counts as uploaded for FastCutIns', () => {
   assert.ok(baseTexture._glTextures[renderer.CONTEXT_UID]);
 });
 
-test('a rectangle mask clips its container; other masks are a gap', () => {
+test('a rectangle mask clips its container; a mask that cannot be an alpha mask clips to its bounds', () => {
   const f = harness(), c = f.context;
   const portrait = new c.PIXI.Container();
   portrait.addChild(new c.Sprite(f.texture(5)));
@@ -167,5 +167,7 @@ test('a rectangle mask clips its container; other masks are a gap', () => {
   assert.deepEqual(clip.v.slice(17, 21), [10, 20, 40, 60], 'FastCutIns crops a portrait');
   assert.ok(rows.some(row => row.m[2] === 5));
   fast = false;
-  assert.throws(() => f.render(portrait), /render\.mask/);
+  const bounded = f.render(portrait);
+  assert.deepEqual(bounded.find(row => row.m[5] & 1).v.slice(17, 21), [10, 20, 40, 60]);
+  assert.ok(bounded.some(row => row.m[2] === 5), 'the masked portrait is still drawn');
 });
