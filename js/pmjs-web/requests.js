@@ -21,9 +21,8 @@ globalThis.fetch = function(url) {
       reject(new TypeError('network fetch is unavailable: ' + target));
       return;
     }
-    var encoded = target.split('?')[0].replace(/^file:\/\/\/game\//, '')
-      .replace(/^\.\//, '').replace(/%(?![0-9a-f]{2})/gi, '%25');
-    var path = blob ? '' : gameReadPath(decodeURIComponent(encoded));
+    var encoded = target.replace(/^file:\/\/\/game\//, '').replace(/^\.\//, '');
+    var path = blob ? '' : gameReadPath(decodeResourceUrlPath(encoded));
     function deliver(bytes, error) {
       PMJS.tasks.enqueue(function() {
         if (error) { reject(error); return; }
@@ -132,8 +131,7 @@ XMLHttpRequest.prototype.send = function() {
     if (!binary) request.responseText = contents;
   }
   function requestPath() {
-    var encoded = url.split('?')[0].replace(/%(?![0-9a-f]{2})/gi, '%25');
-    return gamePath(decodeURIComponent(encoded));
+    return gamePath(decodeResourceUrlPath(url));
   }
   if (!this._async) {
     var contents = null;

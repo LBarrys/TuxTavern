@@ -6,6 +6,10 @@ const path = require('node:path');
 const vm = require('node:vm');
 const test = require('node:test');
 
+// requests.js uses filesystem.js's URL decoder; the rest of filesystem.js needs the native host.
+const decoder = fs.readFileSync(path.join(__dirname, '../js/pmjs-web/filesystem.js'), 'utf8')
+  .match(/function decodeResourceUrlPath[\s\S]*?\n}\n/)[0];
+
 test('fetch responses carry a readable body as well as text and json', async () => {
   const files = { 'img/replacements.json': Buffer.from('{"a":1}') };
   const context = vm.createContext({ performance, TextDecoder, ReadableStream, Blob, Promise, PMJS: {},
@@ -14,6 +18,7 @@ test('fetch responses carry a readable body as well as text and json', async () 
   for (const name of ['scheduler', 'requests']) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, '../js/pmjs-web', name + '.js'), 'utf8'), context);
   }
+  vm.runInContext(decoder, context);
   const response = await context.fetch('./img/replacements.json');
   assert.ok(response.ok);
   const chunks = [];
@@ -32,6 +37,7 @@ test('text responses drop a leading byte order mark, as browsers decode them', a
   for (const name of ['scheduler', 'events', 'requests']) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, '../js/pmjs-web', name + '.js'), 'utf8'), context);
   }
+  vm.runInContext(decoder, context);
   const request = new context.XMLHttpRequest();
   request.open('GET', 'data/RemLines.json', false);
   request.send();
@@ -47,6 +53,7 @@ test('a blob URL is fetched from its blob even when revoked before the body is r
   for (const name of ['scheduler', 'object-urls', 'requests']) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, '../js/pmjs-web', name + '.js'), 'utf8'), context);
   }
+  vm.runInContext(decoder, context);
   const url = context.URL.createObjectURL(new Blob([Buffer.from('\x89PNG frames', 'latin1')]));
   const fetching = context.fetch(url);
   context.URL.revokeObjectURL(url);

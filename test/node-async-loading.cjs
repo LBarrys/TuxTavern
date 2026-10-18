@@ -59,6 +59,9 @@ function imageFixture(t) {
     const filename = path.resolve(__dirname, '../js', module + '.js');
     vm.runInContext(fs.readFileSync(filename, 'utf8'), context);
   }
+  // image-element.js uses filesystem.js's URL decoder; the rest of filesystem.js needs the native host.
+  vm.runInContext(fs.readFileSync(path.resolve(__dirname, '../js/pmjs-web/filesystem.js'), 'utf8')
+    .match(/function decodeResourceUrlPath[\s\S]*?\n}\n/)[0], context);
   t.after(() => context.PMJS.tasks.stop());
   function load(image, source) {
     return new Promise((resolve, reject) => {

@@ -16,7 +16,8 @@ function load() {
     PMJS: {}, console: { log() {} },
     FinalizationRegistry: class { register() {} unregister() {} },
     PMJS_GAME_CONFIG: { disableOptimizations: [] },
-    NativeHost: { runtime: { env() {} }, scene: null, render: {
+    NativeHost: { runtime: { env() {} }, scene: { packetVersion: 30, schema: { version: 30, metadataStride: 7,
+      valueStride: 41, transactionalSubmit: true, preparedWorldState: true } }, render: {
       createTileLayer(points, handles) { created.push({ points: Array.from(points), handles: Array.from(handles) }); return ++nextHandle; },
       releaseTileLayer() {}, createMesh() { return ++nextHandle; }, releaseMesh() {},
     } },

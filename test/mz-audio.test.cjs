@@ -17,6 +17,7 @@ function mediaStub() {
   const calls = { plays: 0, releases: [], fades: [], intents: [], parameters: [], pans: [] };
   return {
     calls,
+    setAudioContextSuspended() {}, bindAudioContext() {}, audioContextTime() { return 0; },
     loadAudio: function(audioPath, options) {
       calls.intents.push(options.intent);
       return { handle: audioPath.length, duration: 2.5 };
@@ -50,7 +51,7 @@ function contextFor(options) {
   Request.prototype.open = function(_method, path) { this.path = path; };
   Request.prototype.send = function() {};
   const context = {
-    console,
+    console, __pmjsBuiltinRequire: require,
     PMJS: { tasks: {
       enqueue(callback, options) {
         if (stopped) { options.discard(); return false; }
@@ -84,6 +85,7 @@ function contextFor(options) {
   };
   vm.createContext(context);
   vm.runInContext(objectUrlSource, context, { filename: 'pmjs-web/object-urls.js' });
+  vm.runInContext(fs.readFileSync(path.resolve(__dirname, '../js/pmjs-web/filesystem.js'), 'utf8'), context);
   vm.runInContext(audioSource, context, { filename: 'pmjs-rpgmaker/native-audio.js' });
   vm.runInContext(mzAudioSource, context, { filename: 'pmjs-mz/audio.js' });
   context.pendingRequests = pendingRequests;
