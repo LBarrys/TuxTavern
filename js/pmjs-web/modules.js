@@ -39,6 +39,7 @@ function closeNativeWindow(force) {
   if (!force && nativeWindow.listenerCount('close')) nativeWindow.emit('close');
   else {
     nativeWindowClosed = true;
+    process.emit('exit', 0);
     NativeHost.runtime.quit();
     nativeWindow.emit('closed');
   }
@@ -290,6 +291,11 @@ function guestBuiltin(request) {
   if (name === 'fs/promises') return fsModule.promises;
   if (name === 'nw.gui' || name === 'nw') return nativeNwGui;
   if (name === 'child_process') return NativeHost.runtime.childProcess;
+  if (name === 'module') {
+    return { createRequire: function(filename) {
+      return createGuestRequire(dirname(String(filename).replace(/^file:\/\//, '')), guestMainModule);
+    } };
+  }
   if (name === 'os') {
     var os = globalThis.__pmjsBuiltinRequire('os');
     return Object.assign({}, os, { homedir: function() { return '/save'; } });
@@ -318,7 +324,7 @@ var hostProcessHrtime = typeof process !== 'undefined' ? process.hrtime : undefi
 var hostProcessPid = typeof process !== 'undefined' ? process.pid : undefined;
 var guestArguments = NativeHost.runtime.arguments || [];
 var nwCompatVersion = PMJS.config.nwVersion || (globalThis.PMJS_RUNTIME_ENGINE === 'mz' ? '0.48.4' : '0.29.0');
-globalThis.process = {
+globalThis.process = Object.assign(new NwEventEmitter(), {
   pid: hostProcessPid,
   platform: nativePlatform.platform,
   arch: nativePlatform.arch,
@@ -334,7 +340,7 @@ globalThis.process = {
   execPath: '/game/pmjs',
   version: 'v' + (hostProcessVersions.node || '12.0.0'),
   versions: Object.assign({}, hostProcessVersions, { nw: nwCompatVersion, 'node-webkit': nwCompatVersion, 'nw-flavor': 'sdk' })
-};
+});
 var packageText = NativeHost.fs.readText('package.json');
 nativeNwGui.App.manifest = packageText === null ? NativeHost.runtime.manifest || {} : JSON.parse(packageText);
 nativeNwGui.App.argv = guestArguments.slice();

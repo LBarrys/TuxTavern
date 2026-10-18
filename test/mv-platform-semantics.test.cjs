@@ -262,7 +262,7 @@ test('require(process) is the page process, as in NW.js', () => {
 });
 
 // NW.js pages get Node's built-ins. Those that touch no files come from the host; worker_threads
-// stays out (workers would load real paths), so Karryn's Prison's logger falls back to its mock.
+// stays out (workers would load real paths; worker-threads.js covers only pino's file logs).
 test('pure Node built-ins come from the host; worker_threads does not', () => {
   const host = require;
   const context = { process: { platform: 'linux', arch: 'x64', versions: {} },
@@ -278,6 +278,23 @@ test('pure Node built-ins come from the host; worker_threads does not', () => {
   }
   assert.equal(context.require('node:os').homedir(), '/save');
   assert.throws(() => context.require('worker_threads'), /worker_threads/);
+});
+
+// Karryn's Prison's logger (pino) listens on process for exit and resolves its transport with
+// module.createRequire, as in NW.js.
+test('process is an event emitter that sees exit when the window closes; module has createRequire', () => {
+  const context = { process: { platform: 'linux', arch: 'x64', versions: {} },
+    nativePlatform: { platform: 'linux', arch: 'x64' }, PMJS: { config: {} },
+    __pmjsBuiltinRequire: require,
+    NativeHost: { fs: { exists: () => false, readText: () => null }, runtime: { quit() {} } } };
+  vm.createContext(context);
+  vm.runInContext(fs.readFileSync(path.join(jsDir, 'pmjs-web/filesystem.js'), 'utf8'), context);
+  runDesktopModules(context);
+  let exited;
+  context.process.on('exit', code => { exited = code; });
+  context.close();
+  assert.equal(exited, 0);
+  assert.equal(typeof context.require('module').createRequire('file:///game/js/libs/logger.js'), 'function');
 });
 
 test('FPSMeter defines the standard method surface, returns this from methods, and propagates library errors', () => {
