@@ -1335,10 +1335,20 @@ function drawCanvasText(context, text, x, y, stroke, maxWidth) {
   var dynamicStyle = style && typeof style === 'object';
   var color = colorWithGlobalAlpha(style, context.globalAlpha);
   var strokeWidth = stroke ? Math.max(0, usesLegacyText() ? Math.round(context.lineWidth) : Number(context.lineWidth)) : 0;
+  // A uniform scale draws the glyphs at the scaled size, as Chromium does; Karryn's Prison draws
+  // its text at twice the size and shrinks it, which a stretched 1x bitmap left blurred.
+  var scale = usesLegacyText() && t[1] === 0 && t[2] === 0 && t[0] === t[3] && t[0] > 0 &&
+    horizontalScale === 1 ? t[0] : 0;
   if (!dynamicStyle && !context._clipPaths.length && context.globalCompositeOperation === 'source-over' &&
-      (!usesLegacyText() || (t[0] === 1 && t[1] === 0 && t[2] === 0 && t[3] === 1 && horizontalScale === 1))) {
+      (!usesLegacyText() || scale)) {
     var options = nativeTextStyle(context, placement.font);
     var directX = placement.x + t[4], directY = placement.top + placement.font.size + t[5];
+    if (scale && scale !== 1) {
+      NativeHost.canvas.drawText(context.canvas._ensureNativeCanvas().handle, placement.font.paths, text,
+        placement.x * scale + t[4], (placement.top + placement.font.size) * scale + t[5],
+        placement.font.size * scale, color, strokeWidth * scale, options);
+      return;
+    }
     if (t[0] !== 1 || t[1] !== 0 || t[2] !== 0 || t[3] !== 1 || horizontalScale < 1) {
       options.transform = multiplyTransform(t, [horizontalScale, 0, 0, 1, placement.x, placement.top + placement.font.size]);
       directX = directY = 0;

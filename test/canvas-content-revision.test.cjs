@@ -333,6 +333,26 @@ test('ordinary Canvas text keeps fractional placement and synthetic styles, with
     { bold: true, italic: true, lineJoin: 'bevel', lineCap: 'square', miterLimit: 3.5 });
 });
 
+// Karryn's Prison draws its menu text in a canvas scaled 2x, then shrinks it: the glyphs are
+// drawn at the scaled size, as in Chromium, not stretched from a 1x bitmap.
+test('text under a uniform scale is drawn natively at the scaled size, position and stroke', () => {
+  const context = harness();
+  const calls = [];
+  context.PMJS.fonts = { resolveDescriptor() { return { size: 25, faces: [{ path: 'fixture.ttf' }] }; } };
+  context.NativeHost.canvas.drawText = (...args) => calls.push(args);
+  const drawing = new context.CanvasElement().getContext('2d');
+  drawing.scale(2, 2);
+  drawing.translate(1, 0.5);
+  drawing.lineWidth = 4;
+  drawing.strokeText('Streaking Habit', 2, 29);
+  drawing.fillText('Streaking Habit', 2, 29);
+  assert.equal(calls.length, 2);
+  for (const call of calls) assert.deepEqual(call.slice(2, 6), ['Streaking Habit', 6, 59, 50]);
+  assert.equal(calls[0][7], 8);
+  assert.equal(calls[1][7], 0);
+  assert.equal(calls[0][8].transform, undefined);
+});
+
 test('invalid Canvas line widths retain the previous stroke through save, restore and resize', () => {
   const context = harness();
   context.PMJS.fonts = { resolveDescriptor() { return { size: 18, faces: [{ path: 'fixture.ttf' }] }; } };
