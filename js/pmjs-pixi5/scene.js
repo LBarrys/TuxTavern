@@ -77,6 +77,8 @@
   var metadata = new Uint32Array(capacity * metadataStride);
   var values = new Float32Array(capacity * valueStride);
   var count = 0;
+  var filterDepth = 0;
+  var maxFilterDepth = schema.maxFilterDepth || 4;
   var identity = { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 };
 
   function grow() {
@@ -366,7 +368,7 @@
     if (!node || !node.visible || !node.renderable || visibleAlpha(node) <= 0) return;
     var transform = localTransform(node);
     if (!drawableTransform(transform)) return;
-    var checkpoint = count;
+    var checkpoint = count, depth = filterDepth;
     try {
       writePreparedNode(node, parent, clip, transform);
     } catch (error) {
@@ -374,6 +376,7 @@
       // Only a reported compatibility gap degrades drawing. Native failures and
       // authored exceptions remain visible; discard any partial leaf/filter records.
       count = checkpoint;
+      filterDepth = depth;
       if (clip) parent = clipRecord(parent, clip);
       var index = addRecord(parent, 0, 0, 0xffffff, 0, transform,
         Number.isFinite(node.alpha) ? node.alpha : 1);
@@ -423,6 +426,14 @@
     }
     // Pixi applies the mask inside the filters.
     if (maskFilter) encodedFilters.unshift(maskFilter);
+    // Groups nested deeper than the native renderer allows are dropped, not the frame.
+    if (filterDepth + encodedFilters.length > maxFilterDepth) {
+      var applied = Math.max(0, maxFilterDepth - filterDepth);
+      PMJS.compat.hit('render.filter-depth', (node.constructor && node.constructor.name || 'node') +
+        ':original=' + encodedFilters.length + ':applied=' + applied);
+      encodedFilters = encodedFilters.slice(0, applied);
+    }
+    filterDepth += encodedFilters.length;
     if (supportedFilters && node.filterArea) {
       parent = clipRecord(parent, node.filterArea);
     } else if (encodedFilters.length && filterTarget && typeof node.getBounds === 'function') {
@@ -645,6 +656,7 @@
     encodedFilters.forEach(function() {
       addRecord(parent, 7, 0, 0xffffff, 0, identity, 1);
     });
+    filterDepth -= encodedFilters.length;
   }
 
   function render(stage, backgroundColor, resolution, size, renderer, skipUpdateTransform, projection, prepared) {
@@ -654,6 +666,7 @@
       try { stage.updateTransform(); } finally { stage.parent = previousParent; }
     }
     count = 0;
+    filterDepth = 0;
     renderStage = stage;
     skipTransformUpdate = !!skipUpdateTransform;
     filterTargets = new WeakMap();

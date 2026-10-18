@@ -800,6 +800,7 @@ void registerGraphicsBindings(napi_env env, napi_value exports) {
   napi_set_named_property(env, schema, "metadataStride", uint32(env, pmjs::scene_packet::metadataStride));
   napi_set_named_property(env, schema, "valueStride", uint32(env, pmjs::scene_packet::valueStride));
   napi_set_named_property(env, schema, "maxNodes", uint32(env, pmjs::scene_packet::maxNodes));
+  napi_set_named_property(env, schema, "maxFilterDepth", uint32(env, pmjs::scene_packet::maxFilterDepth));
   napi_set_named_property(env, schema, "maxPacketBytes", uint32(env, pmjs::scene_packet::maxPacketBytes));
   napi_set_named_property(env, schema, "transactionalSubmit", boolean(env, true));
   napi_set_named_property(env, schema, "gpuSpriteTextures", boolean(env, true));

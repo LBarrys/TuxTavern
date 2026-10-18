@@ -240,6 +240,26 @@ runCase('nested preserving filters', {
   clears: 2,
 });
 
+runCase('deep nested filters', {
+  pixels: [
+    { x: 2, y: 2, rgba: [0, 0, 0, 255] },
+    { x: 0, y: 0, rgba: cases.BG_RGBA },
+  ],
+  boundedDelta: boundedBuild ? 16 : 0,
+  applications: { 25: 16 },
+  clears: 16,
+});
+{
+  const tooDeep = built['deep nested filters'].slice();
+  tooDeep.splice(1, 0, tooDeep[1]);
+  tooDeep.splice(-1, 0, tooDeep.at(-1));
+  let rejected = false;
+  try { submit(tooDeep); } catch (error) { rejected = error instanceof RangeError; }
+  if (!rejected || native.scene.schema.maxFilterDepth !== 16) {
+    throw new Error('a seventeenth nested filter is refused, as the schema says');
+  }
+}
+
 runCase('alpha mask filter', {
   pixels: [
     { x: 0, y: 0, rgba: [255, 51, 102, 255] },

@@ -67,7 +67,8 @@ enum class FilterKind : std::uint32_t {
   custom = 31,
 };
 
-constexpr std::size_t maxFilterDepth = 4;
+// Karryn's Prison's pixi-apng nests a mask per earlier APNG frame.
+constexpr std::size_t maxFilterDepth = 16;
 
 enum NodeFlags : std::uint32_t {
   hasClipRectangle = 1U << 0U,

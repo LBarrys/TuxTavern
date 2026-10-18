@@ -440,3 +440,30 @@ test('Graphics and Sprite masks become native alpha masks within their bounds', 
   assert.ok(rows.some(row => row.m[0] === 7), 'the group closes');
   assert.ok(rows.some(row => row.m[2] === 321), 'the content is drawn');
 });
+
+// Karryn's Prison's pixi-apng wraps each APNG frame's predecessors in a masked container; deeper
+// nesting than the native renderer takes drops the groups that do not fit instead of the frame.
+test('filters and masks nested deeper than the native limit drop only what does not fit', () => {
+  const f = harness({ strictCompatibility: false }), c = f.context;
+  const root = new c.PIXI.Container();
+  let parent = root;
+  for (let level = 0; level < 18; level++) {
+    const child = new c.PIXI.Container();
+    child.filters = [new c.PIXI.filters.AlphaFilter(0.5)];
+    parent.addChild(child);
+    parent = child;
+  }
+  parent.addChild(f.sprite(321, 0, 0, 8, 8));
+  const packet = f.render(root);
+  let depth = 0, deepest = 0, begins = 0, ends = 0;
+  for (let i = 0; i < packet.count; i++) {
+    const kind = packet.metadata[i * 7];
+    if (kind === 6) { begins++; deepest = Math.max(deepest, ++depth); }
+    if (kind === 7) { ends++; depth--; }
+  }
+  assert.deepEqual([deepest, begins, ends], [16, 16, 16]);
+  assert.equal(c.PMJS.compat.count('render.filter-depth'), 2);
+  assert.ok(Array.from({ length: packet.count }, (_, i) => packet.metadata[i * 7 + 2]).includes(321));
+  f.render(root);
+  assert.equal(f.submissions.at(-1).count, packet.count, 'the depth is counted afresh each frame');
+});

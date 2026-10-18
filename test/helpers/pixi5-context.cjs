@@ -108,7 +108,7 @@ function createContext({ strictCompatibility = true } = {}) {
       runtime: { env(name) { return name === 'PMJS_STRICT_COMPAT' && strictCompatibility ? '1' : undefined; } },
       scene: {
         packetVersion: 30,
-        schema: { version: 30, metadataStride: 7, valueStride: 41,
+        schema: { version: 30, metadataStride: 7, valueStride: 41, maxFilterDepth: 16,
           transactionalSubmit: true, filterCompositeBlend: true, clampedTilingSampling: true, floatSpriteUv: true, repeatSpriteSampling: true },
         submit(version, metadata, values, count) {
           submissions.push({ version, metadata: metadata.slice(),

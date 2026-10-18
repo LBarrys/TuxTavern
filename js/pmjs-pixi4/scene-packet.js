@@ -485,8 +485,9 @@ function writeNativeSceneNode(node, parentIndex, forcedClip, forcedMask,
   }
   var windowTargetFrame = windowLayer && filterGroups.length && filterGroups[0].frame ||
     windowLayer && node.filterArea || null;
-  if (nativeSceneFilterDepth + filterGroups.length > 4) {
-    var appliedGroups = Math.max(0, 4 - nativeSceneFilterDepth);
+  var maxFilterDepth = NativeHost.scene.schema.maxFilterDepth || 4;
+  if (nativeSceneFilterDepth + filterGroups.length > maxFilterDepth) {
+    var appliedGroups = Math.max(0, maxFilterDepth - nativeSceneFilterDepth);
     PMJS.compat.hit('render.filter-depth',
       (node.constructor && node.constructor.name || 'node') + ':filter-depth' +
       ':original=' + filterGroups.length + ':applied=' + appliedGroups);

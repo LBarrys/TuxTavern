@@ -193,6 +193,13 @@ function buildCases(stride, handle) {
       filterEnd(stride),
       filterEnd(stride),
     ],
+    // As deep as Karryn's Prison's pixi-apng nests frame masks.
+    'deep nested filters': [
+      screenFill(stride, BG),
+      ...Array.from({ length: 16 }, () => filterBegin(stride, 25, 0, HALVE)),
+      sprite(stride, handle, 2, 2),
+      ...Array.from({ length: 16 }, () => filterEnd(stride)),
+    ],
     'alpha mask filter': [
       screenFill(stride, BG),
       filterBegin(stride, 3, handle, MASK_PARAMS),
