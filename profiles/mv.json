@@ -24,6 +24,7 @@
     "js/pmjs-web/images.js",
     "js/pmjs-web/elements.js",
     "js/pmjs-web/video-element.js",
+    "js/pmjs-web/svg.js",
     "js/pmjs-web/image-element.js",
     "js/pmjs-web/document.js",
     "js/pmjs-web/script-loader.js",

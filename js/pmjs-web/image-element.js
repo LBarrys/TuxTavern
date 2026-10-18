@@ -60,6 +60,7 @@ Object.defineProperty(NativeImage.prototype, 'src', {
     var image = this;
     var preparedTileSet = this._pmjsPreparedTileSet;
     image.complete = false;
+    if (!objectUrl && /^data:image\/svg\+xml|\.svg(\?|$)/i.test(source)) return loadSvg(image, source, generation);
     if (!imageBurst || !PMJS.tasks.queued()) imageBurst = { size: 0 };
     var burst = imageBurst;
     burst.size++;
@@ -124,6 +125,34 @@ Object.defineProperty(NativeImage.prototype, 'src', {
     }, { errorMode: 'event' });
   }
 });
+
+// SVG is drawn on a canvas by svg.js, not decoded natively (Karryn's Prison's menu cursor).
+function loadSvg(image, source, generation) {
+  function current() { return generation === image._loadGeneration; }
+  PMJS.tasks.enqueue(function() {
+    if (!current()) return;
+    var canvas = null, error = null;
+    try {
+      var path = decodeURIComponent(source.split('?')[0]).replace(/^file:\/\/\/game\//, '').replace(/^\.\//, '');
+      canvas = PMJS.web.svg.canvas(PMJS.web.svg.text(source, path));
+    } catch (caught) { error = caught; }
+    releaseNativeResource(image._nativeImage, 'image');
+    image._nativeImage = null;
+    if (canvas) {
+      image._nativeCanvas = canvas._ensureNativeCanvas();
+      image._pmjsCanvasOwner = canvas;
+    } else if (typeof NativeHost.images.fallbackImage === 'function') {
+      image._nativeImage = trackNativeResource(NativeHost.images.fallbackImage(), 'image');
+    }
+    image.width = image.naturalWidth = canvas ? canvas.width : 0;
+    image.height = image.naturalHeight = canvas ? canvas.height : 0;
+    image.complete = true;
+    image._pmjsLoadFailed = !canvas;
+    image._pmjsLoadError = error;
+    return pmjsDispatchHostEvent(image, { type: canvas ? 'load' : 'error', target: image }, current)
+      .catch(pmjsReportEventError);
+  }, { errorMode: 'event' });
+}
 
 return NativeImage;
 })();
