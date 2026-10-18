@@ -35,6 +35,7 @@ tuxtavern --info GAME             # show what was detected
 - **A shim breaks a game:** `TUXTAVERN_RGSS_SKIP=name,...` skips files in `lib/rgss/`.
 - **Faster XP/VX/VX Ace (experimental, x86-64):** `TUXTAVERN_YJIT=1 tuxtavern GAME`.
 - **Garbled Japanese file names:** `apk add icu-data-full`.
+- **Boxes instead of symbols in MV/MZ text:** `apk add font-dejavu` (or any font with them).
 
 Saves stay in the game folder; everything else is in `~/.local/share/tuxtavern/` and `~/.cache/tuxtavern/`.
 
