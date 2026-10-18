@@ -235,6 +235,22 @@ if(BUILD_TESTING)
   add_library(pmjs-video-load-fault SHARED test/video-load-fault.cpp)
   target_link_libraries(pmjs-video-load-fault PRIVATE ${CMAKE_DL_LIBS})
   target_compile_options(pmjs-video-load-fault PRIVATE -Wall -Wextra -Wpedantic)
+  add_library(pmjs-image-load-fault SHARED test/image-load-fault.cpp)
+  target_link_libraries(pmjs-image-load-fault PRIVATE ${CMAKE_DL_LIBS})
+  target_compile_options(pmjs-image-load-fault PRIVATE -Wall -Wextra -Wpedantic)
+  add_executable(pmjs-image-install-failure-test test/image-install-failure.cpp)
+  target_include_directories(pmjs-image-install-failure-test PRIVATE src)
+  target_link_libraries(pmjs-image-install-failure-test PRIVATE pmjs_runtime)
+  target_link_options(pmjs-image-install-failure-test PRIVATE "-Wl,--wrap=_Znwm")
+  add_test(NAME native-image-install-failure COMMAND ${XVFB_RUN} -a
+    $<TARGET_FILE:pmjs-image-install-failure-test> "${CMAKE_CURRENT_BINARY_DIR}/test-assets")
+  set_tests_properties(native-image-install-failure PROPERTIES
+    FIXTURES_REQUIRED pmjs_assets ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;SDL_AUDIODRIVER=dummy")
+  add_test(NAME node-image-load-failure COMMAND ${XVFB_RUN} -a "${CMAKE_COMMAND}" -E env
+    "LD_PRELOAD=$<TARGET_FILE:pmjs-image-load-fault>" "LIBGL_ALWAYS_SOFTWARE=1" "SDL_AUDIODRIVER=dummy"
+    ${NODE_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/test/node-image-load-failure.cjs"
+    $<TARGET_FILE:pmjs_native> "${CMAKE_CURRENT_BINARY_DIR}/test-assets")
+  set_tests_properties(node-image-load-failure PROPERTIES TIMEOUT 20)
   add_executable(pmjs-audio-failure-test test/audio-failure.cpp)
   target_include_directories(pmjs-audio-failure-test PRIVATE src)
   target_link_libraries(pmjs-audio-failure-test PRIVATE pmjs_runtime)
