@@ -1,6 +1,7 @@
 #include "canvas.hpp"
 #include "checked_bounds.hpp"
 #include "text_layout.hpp"
+#include "unicode_default_ignorables.hpp"
 #include <hb-ft.h>
 
 #include <ft2build.h>
@@ -279,6 +280,11 @@ struct GlyphRenderItem {
 struct CanvasStore::FontState {
   FT_Library library = nullptr;
   std::unordered_set<std::string> failedFaces;
+  // A character no game font has is drawn from a system font, as Chromium asks fontconfig for one
+  // (Karryn's Prison's help text uses arrows its font lacks).
+  std::optional<std::vector<std::filesystem::path>> systemFonts;
+  std::unordered_map<std::uint32_t, std::optional<std::filesystem::path>> systemFallbacks;
+  std::vector<std::pair<std::filesystem::path, FT_Face>> chosenFallbacks;
   std::unordered_set<std::string> failedStrikes;
   std::vector<std::unique_ptr<FontStrike>> strikes;
   std::unordered_map<std::string, FontStrikeId> strikeLookup;
@@ -310,6 +316,7 @@ struct CanvasStore::FontState {
       }
     }
     strikes.clear();
+    for (auto& chosen : chosenFallbacks) FT_Done_Face(chosen.second);
     if (library) {
       FT_Done_FreeType(library);
       library = nullptr;
@@ -390,6 +397,80 @@ struct CanvasStore::FontState {
     strikeLookup.emplace(key, strike->id);
     strikes.push_back(std::move(strike));
     return ptr;
+  }
+
+  static std::string lowercase(std::string text) {
+    std::transform(text.begin(), text.end(), text.begin(), [](unsigned char c) { return std::tolower(c); });
+    return text;
+  }
+
+  // Sans faces first, plain styles before others, as fontconfig's sans-serif usually matches.
+  static int fallbackRank(const std::filesystem::path& path) {
+    const auto name = lowercase(path.filename().string());
+    const char* preferred[] = {"dejavusans.", "notosans-regular.", "liberationsans-regular."};
+    for (int index = 0; index < 3; ++index) if (name.rfind(preferred[index], 0) == 0) return index;
+    int rank = name.find("sans") == std::string::npos ? 20 : 10;
+    for (const char* style : {"bold", "italic", "oblique", "mono", "light", "thin", "black", "condensed",
+                              "medium", "semi", "extra"}) {
+      if (name.find(style) != std::string::npos) return rank + 20;
+    }
+    return rank;
+  }
+
+  // Font directories as XDG lists them.
+  static std::vector<std::filesystem::path> findSystemFonts() {
+    std::vector<std::filesystem::path> roots;
+    const char* dataHome = std::getenv("XDG_DATA_HOME");
+    const char* home = std::getenv("HOME");
+    if (dataHome && *dataHome) roots.emplace_back(dataHome);
+    else if (home && *home) roots.push_back(std::filesystem::path(home) / ".local/share");
+    const char* dataDirs = std::getenv("XDG_DATA_DIRS");
+    const std::string dirs = dataDirs && *dataDirs ? dataDirs : "/usr/local/share:/usr/share";
+    for (std::size_t start = 0; start <= dirs.size();) {
+      auto end = dirs.find(':', start);
+      if (end == std::string::npos) end = dirs.size();
+      if (end > start) roots.emplace_back(dirs.substr(start, end - start));
+      start = end + 1;
+    }
+    std::vector<std::pair<int, std::filesystem::path>> found;
+    for (const auto& root : roots) {
+      std::error_code error;
+      std::filesystem::recursive_directory_iterator it(root / "fonts",
+        std::filesystem::directory_options::skip_permission_denied, error), end;
+      for (; !error && it != end; it.increment(error)) {
+        const auto extension = lowercase(it->path().extension().string());
+        if ((extension == ".ttf" || extension == ".otf" || extension == ".ttc") && it->is_regular_file(error))
+          found.emplace_back(fallbackRank(it->path()), it->path());
+      }
+    }
+    std::sort(found.begin(), found.end());
+    std::vector<std::filesystem::path> paths;
+    for (auto& entry : found) paths.push_back(std::move(entry.second));
+    return paths;
+  }
+
+  const std::filesystem::path* systemFallback(std::uint32_t codepoint) {
+    auto [entry, inserted] = systemFallbacks.try_emplace(codepoint);
+    if (!inserted) return entry->second ? &*entry->second : nullptr;
+    for (const auto& [path, chosen] : chosenFallbacks) {
+      if (FT_Get_Char_Index(chosen, codepoint)) return &*(entry->second = path);
+    }
+    if (!systemFonts) systemFonts = findSystemFonts();
+    for (const auto& path : *systemFonts) {
+      if (failedFaces.count(path.string()) || std::any_of(chosenFallbacks.begin(), chosenFallbacks.end(),
+          [&](const auto& chosen) { return chosen.first == path; })) continue;
+      FT_Face candidate = nullptr;
+      if (FT_New_Face(library, path.c_str(), 0, &candidate) != 0) {
+        failedFaces.insert(path.string());
+        continue;
+      }
+      if (FT_Get_Char_Index(candidate, codepoint)) {
+        chosenFallbacks.emplace_back(path, candidate);
+        return &*(entry->second = path);
+      }
+      FT_Done_Face(candidate);
+    }
+    return nullptr;
   }
 
   FT_Face face(const std::filesystem::path& path, int pixelSize) {
@@ -551,6 +632,18 @@ struct CanvasStore::FontState {
     recentLayout.reset();
     recentLayoutKey.reset();
     stats.layoutCacheBytes = 0;
+    const auto gameFonts = available.size();
+    for (const auto codepoint : key.text) {
+      if (codepoint < 0x20 || isDefaultIgnorable(codepoint) ||
+          std::any_of(available.begin(), available.end(), [&](const TextFont& font) {
+            return FT_Get_Char_Index(strikes[font.strikeId]->face, codepoint) != 0;
+          })) continue;
+      const auto* path = systemFallback(codepoint);
+      auto* strike = path ? getStrike(*path, pixelSize) : nullptr;
+      if (strike && std::none_of(available.begin() + gameFonts, available.end(),
+          [&](const TextFont& font) { return font.strikeId == strike->id; }))
+        available.push_back({strike->id, strike->shapingFont});
+    }
     auto result = std::make_shared<TextLayout>();
     auto& layout = *result;
     ++stats.shapeTextCalls;
