@@ -340,12 +340,6 @@
     "js/pmjs-plugins/yanfly/core-transforms.js": {
       "origin": "original"
     },
-    "js/pmjs-plugins/input-form/native-form.js": {
-      "origin": "compatibility",
-      "source": "PMJS",
-      "license": "MIT",
-      "notice": "LICENSE"
-    },
     "js/pmjs-plugins/yanfly/event-copier.js": {
       "origin": "compatibility",
       "source": "PMJS",
@@ -370,19 +364,25 @@
       "license": "MIT",
       "notice": "LICENSE"
     },
-    "js/pmjs-plugins/yanfly/visual-atb-gauge.js": {
-      "origin": "compatibility",
-      "source": "PMJS",
-      "license": "MIT",
-      "notice": "LICENSE"
-    },
     "js/pmjs-plugins/coelocanth/physical-attacks.js": {
       "origin": "compatibility",
       "source": "PMJS",
       "license": "MIT",
       "notice": "LICENSE"
     },
+    "js/pmjs-plugins/input-form/native-form.js": {
+      "origin": "compatibility",
+      "source": "PMJS",
+      "license": "MIT",
+      "notice": "LICENSE"
+    },
     "js/pmjs-plugins/volume-control/menu.js": {
+      "origin": "compatibility",
+      "source": "PMJS",
+      "license": "MIT",
+      "notice": "LICENSE"
+    },
+    "js/pmjs-plugins/yanfly/visual-atb-gauge.js": {
       "origin": "compatibility",
       "source": "PMJS",
       "license": "MIT",
