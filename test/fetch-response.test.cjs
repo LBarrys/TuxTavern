@@ -38,3 +38,22 @@ test('text responses drop a leading byte order mark, as browsers decode them', a
   assert.equal(JSON.parse(request.responseText).testing, 1);
   assert.equal(JSON.parse(await (await context.fetch('data/RemLines.json')).text()).testing, 1);
 });
+
+test('a blob URL is fetched from its blob even when revoked before the body is read', async () => {
+  // Karryn's Prison: pixi-rpgm revokes a decrypted APNG's URL while pixi-apng streams its body.
+  const context = vm.createContext({ performance, TextDecoder, ReadableStream, Blob, Promise, PMJS: {},
+    URL: class {}, EventTarget: function() {}, gameReadPath: file => file, __pmjsBuiltinRequire: require,
+    NativeHost: { fs: { readBytesAsync: async () => null } } });
+  for (const name of ['scheduler', 'object-urls', 'requests']) {
+    vm.runInContext(fs.readFileSync(path.join(__dirname, '../js/pmjs-web', name + '.js'), 'utf8'), context);
+  }
+  const url = context.URL.createObjectURL(new Blob([Buffer.from('\x89PNG frames', 'latin1')]));
+  const fetching = context.fetch(url);
+  context.URL.revokeObjectURL(url);
+  const response = await fetching;
+  assert.equal(response.status, 200);
+  const chunks = [];
+  for await (const chunk of response.body) chunks.push(Buffer.from(chunk));
+  assert.equal(Buffer.concat(chunks).toString('latin1'), '\x89PNG frames');
+  await assert.rejects(context.fetch(url), { name: 'TypeError' });
+});

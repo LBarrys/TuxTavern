@@ -9,13 +9,21 @@ globalThis.fetch = function(url) {
   if (url === '') return Promise.resolve({ ok: true });
   return new Promise(function(resolve, reject) {
     var target = String(url);
+    // A blob URL is resolved now, as Chromium does: Karryn's Prison's pixi-rpgm revokes the URL of a
+    // decrypted APNG while pixi-apng is still streaming it.
+    var blob = typeof globalThis.pmjsIsObjectURL === 'function' && globalThis.pmjsIsObjectURL(target)
+      ? globalThis.pmjsResolveObjectURL(target) : undefined;
+    if (blob === null) {
+      reject(new TypeError('Failed to fetch: ' + target));
+      return;
+    }
     if (/^[a-z][a-z0-9+.-]*:\/\//i.test(target) && !/^file:/i.test(target)) {
       reject(new TypeError('network fetch is unavailable: ' + target));
       return;
     }
     var encoded = target.split('?')[0].replace(/^file:\/\/\/game\//, '')
       .replace(/^\.\//, '').replace(/%(?![0-9a-f]{2})/gi, '%25');
-    var path = gameReadPath(decodeURIComponent(encoded));
+    var path = blob ? '' : gameReadPath(decodeURIComponent(encoded));
     function deliver(bytes, error) {
       PMJS.tasks.enqueue(function() {
         if (error) { reject(error); return; }
@@ -41,7 +49,7 @@ globalThis.fetch = function(url) {
       }, { errorMode: 'event' });
     }
     PMJS.tasks.enqueue(function() {
-      Promise.resolve().then(function() { return NativeHost.fs.readBytesAsync(path); }).then(
+      Promise.resolve().then(function() { return blob ? blob.arrayBuffer() : NativeHost.fs.readBytesAsync(path); }).then(
         function(bytes) { deliver(bytes, null); }, function(error) { deliver(null, error); });
     });
   });
