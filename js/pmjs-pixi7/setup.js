@@ -21,3 +21,7 @@ if (PIXI.VERSION !== pmjsPixi7RuntimeGame.pixiVersion) {
 if (PIXI.Assets && typeof PIXI.Assets.setPreferences === 'function') {
   PIXI.Assets.setPreferences({ preferWorkers: false, preferCreateImageBitmap: false });
 }
+// Compressed textures need a WebGL context in the page, which PMJS does not give; Pixi 7's
+// detector then reads the missing context and Assets.init throws (Karryn's Prison's FastCutIns
+// lost a batch of sprite sheets).
+if (PIXI.extensions && PIXI.detectCompressedTextures) PIXI.extensions.remove(PIXI.detectCompressedTextures);
