@@ -229,6 +229,8 @@ function saveFixture() {
   const events = [], timers = new Map();
   let next = 0, parseCalls = 0;
   class Window_SaveInfo {
+    constructor() { this.contents = {}; this.slot = 1; }
+    savefileId() { return this.slot; }
     drawInvalidText(y) { events.push(['invalid', y]); return 'invalid'; }
     drawPartyGraphics(y) { events.push(['graphics', y]); return y + 1; }
     drawPartyNames(y) { events.push(['names', y]); return y + 1; }
@@ -252,7 +254,8 @@ function saveFixture() {
   const SceneManager = { _scene: null, changing: false, isSceneChanging() { return this.changing; } };
   const h = adapter('yanfly/save-core', { Window_SaveInfo, Scene_File, SceneManager,
     JsonEx: { parse(text) { parseCalls++; return JSON.parse(text); } },
-    setTimeout(callback, delay) { assert.equal(delay, 200); timers.set(++next, callback); return next; },
+    setTimeout(callback, delay) { assert.ok(delay === 200 || delay === 50); timers.set(++next, callback); return next; },
+    console: { warn(message) { events.push(['warn', message]); } },
     clearTimeout(id) { timers.delete(id); }
   });
   h.install();
@@ -275,13 +278,34 @@ test('save previews parse once and preserve the drawing pipeline on repeated dra
   assert.equal(h.parseCalls(), 2);
 });
 
-test('missing save contents show an invalid preview without polling; parse errors propagate', () => {
+// Karryn's Prison's save previews arrive after the first draw; Yanfly's waits for them.
+test('save contents that arrive later are drawn; ones that never do become invalid after 3 s', () => {
   const h = saveFixture();
-  assert.equal(h.window.drawContents(9), 'invalid');
-  assert.deepEqual(h.events, [['invalid', 9]]);
+  h.window.drawContents(9);
+  assert.deepEqual(h.events, []);
+  h.drain();
+  h.window._saveContents = '{"slot":1}';
+  h.drain();
+  assert.deepEqual(h.events, [['graphics', 9], ['names', 10], ['levels', 11], ['columns', 12]]);
   assert.equal(h.timers.size, 0);
-  h.window._saveContents = 'broken';
-  assert.throws(() => h.window.drawContents(9), SyntaxError);
+
+  const missing = saveFixture();
+  missing.window.drawContents(9);
+  for (let i = 0; i < 60; i++) missing.drain();
+  assert.deepEqual(missing.events, [['warn', '[pmjs] save 1 preview has no contents'], ['invalid', 9]]);
+  assert.equal(missing.timers.size, 0);
+  missing.window._saveContents = 'broken';
+  assert.throws(() => missing.window.drawContents(9), SyntaxError);
+});
+
+test('a waiting save preview stops when another slot is shown or the window refreshes', () => {
+  const h = saveFixture();
+  h.window.drawContents(9);
+  h.window.slot = 2;
+  h.window._saveContents = '{"slot":1}';
+  h.drain();
+  assert.deepEqual(h.events, []);
+  assert.equal(h.timers.size, 0);
 });
 
 for (const symbol of ['load', 'save', 'delete']) {

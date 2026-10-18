@@ -60,8 +60,27 @@ PMJS.plugins.onLoaded('YEP_SaveCore', 'pmjs.adapter.save-core', function() {
   });
 
   Window_SaveInfo.prototype.drawContents = function(y) {
-    // StorageManager.load is synchronous: absent contents cannot complete later.
-    if (!this._saveContents) return this.drawInvalidText(y);
+    // As Yanfly's waits for contents a game loads later (Karryn's Prison's save previews), but
+    // for 3 seconds, not forever, and only while the same slot is shown.
+    if (!this._saveContents) {
+      var window = this, slot = this.savefileId(), contents = this.contents, scene = SceneManager._scene;
+      var request = { timer: null, attempts: 0 }, requests = pending.get(window);
+      if (!requests) { requests = new Set(); pending.set(window, requests); }
+      var retry = function() {
+        requests.delete(request);
+        if (SceneManager._scene !== scene || window.contents !== contents || window.savefileId() !== slot) return;
+        if (window._saveContents) return window.drawContents(y);
+        if (++request.attempts >= 60) {
+          console.warn('[pmjs] save ' + slot + ' preview has no contents');
+          return window.drawInvalidText(y);
+        }
+        requests.add(request);
+        request.timer = setTimeout(retry, 50);
+      };
+      requests.add(request);
+      request.timer = setTimeout(retry, 50);
+      return;
+    }
     if (typeof this._saveContents === 'string') {
       this._saveContents = JsonEx.parse(this._saveContents);
     }
