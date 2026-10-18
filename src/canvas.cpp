@@ -168,11 +168,22 @@ static std::optional<GlyphMask> createStrokeMask(const GlyphMask& base, int stro
   return stroked;
 }
 
+// As Chromium on Linux (fontconfig's default slight hinting with subpixel positioning): outlines
+// snap to the pixel grid vertically only, so they can sit on quarter pixels horizontally.
+constexpr FT_Int32 glyphLoadFlags() { return FT_LOAD_TARGET_LIGHT; }
+
+// Loads a glyph moved right by a quarter-pixel phase; bitmap glyphs stay on the pixel.
+static bool loadShiftedGlyph(FT_Face face, FT_UInt glyphIndex, int phase) {
+  if (FT_Load_Glyph(face, glyphIndex, glyphLoadFlags()) != 0) return false;
+  if (face->glyph->format == FT_GLYPH_FORMAT_OUTLINE) FT_Outline_Translate(&face->glyph->outline, phase * 16, 0);
+  return true;
+}
+
 // Canvas strokeText strokes the glyph outline with round joins, half the width on each side.
 // Growing the coverage mask instead reaches only about 1.4 px of a 2 px half-width on
 // diagonals, so outlines came out lighter than in Chromium (Karryn's Prison's window text).
-static std::optional<GlyphMask> strokeOutlineMask(FT_Face face, FT_UInt glyphIndex, int strokeWidth) {
-  if (FT_Load_Glyph(face, glyphIndex, FT_LOAD_DEFAULT) != 0 ||
+static std::optional<GlyphMask> strokeOutlineMask(FT_Face face, FT_UInt glyphIndex, int strokeWidth, int phase) {
+  if (!loadShiftedGlyph(face, glyphIndex, phase) ||
       face->glyph->format != FT_GLYPH_FORMAT_OUTLINE) return std::nullopt;
   FT_Stroker stroker = nullptr;
   if (FT_Stroker_New(face->glyph->library, &stroker) != 0) return std::nullopt;
@@ -206,6 +217,7 @@ struct GlyphMetrics {
 
 struct StrokeMaskEntry {
   int strokeWidth = 0;
+  int phase = 0;
   GlyphMask mask;
 
   std::size_t byteSize() const noexcept {
@@ -217,14 +229,15 @@ struct CachedGlyph {
   GlyphMetrics metrics;
   bool metricsLoaded = false;
 
-  bool fillMaskLoaded = false;
-  GlyphMask fillMask;
+  // One mask per quarter-pixel phase.
+  std::array<bool, 4> fillMaskLoaded{};
+  std::array<GlyphMask, 4> fillMasks;
 
   std::vector<StrokeMaskEntry> strokeMasks;
 
   std::size_t byteSize() const noexcept {
     std::size_t bytes = sizeof(CachedGlyph);
-    bytes += fillMask.coverage.capacity();
+    for (const auto& mask : fillMasks) bytes += mask.coverage.capacity();
     bytes += strokeMasks.capacity() * sizeof(StrokeMaskEntry);
     for (const auto& stroke : strokeMasks) {
       bytes += stroke.mask.coverage.capacity();
@@ -370,9 +383,8 @@ struct CanvasStore::FontState {
     strike->pixelSize = pixelSize;
     strike->face = created;
     strike->shapingFont = hb_ft_font_create_referenced(created);
-    // Shape with hinted advances, as Chromium's canvas does with hinted glyphs: unhinted
-    // advances rounded per glyph shift letters by a pixel (Karryn's Prison's menus).
-    hb_ft_font_set_load_flags(strike->shapingFont, FT_LOAD_DEFAULT);
+    // Unhinted, fractional advances, as Chromium's canvas uses with subpixel positioning.
+    hb_ft_font_set_load_flags(strike->shapingFont, FT_LOAD_NO_HINTING);
 
     FontStrike* ptr = strike.get();
     strikeLookup.emplace(key, strike->id);
@@ -397,7 +409,7 @@ struct CanvasStore::FontState {
     }
     stats.glyphMetricMisses++;
 
-    if (FT_Load_Glyph(strike->face, glyphIndex, FT_LOAD_DEFAULT) != 0) {
+    if (FT_Load_Glyph(strike->face, glyphIndex, glyphLoadFlags()) != 0) {
       return nullptr;
     }
 
@@ -428,7 +440,7 @@ struct CanvasStore::FontState {
 
   std::optional<GlyphRenderItem> getOrLoadMask(FontStrike* strike,
                                                FT_UInt glyphIndex,
-                                               int strokeWidth) {
+                                               int strokeWidth, int phase) {
     if (strokeWidth < 0 || !strike || !strike->face) {
       return std::nullopt;
     }
@@ -450,10 +462,11 @@ struct CanvasStore::FontState {
     CachedGlyph& cached = it->second.first;
     const std::size_t bytesBefore = cached.byteSize();
 
-    if (!cached.fillMaskLoaded) {
+    if (!cached.fillMaskLoaded[phase]) {
       stats.glyphMaskMisses++;
 
-      if (FT_Load_Glyph(strike->face, glyphIndex, FT_LOAD_RENDER) != 0) {
+      if (!loadShiftedGlyph(strike->face, glyphIndex, phase) ||
+          FT_Render_Glyph(strike->face->glyph, FT_RENDER_MODE_NORMAL) != 0) {
         return std::nullopt;
       }
       const FT_GlyphSlot slot = strike->face->glyph;
@@ -464,8 +477,8 @@ struct CanvasStore::FontState {
       }
       mask.bitmapLeft = slot->bitmap_left;
       mask.bitmapTop = slot->bitmap_top;
-      cached.fillMask = std::move(mask);
-      cached.fillMaskLoaded = true;
+      cached.fillMasks[phase] = std::move(mask);
+      cached.fillMaskLoaded[phase] = true;
     } else {
       stats.glyphMaskHits++;
     }
@@ -473,21 +486,21 @@ struct CanvasStore::FontState {
     const GlyphMask* resultMask = nullptr;
 
     if (strokeWidth == 0) {
-      resultMask = &cached.fillMask;
+      resultMask = &cached.fillMasks[phase];
     } else {
       auto strokeIt = std::find_if(cached.strokeMasks.begin(), cached.strokeMasks.end(),
-        [strokeWidth](const StrokeMaskEntry& e) { return e.strokeWidth == strokeWidth; });
+        [strokeWidth, phase](const StrokeMaskEntry& e) { return e.strokeWidth == strokeWidth && e.phase == phase; });
 
       if (strokeIt != cached.strokeMasks.end()) {
         stats.strokeMaskHits++;
         resultMask = &strokeIt->mask;
       } else {
         stats.strokeMaskMisses++;
-        auto stroked = strokeOutlineMask(strike->face, glyphIndex, strokeWidth);
-        if (!stroked) stroked = createStrokeMask(cached.fillMask, strokeWidth);
+        auto stroked = strokeOutlineMask(strike->face, glyphIndex, strokeWidth, phase);
+        if (!stroked) stroked = createStrokeMask(cached.fillMasks[phase], strokeWidth);
         if (!stroked) return std::nullopt;
 
-        cached.strokeMasks.push_back(StrokeMaskEntry{strokeWidth, std::move(*stroked)});
+        cached.strokeMasks.push_back(StrokeMaskEntry{strokeWidth, phase, std::move(*stroked)});
         resultMask = &cached.strokeMasks.back().mask;
       }
     }
@@ -542,12 +555,6 @@ struct CanvasStore::FontState {
     auto& layout = *result;
     ++stats.shapeTextCalls;
     layout.shaped = shapeText(key.text, available, stats.fallbackShapeCalls);
-    // Hinted glyphs advance by whole pixels, kerning included, as in Chromium's canvas.
-    layout.shaped.advanceX = 0;
-    for (auto& glyph : layout.shaped.glyphs) {
-      glyph.xAdvance = std::round(glyph.xAdvance);
-      layout.shaped.advanceX += glyph.xAdvance;
-    }
     layout.metrics.width = layout.shaped.advanceX;
     if (layout.shaped.glyphs.empty()) {
       const auto face = strikes[available.front().strikeId]->face;
@@ -568,11 +575,15 @@ struct CanvasStore::FontState {
       const auto* metrics = getOrLoadMetrics(strike, glyph.glyphIndex);
       if (!metrics) return nullptr;
       if (metrics->metricWidth > 0 && metrics->metricHeight > 0) {
-        const int left = static_cast<int>(std::lround(penX + glyph.xOffset)) + metrics->bearingX;
+        // Placed as drawTextNow places it from a whole-pixel origin; a shifted outline
+        // can reach one pixel further right.
+        const double glyphX = penX + glyph.xOffset + 0.125;
+        const int left = static_cast<int>(std::floor(glyphX)) + metrics->bearingX;
+        const int shift = (glyphX - std::floor(glyphX)) >= 0.25 ? 1 : 0;
         const int top = static_cast<int>(std::lround(penY + glyph.yOffset)) + metrics->bearingY;
         minimumX = hasInk ? std::min(minimumX, left) : left;
-        maximumX = hasInk ? std::max(maximumX, left + metrics->metricWidth) :
-                           left + metrics->metricWidth;
+        maximumX = hasInk ? std::max(maximumX, left + metrics->metricWidth + shift) :
+                           left + metrics->metricWidth + shift;
         layout.metrics.actualAscent = hasInk ? std::max<double>(layout.metrics.actualAscent, top) : top;
         layout.metrics.actualDescent = hasInk ?
           std::max<double>(layout.metrics.actualDescent, metrics->metricHeight - top) :
@@ -882,7 +893,7 @@ bool CanvasStore::drawTextNow(Content& surface, const std::vector<std::filesyste
       double(strokeWidth) + 0.5 >= std::numeric_limits<int>::max()) return false;
   const int legacySize = static_cast<int>(std::floor(double(pixelSize) + 0.5));
   const int legacyStroke = static_cast<int>(std::floor(double(strokeWidth) + 0.5));
-  const int legacyX = static_cast<int>(std::clamp(std::floor(x + 0.5f), -1000000000.0f, 1000000000.0f));
+  const double originX0 = std::clamp(double(x), -1e9, 1e9);
   const int legacyY = static_cast<int>(std::clamp(std::floor(y + 0.5f), -1000000000.0f, 1000000000.0f));
   auto layout = fonts_->layoutText(fontPaths, text, legacySize);
   if (!layout) return false;
@@ -895,8 +906,11 @@ bool CanvasStore::drawTextNow(Content& surface, const std::vector<std::filesyste
   bool complete = true;
 
   for (const auto& glyph : layout->shaped.glyphs) {
+    // As Skia: glyphs sit on quarter pixels horizontally, rounded to the nearest one.
+    const double glyphX = originX0 + penX + glyph.xOffset + 0.125;
+    const int phase = static_cast<int>(std::floor((glyphX - std::floor(glyphX)) * 4)) & 3;
     const auto item = fonts_->getOrLoadMask(fonts_->strikes[glyph.strikeId].get(),
-                                           glyph.glyphIndex, legacyStroke);
+                                           glyph.glyphIndex, legacyStroke, phase);
     if (!item) {
       complete = false;
       break;
@@ -904,7 +918,7 @@ bool CanvasStore::drawTextNow(Content& surface, const std::vector<std::filesyste
 
     const auto* mask = item->mask;
     if (mask && mask->width > 0 && mask->height > 0 && !mask->coverage.empty()) {
-      const int originX = legacyX + static_cast<int>(std::lround(penX + glyph.xOffset)) + mask->bitmapLeft;
+      const int originX = static_cast<int>(std::floor(glyphX)) + mask->bitmapLeft;
       const int originY = legacyY - static_cast<int>(std::lround(penY + glyph.yOffset)) - mask->bitmapTop;
       dirtyLeft = std::min(dirtyLeft, originX);
       dirtyTop = std::min(dirtyTop, originY);

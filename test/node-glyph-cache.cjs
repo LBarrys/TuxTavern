@@ -68,8 +68,9 @@ native.canvas.drawText(canvas.handle, font, 'HELLO', 10, 40, 24, 0xffffffff, 0);
 const p1 = native.canvas.pixel(canvas.handle, 10, 40);
 
 stats = native.canvas.glyphStats();
-assert.equal(stats.glyphMaskMisses, 4, 'Expected 4 mask misses to rasterize H, E, L, O');
-assert.equal(stats.glyphMaskHits, 1, 'Second L should hit mask cache');
+// Glyphs sit on quarter pixels, as in Chromium; the second L lands on another one.
+assert.equal(stats.glyphMaskMisses, 5, 'Expected 5 mask misses to rasterize H, E, L, O and the shifted L');
+assert.equal(stats.glyphMaskHits, 0, 'The shifted L needs its own mask');
 assert.ok(stats.glyphBytes > 500, 'Glyph cache bytes should track rasterized coverage');
 
 // Draw "HELLO" fill again: must hit fill mask cache for all 5 characters, 0 new rasterizations
@@ -77,8 +78,8 @@ native.canvas.drawText(canvas.handle, font, 'HELLO', 10, 60, 24, 0xff00ffff, 0);
 native.canvas.pixel(canvas.handle, 10, 60);
 
 stats = native.canvas.glyphStats();
-assert.equal(stats.glyphMaskHits, 6, 'Expected 5 more mask hits for second draw');
-assert.equal(stats.glyphMaskMisses, 4, 'Mask misses must not increase on repeat draw');
+assert.equal(stats.glyphMaskHits, 5, 'Expected 5 more mask hits for second draw');
+assert.equal(stats.glyphMaskMisses, 5, 'Mask misses must not increase on repeat draw');
 
 // 4. Derived stroke masks from base fill mask
 // Draw outline text for new word "TEST" (strokeWidth = 4)
@@ -87,23 +88,23 @@ native.canvas.drawText(canvas.handle, font, 'TEST', 10, 80, 24, 0x000000ff, 4);
 native.canvas.pixel(canvas.handle, 10, 80);
 
 stats = native.canvas.glyphStats();
-// T and S were new so 2 mask misses; E was already cached, second T was duplicate hit
-assert.equal(stats.strokeMaskMisses, 3, 'Expected 3 unique stroke mask builds for T, E, S');
-assert.equal(stats.strokeMaskHits, 1, 'Second T in TEST should hit stroke mask cache');
+// The second T lands on another quarter pixel, so it needs its own outline.
+assert.equal(stats.strokeMaskMisses, 4, 'Expected 4 stroke mask builds for T, E, S and the shifted T');
+assert.equal(stats.strokeMaskHits, 0, 'The shifted T needs its own stroke mask');
 
 // Draw "TEST" outline again (strokeWidth = 4) -> all 4 should hit stroke mask cache!
 native.canvas.drawText(canvas.handle, font, 'TEST', 10, 80, 24, 0x000000ff, 4);
 native.canvas.pixel(canvas.handle, 10, 80);
 
 stats = native.canvas.glyphStats();
-assert.equal(stats.strokeMaskHits, 5, 'All 4 characters should hit stroke mask cache on repeat outline draw');
+assert.equal(stats.strokeMaskHits, 4, 'All 4 characters should hit stroke mask cache on repeat outline draw');
 
 // Draw "TEST" fill (strokeWidth = 0) -> all 4 should hit base fill mask without FreeType render!
 native.canvas.drawText(canvas.handle, font, 'TEST', 10, 80, 24, 0xffffffff, 0);
 native.canvas.pixel(canvas.handle, 10, 80);
 
 stats = native.canvas.glyphStats();
-assert.equal(stats.glyphMaskMisses, 6, 'Fill draw after outline must reuse base fill mask without new misses');
+assert.equal(stats.glyphMaskMisses, 9, 'Fill draw after outline must reuse the fill masks the outline loaded');
 
 // 5. Strike isolation across different font sizes
 const widthSmall = native.canvas.measureText(font, 'HELLO', 14);

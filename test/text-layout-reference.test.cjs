@@ -27,10 +27,8 @@ test('legacy FreeType layout stays within the historical explicit-font reference
     const reference = fixture.cases;
     assert.deepEqual(Object.keys(native), Object.keys(reference));
     for (const [text, metrics] of Object.entries(reference)) {
-      // This reference is from a Chrome with fractional advances; Chromium on Linux at scale 1,
-      // as Electron runs there, advances hinted glyphs by whole pixels (node-text-advances pins
-      // its widths), so each glyph rounds by up to half a pixel.
-      assert.ok(Math.abs(native[text].width - metrics.width) <= 0.75,
+      // Native shaping uses 26.6 positions; browser design metrics keep finer precision.
+      assert.ok(Math.abs(native[text].width - metrics.width) <= 0.125,
         `${JSON.stringify(text)} width: native ${native[text].width}, browser ${metrics.width}`);
       for (const key of ['actualBoundingBoxLeft', 'actualBoundingBoxRight',
         'actualBoundingBoxAscent', 'actualBoundingBoxDescent']) {

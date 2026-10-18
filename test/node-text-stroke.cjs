@@ -9,7 +9,7 @@ const native = require(path.resolve(process.argv[2]));
 native.initialize({ gameRoot: path.resolve(process.argv[3]), assetRoot: '', width: 64, height: 64,
   windowTitle: 'text stroke test' });
 
-const chromium = { O: 339, V: 274, g: 347, s: 246 };
+const chromium = { O: 348, V: 274, g: 344, s: 246 };
 for (const [glyph, expected] of Object.entries(chromium)) {
   const canvas = native.canvas.create(100, 60);
   native.canvas.drawText(canvas.handle, 'testfont.ttf', glyph, 20, 40, 28, 0xffffffff, 4);

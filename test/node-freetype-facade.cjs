@@ -28,9 +28,9 @@ for (const realized of [false, true]) for (const baseline of ['alphabetic', 'top
   const expected = native.canvas.create(160, 80);
   const measured = native.canvas.measureText('text-shaping.ttf', 'AV ffi', 25);
   const y = 30.6 + (baseline === 'top' ? 25 : baseline === 'middle' ? 12.5 : 0);
-  native.canvas.drawText(expected.handle, 'text-shaping.ttf', 'AV ffi', Math.round(83.75 - measured / 2), Math.round(y), 25, 0xffffffff, 3);
+  native.canvas.drawText(expected.handle, 'text-shaping.ttf', 'AV ffi', 83.75 - measured / 2, y, 25, 0xffffffff, 3);
   assert.deepEqual(snapshot(value), Buffer.from(native.canvas.readPixels(expected.handle, 0, 0, 160, 80)),
-    'Ordinary Canvas preserves legacy font/position/stroke quantization: ' + baseline);
+    'Ordinary Canvas preserves legacy font/stroke quantization and the fractional position: ' + baseline);
   value._releaseNativeCanvas(); native.canvas.release(expected.handle);
 }
 // Exercise the production MV shortcut, including its independently authored baseline.
@@ -44,8 +44,8 @@ Bitmap.prototype._setDirty = function() {};`, ctx);
 load('js/pmjs-mv/bitmap.js');
 const bitmap = new ctx.Bitmap(); bitmap.drawText('AV ffi', 3.75, 8.6, 0, 28.25);
 const expected = native.canvas.create(160, 80), y = Math.round(8.6 + 28.25 - (28.25 - 24.75 * 0.7) / 2);
-native.canvas.drawText(expected.handle, 'text-shaping.ttf', 'AV ffi', 4, y, 25, 0xffffffff, 3);
-native.canvas.drawText(expected.handle, 'text-shaping.ttf', 'AV ffi', 4, y, 25, 0x336699ff, 0);
+native.canvas.drawText(expected.handle, 'text-shaping.ttf', 'AV ffi', 3.75, y, 25, 0xffffffff, 3);
+native.canvas.drawText(expected.handle, 'text-shaping.ttf', 'AV ffi', 3.75, y, 25, 0x336699ff, 0);
 assert.deepEqual(snapshot(bitmap._canvas), Buffer.from(native.canvas.readPixels(expected.handle, 0, 0, 160, 80)),
-  'MV shortcut preserves its previous effective rounding');
+  'MV shortcut keeps its font and outline rounding and draws at the fractional x, as Chromium does');
 bitmap._canvas._releaseNativeCanvas(); native.canvas.release(expected.handle);
