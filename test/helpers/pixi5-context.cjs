@@ -109,7 +109,7 @@ function createContext({ strictCompatibility = true } = {}) {
       scene: {
         packetVersion: 30,
         schema: { version: 30, metadataStride: 7, valueStride: 41, maxFilterDepth: 16,
-          transactionalSubmit: true, filterCompositeBlend: true, clampedTilingSampling: true, floatSpriteUv: true, repeatSpriteSampling: true },
+          atlasTilingSampling: true, isolatedClearRect: true, transactionalSubmit: true, filterCompositeBlend: true, clampedTilingSampling: true, floatSpriteUv: true, repeatSpriteSampling: true },
         submit(version, metadata, values, count) {
           submissions.push({ version, metadata: metadata.slice(),
             values: values.slice(), count });
