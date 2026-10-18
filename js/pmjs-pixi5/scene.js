@@ -221,7 +221,7 @@
 
   function localTransform(node) {
     var transform = node && node.transform;
-    if (skipTransformUpdate && transform && transform.worldTransform) {
+    if (transform && transform.worldTransform) {
       var world = transform.worldTransform;
       if (node === renderStage || !node.parent) return world;
       var parent = node.parent.transform && node.parent.transform.worldTransform || identity;

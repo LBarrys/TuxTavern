@@ -467,3 +467,31 @@ test('filters and masks nested deeper than the native limit drop only what does 
   f.render(root);
   assert.equal(f.submissions.at(-1).count, packet.count, 'the depth is counted afresh each frame');
 });
+
+// Pixi draws sprites from their world transform, which games may adjust in updateTransform:
+// YEP_CoreEngine floors every Sprite's (Karryn's Prison's edict icons were drawn half a pixel off).
+test('sprites are placed by the world transform updateTransform leaves', () => {
+  const f = harness(), c = f.context;
+  function update(node, p) {
+    const l = node.transform.localTransform;
+    const w = node.transform.worldTransform = { a: p.a * l.a + p.c * l.b, b: p.b * l.a + p.d * l.b,
+      c: p.a * l.c + p.c * l.d, d: p.b * l.c + p.d * l.d, tx: p.a * l.tx + p.c * l.ty + p.tx,
+      ty: p.b * l.tx + p.d * l.ty + p.ty };
+    node.children.forEach(child => update(child, w));
+    if (node instanceof c.PIXI.Sprite) { w.tx = Math.floor(w.tx); w.ty = Math.floor(w.ty); }
+  }
+  const root = new c.PIXI.Container();
+  Object.assign(root.transform.localTransform, { tx: 20.5, ty: 7.25 });
+  const icon = f.sprite(321, 134.588, 68, 32, 32);
+  root.addChild(icon);
+  root.updateTransform = function() { update(this, { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 }); };
+  const packet = f.render(root);
+  let index = Array.from({ length: packet.count }, (_, i) => i).find(i => packet.metadata[i * 7 + 2] === 321);
+  let x = 0, y = 0;
+  while (index !== 0xffffffff) {
+    const v = packet.values.slice(index * 41, index * 41 + 6);
+    [x, y] = [v[0] * x + v[2] * y + v[4], v[1] * x + v[3] * y + v[5]];
+    index = packet.metadata[index * 7 + 1];
+  }
+  assert.deepEqual([x, y], [155, 75]);
+});
