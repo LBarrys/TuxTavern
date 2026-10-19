@@ -495,3 +495,98 @@ test('sprites are placed by the world transform updateTransform leaves', () => {
   }
   assert.deepEqual([x, y], [155, 75]);
 });
+
+// cacheAsBitmap (Karryn's Prison's pixi-apng caches every tenth frame): drawn as it is until Pixi's
+// _initCachedDisplayObject has run, before the next frame, then as its cached sprite alone.
+test('a cacheAsBitmap object is cached once outside the scene, then drawn as its sprite', () => {
+  const f = harness(), c = f.context;
+  const root = new c.PIXI.Container();
+  const cached = new c.PIXI.Container();
+  Object.assign(cached.transform.localTransform, { tx: 5, ty: 6 });
+  cached.alpha = 0.5;
+  cached.addChild(f.sprite(321, 0, 0, 8, 8));
+  root.addChild(cached);
+  const inits = [];
+  cached._renderCached = () => {};
+  cached.render = cached._renderCached;
+  cached._cacheData = { originalRender: c.PIXI.Container.prototype.render };
+  cached._initCachedDisplayObject = function(renderer) {
+    inits.push(renderer);
+    this._cacheData.sprite = f.sprite(777, 0, 0, 8, 8);
+  };
+  const handles = packet => Array.from({ length: packet.count }, (_, i) => packet.metadata[i * 7 + 2]).filter(Boolean);
+  assert.deepEqual(handles(f.render(root)), [321], 'drawn as it is the first time');
+  assert.equal(inits.length, 0, 'not while the scene is written');
+  c.PMJS.pixi5.cacheBitmaps(f.renderOwner);
+  assert.deepEqual(inits, [f.renderOwner]);
+  const packet = f.render(root);
+  assert.deepEqual(handles(packet), [777]);
+  const sprite = Array.from({ length: packet.count }, (_, i) => i).find(i => packet.metadata[i * 7 + 2] === 777);
+  assert.deepEqual(Array.from(packet.values.slice(sprite * 41, sprite * 41 + 7)), [1, 0, 0, 1, 5, 6, 0.5],
+    'where the object is and as opaque');
+  c.PMJS.pixi5.cacheBitmaps(f.renderOwner);
+  assert.equal(inits.length, 1, 'cached once');
+});
+
+test('mask bounds are read from the transforms of the render, not recomputed', () => {
+  const f = harness(), c = f.context;
+  const root = new c.PIXI.Container();
+  const masked = new c.PIXI.Container();
+  masked.addChild(f.sprite(321, 0, 0, 8, 8));
+  const mask = new c.PIXI.Container();
+  const skips = [];
+  mask.isFastRect = () => true;
+  mask.transform.worldTransform = { a: 1, b: 0, c: 0, d: 1, tx: 2, ty: 3 };
+  mask.getBounds = skip => { skips.push(skip); return { x: 2, y: 3, width: 4, height: 5 }; };
+  masked.addChild(mask);
+  masked.mask = mask;
+  root.addChild(masked);
+  f.render(root);
+  assert.ok(skips.length && skips.every(Boolean), 'getBounds(true)');
+});
+
+// Pixi's cacheAsBitmap draws an object at the origin of its texture through a render transform;
+// a mask's clip moves with what it covers.
+test('a render transform moves mask clips with the content', () => {
+  const f = harness(), c = f.context;
+  const masked = new c.PIXI.Container();
+  masked.addChild(f.sprite(321, 0, 0, 8, 8));
+  const mask = new c.PIXI.Container();
+  mask.isFastRect = () => true;
+  mask.transform.worldTransform = { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 };
+  mask.getBounds = () => ({ x: 2, y: 3, width: 4, height: 5 });
+  masked.addChild(mask);
+  masked.mask = mask;
+  c.pmjsPixi5RenderScene(masked, null, 2, { width: 64, height: 64 }, f.renderOwner, false, [1, 0, 0, 1, -4, -6]);
+  const packet = f.submissions.at(-1);
+  const clip = Array.from({ length: packet.count }, (_, i) => i).find(i => packet.metadata[i * 7 + 5] & 1);
+  assert.deepEqual(Array.from(packet.values.slice(clip * 41 + 17, clip * 41 + 21)), [0, 0, 8, 10],
+    'bounds less the transform\'s 2, 3 pixel offset, at resolution 2');
+});
+
+test('a render transform moves alpha masks with the content', () => {
+  const f = harness(), c = f.context;
+  const masked = new c.PIXI.Container();
+  masked.addChild(f.sprite(321, 0, 0, 64, 64));
+  const shape = new c.PIXI.Graphics();
+  shape.beginFill(0xffffff, 0.3).drawRect(0, 0, 10, 10);
+  shape.geometry.graphicsData[0].shape = { type: 2, x: 32, y: 32, radius: 20 };
+  Object.assign(shape.geometry, { dirty: 1, bounds: { minX: 12, minY: 12, maxX: 52, maxY: 52 } });
+  shape.transform.worldTransform = { a: 1, b: 0, c: 0, d: 1, tx: 5, ty: 7 };
+  shape.getBounds = () => ({ x: 17, y: 19, width: 40, height: 40 });
+  shape.parent = masked;
+  masked.mask = shape;
+  const OriginalCanvas = c.CanvasElement;
+  c.CanvasElement = class extends OriginalCanvas {
+    getContext() {
+      const ctx = super.getContext();
+      for (const name of ['setTransform', 'clearRect', 'beginPath', 'rect', 'moveTo', 'arc', 'fill', 'stroke']) ctx[name] = () => {};
+      return ctx;
+    }
+  };
+  c.pmjsPixi5RenderScene(masked, null, 2, { width: 64, height: 64 }, f.renderOwner, false, [1, 0, 0, 1, -4, -6]);
+  const packet = f.submissions.at(-1);
+  const mask = Array.from({ length: packet.count }, (_, i) => i).find(i => packet.metadata[i * 7] === 6 && packet.metadata[i * 7 + 4] === 3);
+  assert.deepEqual(Array.from(packet.values.slice(mask * 41 + 7, mask * 41 + 13), value => value + 0), [1, 0, 0, 1, -3 - 11, -4 - 11],
+    'the mask is placed 2, 3 pixels up and left, as its content');
+});

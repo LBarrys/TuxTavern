@@ -25,9 +25,15 @@
     }
     return contract;
   }
+  // An object with cacheAsBitmap renders through Pixi's _renderCached.
+  function cacheData(node) {
+    return node._cacheData && node.render === node._renderCached ? node._cacheData : null;
+  }
+  var pendingCaches = [];
   function renderContract(node) {
     var contract = findRenderContract(node);
-    if (!contract || node.render !== contract.render ||
+    var cache = cacheData(node);
+    if (!contract || (cache ? cache.originalRender : node.render) !== contract.render ||
         (contract.callsLeaf && node._render !== contract.leaf) ||
         ((node.mask || activeFilters(node)) && node.renderAdvanced !== contract.advanced)) {
       if (!contract || !contract.accept || !contract.accept(node)) {
@@ -52,6 +58,16 @@
         prepare(renderer, stage, offscreen, prepared);
       });
       return prepared;
+    },
+    // Pixi caches an object when it first draws it; here it is drawn as it is once and cached
+    // before the next frame, outside the scene being written.
+    cacheBitmaps: function(renderer) {
+      var nodes = pendingCaches;
+      pendingCaches = [];
+      nodes.forEach(function(node) {
+        var cache = !node.destroyed && cacheData(node);
+        if (cache && !cache.sprite) node._initCachedDisplayObject(renderer);
+      });
     },
     releaseRenderer: function(renderer) {
       rendererReleases.forEach(function(release) { release(renderer); });
@@ -299,10 +315,25 @@
     filterTargets.set(node, result);
     return result;
   }
+  // Clips and masks are in target pixels: a render's transform (Pixi's cacheAsBitmap draws with one)
+  // applies to them as to what they cover.
+  var projection = identity;
+  function project(world) {
+    var p = projection;
+    return p === identity ? world : { a: p.a * world.a + p.c * world.b, b: p.b * world.a + p.d * world.b,
+      c: p.a * world.c + p.c * world.d, d: p.b * world.c + p.d * world.d,
+      tx: p.a * world.tx + p.c * world.ty + p.tx, ty: p.b * world.tx + p.d * world.ty + p.ty };
+  }
   function clipRecord(parent, clip) {
     var index = addRecord(parent, 0, 0, 0xffffff, 0, identity, 1);
     metadata[index * metadataStride + 5] |= 1;
-    values.set([clip.x, clip.y, clip.x + clip.width, clip.y + clip.height]
+    var p = projection, xs = [], ys = [];
+    [[clip.x, clip.y], [clip.x + clip.width, clip.y], [clip.x, clip.y + clip.height],
+      [clip.x + clip.width, clip.y + clip.height]].forEach(function(corner) {
+      xs.push(p.a * corner[0] + p.c * corner[1] + p.tx);
+      ys.push(p.b * corner[0] + p.d * corner[1] + p.ty);
+    });
+    values.set([Math.min.apply(null, xs), Math.min.apply(null, ys), Math.max.apply(null, xs), Math.max.apply(null, ys)]
       .map(function(value) { return value * renderResolution; }),
     index * valueStride + 17);
     return index;
@@ -310,7 +341,9 @@
 
   // An unrotated rectangle mask is a clip, as Pixi scissors it (Karryn's Prison's FastCutIns
   // crops portraits this way). Graphics and Sprite masks are a native alpha mask inside their
-  // bounds; a mask that cannot be one clips to its bounds rather than hiding the object.
+  // bounds; a mask that cannot be one clips to its bounds rather than hiding the object. Bounds
+  // use this render's transforms: updating them would place the mask by its real ancestors when
+  // the object is drawn on its own (Pixi's cacheAsBitmap does so).
   function maskClip(node) {
     var mask = node.mask.maskObject || node.mask;
     if (typeof mask.getBounds !== 'function') reject('render.mask', node);
@@ -318,13 +351,13 @@
       mask.parent = mask._tempDisplayObjectParent;
       try { mask.updateTransform(); } finally { mask.parent = null; }
     }
-    var world = mask.worldTransform;
+    var world = mask.worldTransform && project(mask.worldTransform);
     if (typeof mask.isFastRect === 'function' && mask.isFastRect() && world && !world.b && !world.c) {
-      return { bounds: mask.getBounds(), filter: null };
+      return { bounds: mask.getBounds(true), filter: null };
     }
     var filter = alphaMask(mask, world);
     if (!filter) PMJS.compat.observed('render.mask-bounds', node.constructor && node.constructor.name || 'DisplayObject');
-    return { bounds: mask.getBounds(), filter: filter };
+    return { bounds: mask.getBounds(true), filter: filter };
   }
   // Parameters as Pixi 4's: inverse world transform to the mask image, its frame in texels,
   // alpha, channel (2: a sprite mask's premultiplied red, as Pixi 5 and 7 read it), texture
@@ -384,6 +417,18 @@
     }
   }
   function writePreparedNode(node, parent, clip, transform) {
+    var cache = cacheData(node);
+    if (cache && cache.sprite) {
+      // As _renderCached: the cached texture alone, where the object is and as opaque as it is.
+      var sprite = cache.sprite;
+      sprite.transform._worldID = node.transform._worldID;
+      sprite.alpha = node.alpha;
+      sprite.worldAlpha = node.worldAlpha;
+      sprite.parent = node.parent;
+      try { writePreparedNode(sprite, parent, clip, transform); } finally { sprite.parent = null; }
+      return;
+    }
+    if (cache && pendingCaches.indexOf(node) < 0) pendingCaches.push(node);
     var contract = renderContract(node);
     if (contract && contract.prepare) contract.prepare(node, renderOwner);
     if (clip) parent = clipRecord(parent, clip);
@@ -659,7 +704,7 @@
     filterDepth -= encodedFilters.length;
   }
 
-  function render(stage, backgroundColor, resolution, size, renderer, skipUpdateTransform, projection, prepared) {
+  function render(stage, backgroundColor, resolution, size, renderer, skipUpdateTransform, sceneProjection, prepared) {
     if (!skipUpdateTransform && typeof stage.updateTransform === 'function') {
       var previousParent = stage.parent;
       stage.parent = stage._tempDisplayObjectParent;
@@ -679,12 +724,15 @@
     renderResolution = resolution;
     renderOwner = renderer;
     viewport = size;
+    projection = sceneProjection && sceneProjection.some(function(value, index) { return value !== [1, 0, 0, 1, 0, 0][index]; }) ?
+      { a: sceneProjection[0], b: sceneProjection[1], c: sceneProjection[2], d: sceneProjection[3],
+        tx: sceneProjection[4] / resolution, ty: sceneProjection[5] / resolution } : identity;
     if (resolution !== 1) {
       rootParent = addRecord(0xffffffff, 0, 0, 0xffffff, 0,
         { a: resolution, b: 0, c: 0, d: resolution, tx: 0, ty: 0 }, 1);
     }
     writeNode(stage, rootParent);
-    NativeHost.render.setSceneProjection(projection || [1, 0, 0, 1, 0, 0]);
+    NativeHost.render.setSceneProjection(sceneProjection || [1, 0, 0, 1, 0, 0]);
     if (NativeHost.scene.submit(packetVersion, metadata, values, count) === false) {
       throw new Error('native Pixi 5 scene submission rejected');
     }

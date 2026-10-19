@@ -69,6 +69,12 @@
         isContextLost: function() { return false; },
         flush: function() {}
       },
+      // The systems Pixi's cacheAsBitmap saves and restores around drawing into its texture.
+      batch: { flush: function() {} },
+      framebuffer: { blit: function() {} },
+      projection: { transform: null },
+      renderTexture: { current: null, sourceFrame: new PIXI.Rectangle(0, 0, 0, 0),
+        destinationFrame: new PIXI.Rectangle(0, 0, 0, 0), bind: function() {} },
       render: function(stage, renderTexture, clear, transform, skipUpdateTransform) {
         if (!stage) return;
         if (renderTexture && !renderTexture.baseTexture) {
@@ -79,6 +85,7 @@
           transform = renderOptions.transform;
           skipUpdateTransform = renderOptions.skipUpdateTransform;
         }
+        if (!renderTexture) PMJS.pixi5.cacheBitmaps(this);
         var prepared = PMJS.pixi5.prepareRender(this, stage,
           !!(renderTexture || transform || skipUpdateTransform));
         var shouldClear = clear === undefined ? this.clearBeforeRender : !!clear;
