@@ -71,5 +71,5 @@ end
 
 if $RGSS_SCRIPTS.is_a?(Array)
   RpgmPatches.patch($RGSS_SCRIPTS)
-  RpgmPatches.add_user_scripts($RGSS_SCRIPTS, ENV['SRCDIR'] || Dir.pwd)
+  RpgmPatches.add_user_scripts($RGSS_SCRIPTS, Dir.pwd)
 end

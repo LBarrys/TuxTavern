@@ -246,7 +246,7 @@ rgss)
 		printf '{\n\t%s\n}\n' "$keys" >"$conf/mkxp.json" || die "cannot write $conf/mkxp.json"
 	fi
 	cd "$conf"
-	export SDL_VIDEODRIVER=wayland SRCDIR="$game" TUXTAVERN_SHIM_DIR="$lib/rgss" TUXTAVERN_RGSS_VERSION="$rgss" TUXTAVERN_CHEAT="$cheat"
+	export SDL_VIDEODRIVER=wayland SRCDIR="$conf" TUXTAVERN_SHIM_DIR="$lib/rgss" TUXTAVERN_RGSS_VERSION="$rgss" TUXTAVERN_CHEAT="$cheat"
 	if [ -n "$test" ]; then exec mkxp-z test; else exec mkxp-z; fi ;;
 *) die "no RPG Maker XP/VX/VX Ace/MV/MZ game found in $game" ;;
 esac

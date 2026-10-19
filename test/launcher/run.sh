@@ -76,7 +76,8 @@ require('fs').writeFileSync(process.argv[1], evb({ name: '%DEFAULT FOLDER%', chi
 	# shellcheck disable=SC2016
 	printf '#!/bin/sh\necho "pmjs $* driver=${SDL_VIDEODRIVER:-}"\nfor a; do case $a in *.js) cat "$a" ;; esac; done\n' >"$fx/bin/pmjs" && chmod +x "$fx/bin/pmjs"
 	# shellcheck disable=SC2016
-	printf '#!/bin/sh\necho "mkxp-z rgss=$TUXTAVERN_RGSS_VERSION driver=$SDL_VIDEODRIVER cheat=$TUXTAVERN_CHEAT pwd=$PWD args=$*"; cat mkxp.json\n' >"$fx/bin/mkxp-z" && chmod +x "$fx/bin/mkxp-z"
+	# As mkxp-z, it reads mkxp.json in SRCDIR.
+	printf '#!/bin/sh\necho "mkxp-z rgss=$TUXTAVERN_RGSS_VERSION driver=$SDL_VIDEODRIVER cheat=$TUXTAVERN_CHEAT pwd=$PWD srcdir=$SRCDIR args=$*"; cd "${SRCDIR:-.}" && cat mkxp.json\n' >"$fx/bin/mkxp-z" && chmod +x "$fx/bin/mkxp-z"
 	mkdir -p "$fx/lib/mkxp-z/scripts/preload" "$fx/lib/mkxp-z/stdlib" "$fx/data/tuxtavern/rtp/Standard"
 	: >"$fx/lib/mkxp-z/scripts/preload/win32_wrap.rb"
 
@@ -108,6 +109,7 @@ require('fs').writeFileSync(process.argv[1], evb({ name: '%DEFAULT FOLDER%', chi
 
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./tuxtavern "$fx/xp" 2>&1); check 'XP runs as RGSS1' 'rgss=1'; check 'mkxp-z is told to use Wayland' 'driver=wayland'
 	check 'mkxp-z starts from the config TuxTavern wrote' "pwd=$fx/data/tuxtavern/mkxp/"
+	check 'and reads it there (LonaRPG ran without the shims)' "srcdir=$fx/data/tuxtavern/mkxp/"
 	check 'which points at the game' "\"gameFolder\": \"$fx/xp\""
 	check 'loads the shims' 'rgss/all.rb"]'; check 'turns F12 reset off' '"enableReset": false'
 	check 'adds the installed RTP the game names' "\"RTP\": [\"$fx/data/tuxtavern/rtp/Standard\"]"
@@ -167,7 +169,8 @@ a"
 	# shellcheck disable=SC2016
 	printf '$order << "a"\n' >"$fx/rgss/a.tuxtavern.rb"
 	# shellcheck disable=SC2016
-	out=$(SRCDIR="$fx/rgss" ruby -Ku -e '$RGSS_SCRIPTS = [
+	# mkxp-z runs the shims in the game folder.
+	out=$(cd "$fx/rgss" && PATCHES="$OLDPWD/lib/rgss/patches.rb" ruby -Ku -e '$RGSS_SCRIPTS = [
   [1, "Fonts", "", "# ** Auto Font Install\nraise \"font\"\n"],
   [2, "Steam", "", "x = 1\nexit if steam.is_subscribed != true\nputs \"steam ok\"\n"],
   [3, "Text", "", "t = nil.to_s.clone\nt << \"k\"\nputs \"text \" + t\n"],
@@ -176,7 +179,7 @@ a"
   [6, "Main", "", "$order << \"main\"\n"],
 ]
 $order = []
-load "lib/rgss/patches.rb"
+load ENV["PATCHES"]
 puts "broken kept" if $RGSS_SCRIPTS[4][3].end_with?("x.to_s.clone\n")
 $RGSS_SCRIPTS.each { |s| eval(s[3], binding, s[1]) unless s[1] == "Broken" }
 puts "order: " + $order.join(",")' 2>&1)
