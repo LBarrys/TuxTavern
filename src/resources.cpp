@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
+#include <charconv>
 #include <cstdio>
 #include <cstring>
 #include <cmath>
@@ -36,6 +37,20 @@ extern "C" {
 #include <webp/decode.h>
 
 namespace pmjs {
+
+ImageEncryptionKey imageEncryptionKey(const std::string& hex) {
+  if (hex.size() != 32) throw std::runtime_error("invalid image encryption key");
+  ImageEncryptionKey result{};
+  for (std::size_t i = 0; i < result.size(); ++i) {
+    unsigned value = 0;
+    const auto* at = hex.data() + i * 2;
+    const auto parsed = std::from_chars(at, at + 2, value, 16);
+    if (parsed.ec != std::errc{} || parsed.ptr != at + 2)
+      throw std::runtime_error("invalid image encryption key");
+    result[i] = static_cast<std::uint8_t>(value);
+  }
+  return result;
+}
 
 namespace {
 constexpr std::uint32_t indexMask = 0xffffU;
@@ -391,7 +406,8 @@ ImageFileSource::~ImageFileSource() {
   if (descriptor_ >= 0) close(descriptor_);
 }
 
-std::unique_ptr<ImageFileSource> ImageStore::openFile(const std::filesystem::path& path) {
+std::unique_ptr<ImageFileSource> ImageStore::openFile(const std::filesystem::path& path,
+    std::optional<ImageEncryptionKey> encryptionKey) {
   std::error_code error;
   const auto resolved = std::filesystem::canonical(path, error);
   if (error) return nullptr;
@@ -405,6 +421,14 @@ std::unique_ptr<ImageFileSource> ImageStore::openFile(const std::filesystem::pat
   source->modifiedSeconds_ = info.st_mtim.tv_sec;
   source->modifiedNanoseconds_ = info.st_mtim.tv_nsec;
   source->key_ = fileIdentity(resolved, info);
+  source->encryptionKey_ = encryptionKey;
+  if (encryptionKey) {
+    source->key_ += ":png-view:";
+    constexpr char digits[] = "0123456789abcdef";
+    for (const auto byte : *encryptionKey) {
+      source->key_ += digits[byte >> 4]; source->key_ += digits[byte & 15];
+    }
+  }
   return source;
 }
 
@@ -641,11 +665,12 @@ std::optional<ImagePixels> ImageStore::decodeJpegFromMemory(const void* data, st
 }
 
 std::optional<std::vector<std::uint8_t>> ImageStore::readCapturedBytes(const ImageFileSource& source) {
+  if (source.encryptionKey_ && source.size_ < 32) return std::nullopt;
   std::vector<std::uint8_t> bytes(source.size_);
   std::size_t offset = 0;
   while (offset < bytes.size()) {
     const auto read = pread(source.descriptor_, bytes.data() + offset,
-                            bytes.size() - offset, static_cast<off_t>(offset));
+        bytes.size() - offset, static_cast<off_t>(offset));
     if (read < 0 && errno == EINTR) continue;
     if (read <= 0) return std::nullopt;
     offset += static_cast<std::size_t>(read);
@@ -659,12 +684,21 @@ std::optional<std::vector<std::uint8_t>> ImageStore::readCapturedBytes(const Ima
       current.st_mtim.tv_nsec != source.modifiedNanoseconds_) {
     return std::nullopt;
   }
+  if (source.encryptionKey_) {
+    constexpr std::array<std::uint8_t, 16> signature{
+      0x52, 0x50, 0x47, 0x4d, 0x56, 0, 0, 0, 0, 3, 1, 0, 0, 0, 0, 0};
+    if (!std::equal(signature.begin(), signature.end(), bytes.begin())) return std::nullopt;
+    for (std::size_t i = 0; i < 16; ++i) bytes[16 + i] ^= (*source.encryptionKey_)[i];
+    constexpr std::array<std::uint8_t, 8> pngSignature{137, 80, 78, 71, 13, 10, 26, 10};
+    if (!std::equal(pngSignature.begin(), pngSignature.end(), bytes.begin() + 16)) return std::nullopt;
+  }
   return bytes;
 }
 
 std::optional<ImagePixels> ImageStore::decodeFile(const ImageFileSource& source, std::size_t maxDecodedBytes) {
   const auto bytes = readCapturedBytes(source);
-  return bytes ? pmjs::decodeMemory(bytes->data(), bytes->size(), maxDecodedBytes) : std::nullopt;
+  const auto offset = source.encryptionKey_ ? 16U : 0U;
+  return bytes ? pmjs::decodeMemory(bytes->data() + offset, bytes->size() - offset, maxDecodedBytes) : std::nullopt;
 }
 
 std::optional<std::pair<int, int>> ImageStore::imageSize(const ImageFileSource& source) {
@@ -1761,7 +1795,8 @@ bool ImageStore::validatePrepared(PreparedLoad& load, bool retainCpu) {
     };
     if (load.sourceToVerify) {
       const auto bytes = readCapturedBytes(*load.sourceToVerify);
-      if (!bytes || !contentHashMatches(*bytes, backing.sourceHash)) return invalid();
+      const auto offset = load.sourceToVerify->encryptionKey_ ? 16U : 0U;
+      if (!bytes || !contentHashMatches(std::span(*bytes).subspan(offset), backing.sourceHash)) return invalid();
       load.sourceToVerify.reset();
     }
     for (std::size_t i = 0; i < backing.pages.size(); ++i) {

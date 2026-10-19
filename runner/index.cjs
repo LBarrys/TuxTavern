@@ -279,6 +279,7 @@ function progressLines(progress) {
   const titles = {
     discover: 'Finding game assets', wait: 'Waiting for asset cache',
     validate: 'Checking cached assets', prepare: 'Preparing new assets',
+    'audio-view': 'Preparing audio',
     'map-wait': 'Waiting for map cache', 'map-compile': 'Compiling maps',
     'map-pack': 'Packing maps', 'map-validate': 'Checking cached maps',
     ready: 'Checking game assets', install: 'Finishing asset preparation',
@@ -429,7 +430,7 @@ async function prepareStartupAssets(options, native) {
       } });
     activeLog.finish(preparation, preparationFailed ? preparationError : undefined);
     console.log(`[pmjs] asset preparation generated=${preparation.generated} hits=${preparation.hits} ` +
-      `decrypted=${preparation.decrypted} fallback=${preparation.fallback} ` +
+      `decrypted=${preparation.decrypted} audio_views=${preparation.audioViews} fallback=${preparation.fallback} ` +
       `hashed_files=${preparation.validation?.hashedFiles || 0} hashed_bytes=${preparation.validation?.hashedBytes || 0} ` +
       `reused_files=${preparation.validation?.reusedFiles || 0} duration_ms=${preparation.durationMs.toFixed(1)}`);
     if (!cancelled && options.assetPreparation.maps) {
