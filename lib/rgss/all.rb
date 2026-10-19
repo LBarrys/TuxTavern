@@ -49,6 +49,7 @@ RpgmShims.load_one(mkxpz, 'kgl2_wrap')
 
 RpgmShims.load_one(here, 'dl_wrap')
 RpgmShims.load_one(here, 'textmode')
+RpgmShims.load_one(here, 'casefold')
 RpgmShims.load_one(here, 'user32_wrap')
 RpgmShims.load_one(here, 'ini_wrap')
 RpgmShims.load_one(here, 'input_poll')
