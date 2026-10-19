@@ -278,9 +278,30 @@ saved = case V
         else [SceneManager.called]
         end
 is('save opens the save screen, back to the map after', saved, [[Scene_Save, true], [Scene_File, [true, false, true]], [Scene_Save]][V - 1])
+# LonaRPG's Hime AllKey replaces Input.update without calling the one before.
+# Its key constants are arrays of key codes, some of them nil, which its trigger? cannot take.
+class << Input
+  def update; @now = @script.shift || []; @typed = @now.grep(String).join; end
+  %i[trigger? repeat? press?].each do |name|
+    define_method(name) { |k| raise TypeError, 'nil key' if k.is_a?(Array) && k.include?(nil); @now.include?(k) }
+  end
+end
+if V == 3
+  %i[DOWN UP LEFT RIGHT B C F8 SHIFT].each do |name|
+    Input.send(:remove_const, name)
+    Input.const_set(name, [nil])
+  end
+end
+$sprite = nil
+Graphics.update
+Input.script = [[:F8], [:B], [:B]]
+Input.update
+Graphics.update
+is('F8 still opens the menu when a game replaces Input.update', [$sprite.nil?, C.open], [false, false])
 $game_party = nil
 Input.script = [[:F8]]
 Input.update
+Graphics.update
 is('no menu before a game is loaded', C.open, false)
 
 exit($failed.zero? ? 0 : 1)

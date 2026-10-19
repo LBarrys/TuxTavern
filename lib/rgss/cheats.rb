@@ -14,6 +14,11 @@ module RpgmCheats
       %w[rxdata rxdata rvdata rvdata2][rgss]
     end
 
+    # RGSS3 names keys by symbol; games may redefine Input's constants (LonaRPG's Hime AllKey does).
+    def key(name)
+      rgss == 3 ? name : Input.const_get(name)
+    end
+
     def god?(battler)
       battler.respond_to?(:id) && god.include?(battler.id)
     end
@@ -101,7 +106,7 @@ module RpgmCheats
     return if open || !install
     $game_player.instance_variable_set(:@move_speed, move) if move > 0
     apply_speed
-    Menu.new.run if $game_party && Input.trigger?(Input::F8)
+    Menu.new.run if $game_party && Input.trigger?(RpgmCheats.key(:F8))
   end
 
   # Kept on the player, so the cheats are saved with the game.
@@ -262,7 +267,7 @@ module RpgmCheats
     end
 
     def step(base)
-      Input.press?(Input::SHIFT) ? base * 10 : base
+      Input.press?(RpgmCheats.key(:SHIFT)) ? base * 10 : base
     end
 
     def entry(label, value = nil, ok: nil, change: nil)
@@ -394,9 +399,9 @@ module RpgmCheats
     end
 
     def handle
-      return false if Input.trigger?(Input::F8)
+      return false if Input.trigger?(RpgmCheats.key(:F8))
       return typing if @typing
-      if Input.trigger?(Input::B)
+      if Input.trigger?(RpgmCheats.key(:B))
         @pages.pop
         @rows = nil
         @note = ''
@@ -404,17 +409,17 @@ module RpgmCheats
       end
       name, at, top = @pages.last
       list = rows
-      at = (at + 1) % list.size if Input.repeat?(Input::DOWN) && !list.empty?
-      at = (at - 1) % list.size if Input.repeat?(Input::UP) && !list.empty?
+      at = (at + 1) % list.size if Input.repeat?(RpgmCheats.key(:DOWN)) && !list.empty?
+      at = (at - 1) % list.size if Input.repeat?(RpgmCheats.key(:UP)) && !list.empty?
       fit = (Graphics.height - 3 * ROW) / ROW
       top = at if at < top
       top = at - fit + 1 if at >= top + fit
       @pages[-1] = [name, at, top]
       row = list[at]
       return true unless row
-      act = if Input.trigger?(Input::C) && row[:ok] then -> { row[:ok].call }
-            elsif Input.repeat?(Input::RIGHT) && row[:change] then -> { row[:change].call(1) }
-            elsif Input.repeat?(Input::LEFT) && row[:change] then -> { row[:change].call(-1) }
+      act = if Input.trigger?(RpgmCheats.key(:C)) && row[:ok] then -> { row[:ok].call }
+            elsif Input.repeat?(RpgmCheats.key(:RIGHT)) && row[:change] then -> { row[:change].call(1) }
+            elsif Input.repeat?(RpgmCheats.key(:LEFT)) && row[:change] then -> { row[:change].call(-1) }
             end
       if act
         act.call
@@ -450,8 +455,24 @@ if Object.const_defined?(:Input) && Input.respond_to?(:update) && !Input.respond
 
       def update(*args)
         result = update_without_cheats(*args)
+        $rpgm_cheats_polled = true
         RpgmCheats.frame
         result
+      end
+    end
+  end
+
+  # Games that replace Input.update (LonaRPG's Hime AllKey) still get the menu, once a frame.
+  if Object.const_defined?(:Graphics) && Graphics.respond_to?(:update)
+    module Graphics
+      class << self
+        alias_method :update_without_cheats, :update
+
+        def update(*args)
+          RpgmCheats.frame unless $rpgm_cheats_polled
+          $rpgm_cheats_polled = false
+          update_without_cheats(*args)
+        end
       end
     end
   end
