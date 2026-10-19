@@ -52,6 +52,7 @@ RpgmShims.load_one(here, 'textmode')
 RpgmShims.load_one(here, 'user32_wrap')
 RpgmShims.load_one(here, 'ini_wrap')
 RpgmShims.load_one(here, 'input_poll')
+RpgmShims.load_one(here, 'raw_bitmap')
 
 RpgmShims.load_one(here, 'lenient')
 RpgmShims.load_one(here, 'patches')
