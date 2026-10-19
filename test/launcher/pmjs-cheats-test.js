@@ -84,15 +84,19 @@ const texts = () => (sprite() ? sprite().bitmap.texts : []);
 const current = () => (sprite().bitmap.rows.find(([y]) => y === sprite().bitmap.at) || [])[1];
 const to = label => { for (let i = 0; i < 50 && current() !== label; i++) frame('down'); };
 const type = text => { for (const key of text) keys.forEach(f => f({ key })); };
+const f8 = (repeat = false) => { keys.forEach(f => f({ key: 'F8', keyCode: 119, repeat })); frame(); };
 
-is('F8 is mapped for the game input', w.Input.keyMapper[119], 'rpgmCheat');
+// Karryn's Prison's YEP_KeyboardConfig swaps in the saved key map after plugins load.
+w.Input.keyMapper = { 13: 'ok' };
 frame();
 is('the game runs while the menu is shut', w.SceneManager._scene.updates, 1);
-frame('rpgmCheat');
+f8(true);
+is('a held F8 repeating does not open it', menu.open, false);
+f8();
 is('F8 opens the menu over the scene', [menu.open, texts().includes('God mode: Hero')], [true, true]);
 is('in the game font on MZ', sprite().bitmap.fontFace, 'rmmz-mainfont, sans-serif');
 frame();
-is('the game is paused while it is open', w.SceneManager._scene.updates, 1);
+is('the game is paused while it is open', w.SceneManager._scene.updates, 2);
 frame('ok');
 is('Enter switches god mode on', editor.model(w).cheats().god, [1]);
 is('and the row shows it', texts()[texts().indexOf('God mode: Hero') + 1], '> ON');
@@ -136,12 +140,12 @@ is('teleport closes the menu and keeps x, y', [menu.open, w.$gamePlayer.to], [fa
 w.$gamePlayer.performTransfer();
 is('the player is pulled inside a smaller map', [w.$gamePlayer.x, w.$gamePlayer.y], [19, 14]);
 
-frame('rpgmCheat');
+f8();
 w.SceneManager._scene = new SceneMap();
 frame();
 is('changing scene closes the menu', menu.open, false);
-frame('rpgmCheat');
-frame('rpgmCheat');
+f8();
+f8();
 is('F8 closes it again', [menu.open, w.SceneManager._scene.children.length], [false, 0]);
 
 process.exit(failed ? 1 : 0);
