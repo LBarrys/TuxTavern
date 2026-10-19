@@ -590,3 +590,49 @@ test('a render transform moves alpha masks with the content', () => {
   assert.deepEqual(Array.from(packet.values.slice(mask * 41 + 7, mask * 41 + 13), value => value + 0), [1, 0, 0, 1, -3 - 11, -4 - 11],
     'the mask is placed 2, 3 pixels up and left, as its content');
 });
+
+// pixi-apng (Karryn's Prison's cut-ins) wraps each frame's predecessors in a container masked by the
+// animation's rectangle less the frame's. One target for the chain, each hole cleared after what it
+// masks, instead of a target per mask; a masked container after other content in a target gets its own.
+test('rectangle masks with a rectangular hole share one target and clear their holes', () => {
+  const f = harness(), c = f.context;
+  function holeMask(owner, x, y, width, height) {
+    const mask = new c.PIXI.Graphics();
+    mask.beginFill(0xffffff).drawRect(0, 0, 64, 64);
+    mask.geometry.graphicsData[0].holes.push({ shape: { x, y, width, height, type: 1 }, matrix: null });
+    mask.renderable = false;
+    owner.addChild(mask);
+    owner.mask = mask;
+  }
+  const t1 = new c.PIXI.Container();
+  t1.addChild(f.sprite(100, 0, 0, 64, 64));
+  holeMask(t1, 8, 8, 16, 16);
+  const t2 = new c.PIXI.Container();
+  t2.addChild(t1);
+  t2.addChild(f.sprite(101, 8, 8, 16, 16));
+  const t3 = new c.PIXI.Container();
+  t3.addChild(f.sprite(103, 0, 0, 64, 64));
+  holeMask(t3, 1, 1, 1, 1);
+  t2.addChild(t3);
+  holeMask(t2, 4, 40, 8, 8);
+  const frame = new c.PIXI.Container();
+  frame.addChild(t2);
+  frame.addChild(f.sprite(102, 4, 40, 8, 8));
+  const root = new c.PIXI.Container();
+  root.addChild(f.sprite(200, 0, 0, 4, 4));
+  const later = new c.PIXI.Container();
+  later.addChild(f.sprite(201, 0, 0, 64, 64));
+  holeMask(later, 0, 0, 2, 2);
+  root.addChild(frame);
+  frame.addChild(later);
+  const packet = f.render(root, 64, 64);
+  const rows = Array.from({ length: packet.count }, (_, i) => ({
+    kind: packet.metadata[i * 7], handle: packet.metadata[i * 7 + 2], filter: packet.metadata[i * 7 + 4],
+    clear: Array.from(packet.values.slice(i * 41 + 7, i * 41 + 9)).concat(Array.from(packet.values.slice(i * 41 + 13, i * 41 + 15))) }));
+  const sequence = rows.filter(row => row.kind !== 0).map(row =>
+    row.kind === 1 ? row.handle : row.kind === 10 ? 'clear ' + row.clear.join(',') : row.kind === 6 ? 'begin ' + row.filter : 'end');
+  assert.deepEqual(sequence, [200, 'begin 20', 100, 'clear 8,8,16,16', 101,
+    'begin 20', 103, 'clear 1,1,1,1', 'end', 'clear 4,40,8,8', 'end', 102,
+    'begin 20', 201, 'clear 0,0,2,2', 'end']);
+  assert.ok(!rows.some(row => row.kind === 6 && row.filter === 3), 'no alpha mask');
+});

@@ -93,6 +93,7 @@
   var metadata = new Uint32Array(capacity * metadataStride);
   var values = new Float32Array(capacity * valueStride);
   var count = 0;
+  var drawCount = 0;
   var filterDepth = 0;
   var maxFilterDepth = schema.maxFilterDepth || 4;
   var identity = { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 };
@@ -217,6 +218,7 @@
     var index = count++;
     var metadataOffset = index * metadataStride;
     var valueOffset = index * valueStride;
+    if (kind !== 0 && kind !== 6 && kind !== 7 && kind !== 10) drawCount++;
     metadata[metadataOffset] = kind;
     metadata[metadataOffset + 1] = parent;
     metadata[metadataOffset + 2] = resource;
@@ -359,6 +361,29 @@
     if (!filter) PMJS.compat.observed('render.mask-bounds', node.constructor && node.constructor.name || 'DisplayObject');
     return { bounds: mask.getBounds(true), filter: filter };
   }
+  // pixi-apng (Karryn's Prison's cut-ins) masks each frame's predecessors with the animation's rectangle
+  // less the frame's: one mask more per frame, which as alpha masks costs a target each. A mask of one
+  // rectangle with one rectangular hole is drawn as Pixi's stencil does without one: the content is
+  // clipped to the rectangle and the hole cleared from it after, in a target of its own or, when the
+  // content is the first drawn in one such target, in that one.
+  var holeGroup = null;
+  function rectangleHole(node) {
+    var mask = node.mask.maskObject || node.mask;
+    if (!PIXI.Graphics || !(mask instanceof PIXI.Graphics) || !mask.parent || !PIXI.SHAPES) return null;
+    var world = mask.worldTransform, target = world && project(world);
+    if (!target || world.b || world.c || target.b || target.c || !world.a || !world.d) return null;
+    mask.finishPoly();
+    var data = mask.geometry.graphicsData, shape = data.length === 1 && data[0];
+    if (!shape || shape.matrix || !shape.fillStyle.visible || (shape.lineStyle && shape.lineStyle.visible) ||
+        shape.holes.length !== 1 || shape.holes[0].matrix || shape.shape.type !== PIXI.SHAPES.RECT ||
+        shape.holes[0].shape.type !== PIXI.SHAPES.RECT) return null;
+    function rectangle(r, m) {
+      var x1 = m.a * r.x + m.tx, x2 = m.a * (r.x + r.width) + m.tx;
+      var y1 = m.d * r.y + m.ty, y2 = m.d * (r.y + r.height) + m.ty;
+      return { x: Math.min(x1, x2), y: Math.min(y1, y2), width: Math.abs(x2 - x1), height: Math.abs(y2 - y1) };
+    }
+    return { outer: rectangle(shape.shape, world), hole: rectangle(shape.holes[0].shape, target) };
+  }
   // Parameters as Pixi 4's: inverse world transform to the mask image, its frame in texels,
   // alpha, channel (2: a sprite mask's premultiplied red, as Pixi 5 and 7 read it), texture
   // rotation and size.
@@ -433,7 +458,10 @@
     if (contract && contract.prepare) contract.prepare(node, renderOwner);
     if (clip) parent = clipRecord(parent, clip);
     var maskFilter = null;
-    if (node.mask) {
+    var hole = node.mask && rectangleHole(node);
+    if (hole) {
+      parent = clipRecord(parent, hole.outer);
+    } else if (node.mask) {
       var masking = maskClip(node);
       parent = clipRecord(parent, masking.bounds);
       maskFilter = masking.filter;
@@ -469,6 +497,9 @@
         }
       });
     }
+    var joined = hole && !encodedFilters.length && holeGroup && holeGroup.depth === filterDepth &&
+      holeGroup.mark === drawCount;
+    if (hole && !joined) maskFilter = { kind: 20, resource: 0, parameters: [1], blendMode: 0 };
     // Pixi applies the mask inside the filters.
     if (maskFilter) encodedFilters.unshift(maskFilter);
     // Groups nested deeper than the native renderer allows are dropped, not the frame.
@@ -479,6 +510,9 @@
       encodedFilters = encodedFilters.slice(0, applied);
     }
     filterDepth += encodedFilters.length;
+    if (hole && !joined && encodedFilters.indexOf(maskFilter) < 0) hole = null;
+    var outerHoleGroup = holeGroup;
+    if (hole) holeGroup = { depth: filterDepth, mark: drawCount };
     if (supportedFilters && node.filterArea) {
       parent = clipRecord(parent, node.filterArea);
     } else if (encodedFilters.length && filterTarget && typeof node.getBounds === 'function') {
@@ -698,6 +732,13 @@
         writeNode(children[childIndex], index);
       }
     }
+    if (hole) {
+      var clear = addRecord(parent, 10, 0, 0, 0, identity, 1) * valueStride;
+      values.set([hole.hole.x, hole.hole.y].map(function(value) { return value * renderResolution; }), clear + 7);
+      values.set([hole.hole.width, hole.hole.height].map(function(value) { return value * renderResolution; }), clear + 13);
+      values[clear + 33] = 1;
+      holeGroup = outerHoleGroup;
+    }
     encodedFilters.forEach(function() {
       addRecord(parent, 7, 0, 0xffffff, 0, identity, 1);
     });
@@ -711,6 +752,8 @@
       try { stage.updateTransform(); } finally { stage.parent = previousParent; }
     }
     count = 0;
+    drawCount = 0;
+    holeGroup = null;
     filterDepth = 0;
     renderStage = stage;
     skipTransformUpdate = !!skipUpdateTransform;
