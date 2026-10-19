@@ -106,7 +106,15 @@ module Win32API_Impl
       end
     end
 
+    # As for a game started as Game.exe, with "test" when playtesting (LonaRPG splits it into ARGV).
+    class GetCommandLineA
+      def call(_args)
+        %("#{File.join(Dir.pwd, 'Game.exe')}") + ($TEST ? ' test' : '')
+      end
+    end
+
     GetPrivateProfileString = GetPrivateProfileStringA
     WritePrivateProfileString = WritePrivateProfileStringA
+    GetCommandLine = GetCommandLineA
   end
 end

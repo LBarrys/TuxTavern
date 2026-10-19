@@ -27,4 +27,10 @@ File.binwrite(ini, "[Other]\r\nLevel=12345\r\n")
 is('a file changed by someone else is read again', K::GetPrivateProfileInt.new.call(['Other', 'level', 0, ini]), 12345)
 is('a missing file gives the default', K::GetPrivateProfileInt.new.call(['Other', 'level', 4, File.join(dir, 'none.ini')]), 4)
 
+require 'shellwords'
+line = Dir.chdir(dir) { K::GetCommandLine.new.call([]) }
+is('the command line is the game\'s Game.exe', Shellwords.shellwords(line), [File.join(dir, 'Game.exe')])
+$TEST = true
+is('playtests add test', Shellwords.shellwords(K::GetCommandLine.new.call([])).drop(1), ['test'])
+
 exit($failed.zero? ? 0 : 1)
