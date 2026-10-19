@@ -312,7 +312,7 @@ async function cachedEntry(directory, key, sourceHash, files) {
 
 async function prepareAssets({ gameRoot, cacheRoot, recipes = [], native, onProgress = () => {},
   shouldCancel = () => false, logger = console, verifyHashes = false,
-  workspaceBytes = 64 * 1024 * 1024,
+  workspaceBytes = 256 * 1024 * 1024,
   pageCodec = 'lz4',
   preparationContext = 'live',
   processorIdentity = (native && native.assets && native.assets.preparationVersion) || PROCESSOR_IDENTITY }) {
@@ -479,7 +479,7 @@ async function prepareAssets({ gameRoot, cacheRoot, recipes = [], native, onProg
         if (sourceIdentity !== undefined && native.assets.sourceIdentity(source) !== sourceIdentity) throw new Error('source changed while hashing');
         result.sourceBytes += checkedSource.size;
         let recipe = recipeMap.get(logicalSource);
-        if (!recipe && !encrypted) recipe = await automaticRecipe(file, logicalSource, sourceHash, undefined, frames);
+        if (!recipe && !encrypted) recipe = await automaticRecipe(file, logicalSource, sourceHash, checkedSource.header, frames);
         if (recipe && recipe.sourceHash !== sourceHash) throw new Error('recipe source hash changed');
         const key = identity({ version: CACHE_VERSION, processorIdentity, sourceHash, source, recipe: recipe || null,
           automaticRecipes: { version: automaticRecipes.version, frame: frames.get(logicalSource) },

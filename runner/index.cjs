@@ -85,7 +85,7 @@ function resolveDefaults(input) {
   if (!assetPreparation || typeof assetPreparation !== 'object' || Array.isArray(assetPreparation)) {
     throw new Error('assetPreparation must be an object');
   }
-  assetPreparation = { enabled: true, maps: true, verifyHashes: false, pageCodec: 'lz4', workspaceBytes: 64 * 1024 * 1024, ...assetPreparation,
+  assetPreparation = { enabled: true, maps: true, verifyHashes: false, pageCodec: 'lz4', workspaceBytes: 256 * 1024 * 1024, ...assetPreparation,
     ...(typeof input.assetPreparation === 'object' ? input.assetPreparation : {}) };
   if (input.assetPreparation === 'on' || input.assetPreparation === 'off') {
     assetPreparation.enabled = input.assetPreparation === 'on';

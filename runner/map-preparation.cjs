@@ -119,6 +119,21 @@ async function resolveTiled(game, map) {
   }
   return { map: clone, dependencies };
 }
+async function ordinaryUpperBound(inputs, renderer, files) {
+  if (renderer === 'mz') return inputs.length * 1024 * 1024 * 4;
+  let bytes = 0;
+  for (const input of inputs) {
+    const { header } = await files.inspect(input.file);
+    if (!header || header.length < 24 || header.subarray(0, 8).toString('hex') !== '89504e470d0a1a0a' ||
+        header.readUInt32BE(8) !== 13 || header.toString('ascii', 12, 16) !== 'IHDR') return Infinity;
+    const width = header.readUInt32BE(16), height = header.readUInt32BE(20);
+    if (!width || !height || width > 8192 || height > 8192) return Infinity;
+    // Decoded sources use at most four bytes per pixel; grayscale can use less.
+    bytes += width * height * 4;
+  }
+  return bytes;
+}
+
 async function prepareMaps({ gameRoot, cacheRoot, native, width = 816, height = 624,
   shouldCancel = () => false, onProgress = () => {}, logger = console, verifyRegions = false, verifyHashes = false,
   preparationContext = 'live' }) {
@@ -126,7 +141,7 @@ async function prepareMaps({ gameRoot, cacheRoot, native, width = 816, height = 
   const offline = preparationContext === 'offline';
   const started = performance.now(), root = path.join(cacheRoot, 'maps');
   const result = { enabled: true, selected: 0, refused: 0, generated: 0, hits: 0, negativeHits: 0,
-    installed: 0, compilationHits: 0, nativePacks: 0,
+    installed: 0, compilationHits: 0, nativePacks: 0, earlyRefusals: 0,
     verifiedRegions: 0, identityRefreshes: 0, snapshotBytes: 0, additionalSnapshotBytes: 0, pageBytes: 0, durationMs: 0, cancelled: false, maps: [], index: {} };
   const catalogFile = path.join(root, 'catalog-'+checksum(path.resolve(gameRoot))+'.json');
   result.invalidateCatalog = catalogInvalidator(catalogFile, logger);
@@ -373,16 +388,21 @@ async function prepareMaps({ gameRoot, cacheRoot, native, width = 816, height = 
           report('pack', filename, index, data.length);
           stage = await fsp.mkdtemp(path.join(root, 'entries', '.stage-'));
           let descriptor, reason;
+          const geometryBytes = geometryEstimate(demand, width, height);
           const missing = inputs.filter(input => !input.file);
           if (missing.length) reason = 'missing tile source '+missing.map(input => input.source).join(', ');
           else if (inputs.every(input => !input.rectangles.length)) reason = 'no visual tile demand';
+          // Packing cannot pay off when the geometry alone outweighs the ordinary images.
+          if (!reason && geometryBytes >= await ordinaryUpperBound(inputs, demand.renderer, files)) {
+            reason = 'packed allocations and geometry are not smaller';
+            ++result.earlyRefusals;
+          }
           if (!reason && !descriptor) try { ++result.nativePacks; descriptor = await native.assets.processTiles(inputs, stage); }
           catch (error) { if (error.code !== 'PMJS_TILE_UNSUPPORTED') throw error; reason = error.message; }
           if (descriptor && (!validTileDescriptor(descriptor) || descriptor.sources.length !== inputs.length)) throw new Error('invalid tile descriptor');
           const pageBytes = descriptor ? descriptor.pages.reduce((n, p) => n+p.width*p.height*4, 0) : 0;
           // Both straight and premultiplied pages are prewarmed. Retained CPU
           // geometry and four additional vertex attributes are included in admission.
-          const geometryBytes = geometryEstimate(demand, width, height);
           const metadataBytes = descriptor ? descriptor.sources.reduce((sum,source)=>sum+192+source.regions.length*36,256)+descriptor.pages.length*128 : 0;
           const ordinaryBytes = demand.renderer === 'mz' ? inputs.length*1024*1024*4 : descriptor?.ordinaryBytes || 0;
           const compactBytes = pageBytes*2+geometryBytes+metadataBytes;
