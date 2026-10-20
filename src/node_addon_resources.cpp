@@ -612,6 +612,7 @@ napi_value imageMemory(napi_env env, napi_callback_info info) try {
     napi_set_named_property(env, item, "sceneryFullMaterialized",
       boolean(env, entry.sceneryFullMaterialized));
     napi_set_named_property(env, item, "palette", boolean(env, entry.palette));
+    napi_set_named_property(env, item, "paletteSparse", boolean(env, entry.paletteSparse));
     napi_set_named_property(env, item, "paletteIndexBits", number(env, entry.paletteIndexBits));
     napi_set_named_property(env, item, "fullTextureResident", boolean(env, entry.fullTextureResident));
     if (entry.sceneryParent) {

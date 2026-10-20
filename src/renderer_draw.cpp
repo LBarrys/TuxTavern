@@ -660,7 +660,7 @@ void Renderer::renderScene() {
     bool sparse = false;
     std::vector<std::array<int, 4>> sparseClips{};
     std::uint64_t sparseFullPixels = 0;
-    std::uint32_t paletteTable = 0;
+    std::uint32_t paletteTable = 0, paletteBlocks = 0, paletteResidual = 0;
   };
   std::vector<DrawOperation> operations;
   std::size_t preparingFilterDepth = 0;
@@ -787,7 +787,7 @@ void Renderer::renderScene() {
     const bool derivedEligible = frameEligible && derivedSampling && !command.appliesSpriteColor;
     auto derived = frameEligible && paletteEligible ? images_.resolveSpriteRegion(command.image,
       command.source[0], command.source[1], command.source[2], command.source[3],
-      command.pixiSpritePacking && !command.premultipliedSpriteTexture, true) :
+      command.pixiSpritePacking && !command.premultipliedSpriteTexture, true, command.nearest && !command.repeat) :
       std::optional<SpriteImageRegion>{};
     // TuxTavern: prepared images take palettes per page above; a whole-image palette would
     // bypass their uniform, block, region and frame-cache paths.
@@ -802,6 +802,7 @@ void Renderer::renderScene() {
       command.source[0], command.source[1], command.source[2], command.source[3],
       command.pixiSpritePacking && !command.premultipliedSpriteTexture);
     const std::uint32_t paletteTable = palette ? palette->table : derived ? derived->paletteTable : 0U;
+    const std::uint32_t paletteBlocks = derived ? derived->paletteBlocks : 0U, paletteResidual = derived ? derived->paletteResidual : 0U;
     const bool compactEligible = logicalInfo && !palette && !block && !derived && !command.nearest &&
       command.primitive == RenderCommand::Primitive::sprite &&
       command.source[1] == 0 && command.source[3] == logicalInfo->height &&
@@ -1000,6 +1001,7 @@ void Renderer::renderScene() {
     }
     const bool operationStateMatches = !operations.empty() &&
         operations.back().paletteTable == paletteTable &&
+        operations.back().paletteBlocks == paletteBlocks && operations.back().paletteResidual == paletteResidual &&
         !block && !operations.back().block && !compact && !operations.back().compact &&
         operations.back().tileLayer == 0 && !operations.back().sparse &&
         !sparseClips.has_value() &&
@@ -1080,6 +1082,7 @@ void Renderer::renderScene() {
       operations.back().derivedAtlasOffset = derivedAtlasOffset;
       operations.back().block = block;
       operations.back().paletteTable = paletteTable;
+      operations.back().paletteBlocks = paletteBlocks; operations.back().paletteResidual = paletteResidual;
       if (compact) {
         operations.back().compact = compact;
         const auto& bounds = compact->contentBounds;
@@ -2175,10 +2178,14 @@ void Renderer::renderScene() {
     }
     projectTarget(spriteProgram, operation.primitive != RenderCommand::Primitive::screenFill);
     glBindTexture(GL_TEXTURE_2D, operation.texture);
-    glUniform1i(simpleSprite ? simplePaletteUniform_ : spriteEffect.palette, operation.paletteTable ? (operation.nearest ? 1 : 2) : 0);
+    glUniform1i(simpleSprite ? simplePaletteUniform_ : spriteEffect.palette, operation.paletteTable ? (operation.paletteBlocks ? 3 : operation.nearest ? 1 : 2) : 0);
     if (operation.paletteTable) {
       glActiveTexture(GL_TEXTURE3);
       glBindTexture(GL_TEXTURE_2D, operation.paletteTable);
+      if (operation.paletteBlocks) {
+        glActiveTexture(GL_TEXTURE4); glBindTexture(GL_TEXTURE_2D, operation.paletteBlocks);
+        glActiveTexture(GL_TEXTURE5); glBindTexture(GL_TEXTURE_2D, operation.paletteResidual);
+      }
       glActiveTexture(GL_TEXTURE0);
     }
     const auto nearest = textureNearestState_.find(operation.texture);

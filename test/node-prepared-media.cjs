@@ -56,7 +56,7 @@ async function main() {
   // Materialized aliases remain supported for addons without audio-view capability.
   const options = { gameRoot, cacheRoot: path.join(root, 'cache'),
     native: { assets: native.assets, fs: native.fs }, pageCodec };
-  assert.match(native.assets.preparationLz4Version, /^lz4-\d+\.\d+\.\d+-rgba-v1$/);
+  assert.match(native.assets.preparationLz4Version, /^lz4-\d+\.\d+\.\d+-sparse-palette-v2$/);
   assert.equal(native.assets.preparationWorkspaceVersion, 1);
   for (const workspaceBytes of [-1, 0.5, 268435457])
     assert.throws(() => native.assets.processImage(imageSource, path.join(root, 'invalid-workspace'), null,
@@ -65,7 +65,7 @@ async function main() {
   assert.ok(cold.entries[0].descriptor.pages.every(page => page.path.endsWith(pageCodec === 'lz4' ? '.pml4' : '.png')));
   assert.throws(() => native.assets.processImage(imageSource, path.join(root, 'invalid-codec'), null,
     path.join(gameRoot, imageSource), null, { pageCodec: 'lz4hc3' }), /pageCodec must be png or lz4/);
-  assert.equal(native.assets.preparationVersion.processor, 'lossless-images-v9-layered-storage');
+  assert.equal(native.assets.preparationVersion.processor, 'lossless-images-v10-sparse-palette');
   assert.equal(cold.decrypted, 3);
   assert.equal(cold.installed, pageCodec === 'lz4' ? 2 : 1);
   assert.equal(cold.fallback, pageCodec === 'lz4' ? 0 : 1, 'LZ4 retains standalone pages; PNG requires a layout saving');

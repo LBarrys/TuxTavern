@@ -202,6 +202,8 @@ Renderer::Renderer(int width, int height, ImageStore& images)
     glUseProgram(effect.program);
     glUniform1i(glGetUniformLocation(effect.program, "blockTable"), 2);
     glUniform1i(glGetUniformLocation(effect.program, "paletteTable"), 3);
+    glUniform1i(glGetUniformLocation(effect.program, "paletteBlocks"), 4);
+    glUniform1i(glGetUniformLocation(effect.program, "paletteResidual"), 5);
     effect.blur =
       glGetUniformLocation(effect.program, "blurRadius");
     effect.maskEnabled =
@@ -485,6 +487,8 @@ void Renderer::createPixiPrograms(const std::string& precision) {
   glUseProgram(simpleProgram_);
   glUniform1i(glGetUniformLocation(simpleProgram_, "blockTable"), 2);
   glUniform1i(glGetUniformLocation(simpleProgram_, "paletteTable"), 3);
+  glUniform1i(glGetUniformLocation(simpleProgram_, "paletteBlocks"), 4);
+  glUniform1i(glGetUniformLocation(simpleProgram_, "paletteResidual"), 5);
   tileProgram_ = tile;
   nearestTileProgram_ = nearestTile;
   if (nearestTileProgram_) nearestTileUniforms_ = queryTileProgramUniforms(nearestTileProgram_);
