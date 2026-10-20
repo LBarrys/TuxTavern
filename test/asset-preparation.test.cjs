@@ -1226,7 +1226,7 @@ test('legacy catalogs acquire content hashes without regenerating prepared asset
   const catalog = JSON.parse(fs.readFileSync(file));
   const hash = value => crypto.createHash('sha256').update(value).digest('hex');
   catalog.binding = hash(JSON.stringify({ gameRoot: f.gameRoot, cacheRoot: f.cacheRoot,
-    processorIdentity: { processor: 'lossless-images-v11-battler-grids', decoder: 'png-rgba-v1', pageSize: 2048 }, recipes: [] }));
+    processorIdentity: { processor: 'lossless-images-v12-perimeter-probes', decoder: 'png-rgba-v1', pageSize: 2048 }, recipes: [] }));
   const payload = JSON.parse(catalog.payload);
   delete payload.entries[0].backingHash;
   delete payload.entries[0].pageHashes;
