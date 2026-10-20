@@ -824,6 +824,7 @@ bool CanvasStore::drawImageNow(Content& destinationSurface, const DrawImageCmd& 
   auto [source, canvas, snapshot, sourceX, sourceY, sourceWidth, sourceHeight,
                destinationX, destinationY, destinationWidth, destinationHeight, alpha, smoothing] = command;
   if (alpha == 0) return true;
+  const bool destinationKnownAllZero = destinationSurface.knownAllZero;
   destinationSurface.knownAllZero = false;
   struct SourcePixels {
     int width;
@@ -906,7 +907,7 @@ bool CanvasStore::drawImageNow(Content& destinationSurface, const DrawImageCmd& 
       destinationY + destinationHeight <= destinationSurface.height &&
       std::all_of(geometry.begin(), geometry.end(), [](float value) { return value == std::floor(value); })) {
     bool transparent = true;
-    for (int y = 0; y < destinationHeight && transparent; ++y) for (int x = 0; x < destinationWidth; ++x) {
+    for (int y = 0; !destinationKnownAllZero && y < destinationHeight && transparent; ++y) for (int x = 0; x < destinationWidth; ++x) {
       const size_t index = (static_cast<size_t>(destinationY + y) * destinationSurface.width + destinationX + x) * 4;
       uint32_t pixel;
       std::memcpy(&pixel, destinationSurface.pixels.data() + index, sizeof(pixel));
