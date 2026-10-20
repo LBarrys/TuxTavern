@@ -571,6 +571,7 @@ napi_value imageMemory(napi_env env, napi_callback_info info) try {
   for (const auto& [reason, count] : images.preparedFallbacks())
     napi_set_named_property(env, preparedFallbacks, reason.c_str(), number(env, count));
   napi_set_named_property(env, result, "preparedFallbacks", preparedFallbacks);
+  napi_set_named_property(env, result, "storageDecisionHits", number(env, images.storageDecisionHits()));
   auto entries = limit ? images.memoryEntries() : std::vector<pmjs::ImageMemoryEntry>();
   std::sort(entries.begin(), entries.end(), [](const auto& left, const auto& right) {
     return left.gpuBytes + left.cpuBytes > right.gpuBytes + right.cpuBytes;
@@ -610,6 +611,18 @@ napi_value imageMemory(napi_env env, napi_callback_info info) try {
     napi_set_named_property(env, item, "sceneryBacking", boolean(env, entry.sceneryBacking));
     napi_set_named_property(env, item, "sceneryFullMaterialized",
       boolean(env, entry.sceneryFullMaterialized));
+    napi_set_named_property(env, item, "palette", boolean(env, entry.palette));
+    napi_set_named_property(env, item, "paletteIndexBits", number(env, entry.paletteIndexBits));
+    napi_set_named_property(env, item, "fullTextureResident", boolean(env, entry.fullTextureResident));
+    if (entry.sceneryParent) {
+      napi_set_named_property(env, item, "sceneryParent", uint32(env, entry.sceneryParent));
+      napi_value rect;
+      check(env, napi_create_array_with_length(env, 4, &rect), "cannot create scenery rectangle");
+      for (std::size_t coordinate = 0; coordinate < 4; ++coordinate)
+        check(env, napi_set_element(env, rect, coordinate, number(env, entry.sceneryRect[coordinate])),
+          "cannot set scenery coordinate");
+      napi_set_named_property(env, item, "sceneryRect", rect);
+    }
     if (!entry.sceneryFirstMaterializationCaller.empty())
       napi_set_named_property(env, item, "sceneryFirstMaterializationCaller",
         string(env, entry.sceneryFirstMaterializationCaller));
