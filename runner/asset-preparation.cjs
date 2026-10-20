@@ -11,7 +11,7 @@ const { acquireLock, createLease, retainLeases } = require('./preparation-lifeti
 const { catalogInvalidator, readCatalog, publishCatalog, retainedCatalogKeys } = require('./preparation-catalog.cjs');
 
 const CACHE_VERSION = 1;
-const PROCESSOR_IDENTITY = { processor: 'lossless-images-v7', decoder: 'png-rgba-v1', pageSize: 2048 };
+const PROCESSOR_IDENTITY = { processor: 'lossless-images-v8-pixel-facts', decoder: 'png-rgba-v1', pageSize: 2048 };
 const HASH = /^[a-f0-9]{64}$/;
 const PNG = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 const ENCRYPTED_HEADER = Buffer.from('5250474d560000000003010000000000', 'hex');
@@ -161,11 +161,29 @@ function rect(value, positive = true) {
   return Array.isArray(value) && value.length === 4 && value.every(n => Number.isSafeInteger(n) && n >= 0) &&
     (positive ? value[2] > 0 && value[3] > 0 : true);
 }
+function validStorageDecision(value) {
+  return value && value.version === 1 &&
+    [value.width, value.height].every(n => Number.isSafeInteger(n) && n > 0 && n <= 8192) &&
+    [0, 8, 16].includes(value.paletteBits) && [1, 2, 4].includes(value.channels) &&
+    Array.isArray(value.source) && value.source.length === 4 &&
+    value.source.every(n => Number.isInteger(n) && n >= 0 && n < 4) &&
+    Array.isArray(value.swizzle) && value.swizzle.length === 4 &&
+    value.swizzle.every(n => Number.isInteger(n) && (n >= 0 && n < value.channels || n === 4 || n === 5)) &&
+    (!value.paletteBits || value.channels === 4 && value.width >= 2048 && value.height >= 2048) &&
+    (value.pixelFactsVersion === undefined || value.pixelFactsVersion === 1 &&
+      typeof value.opaque === 'boolean' && typeof value.allZero === 'boolean' &&
+      !(value.opaque && value.allZero) &&
+      (value.sparseRegions === null || Array.isArray(value.sparseRegions) && value.sparseRegions.length <= 64 &&
+        value.sparseRegions.every(r => rect(r) && r[0] + r[2] <= value.width && r[1] + r[3] <= value.height)));
+}
+
 function validDescriptor(d) {
   if (!d || d.version !== 1 || !Number.isSafeInteger(d.width) || !Number.isSafeInteger(d.height) ||
       d.width < 1 || d.height < 1 || !Array.isArray(d.pages) || !Array.isArray(d.cells) || d.pages.length > 4096 || d.cells.length > 4096) return false;
   if (d.uniform !== undefined && !rgba(d.uniform)) return false;
   if (d.halo !== undefined && (!Number.isInteger(d.halo) || d.halo < 1 || d.halo > 2048)) return false;
+  if (d.compactEligible !== undefined && typeof d.compactEligible !== 'boolean') return false;
+  if (d.blockChannels !== undefined && (!d.blockGrid || ![0, 1, 2].includes(d.blockChannels))) return false;
   if (d.blockGrid !== undefined) {
     const g = d.blockGrid;
     if (d.uniform !== undefined || !Array.isArray(g) || g.length !== 3 || g[0] !== 64 ||
@@ -174,6 +192,8 @@ function validDescriptor(d) {
   }
   if (d.pages.some(p => !p || !/^page-\d+\.(png|pml4)$/.test(p.path) || !Number.isInteger(p.width) ||
       !Number.isInteger(p.height) || p.width < 1 || p.height < 1 || p.width > 2048 || p.height > 2048)) return false;
+  if (d.pages.some(p => p.storage !== undefined && (!validStorageDecision(p.storage) ||
+      p.storage.width !== p.width || p.storage.height !== p.height))) return false;
   if (new Set(d.pages.map(p => p.path)).size !== d.pages.length) return false;
   let area = 0;
   for (let i = 0; i < d.cells.length; ++i) {
