@@ -987,6 +987,27 @@ test('automatic character grids retain ordinary and single-character logical lay
   }
 });
 
+test('automatic battler grids prefer standard frames, then divisible alternatives', async () => {
+  for (const [width, height, expected] of [
+    [360, 600, [9, 6]], [3376, 3624, [4, 6]], [400, 800, [4, 8]],
+    [400, 101, [4, 1]], [303, 404, [3, 4]], [301, 401, undefined],
+    [0, 600, undefined]
+  ]) {
+    const header = Buffer.from(PNG);
+    header.writeUInt32BE(width, 16);
+    header.writeUInt32BE(height, 20);
+    const recipe = await automaticRecipe(null, 'img/sv_actors/battler.png', '0'.repeat(64), header);
+    assert.deepEqual(recipe?.grid, expected, `${width}x${height}`);
+  }
+  const header = Buffer.from(PNG);
+  header.writeUInt32BE(360, 16);
+  header.writeUInt32BE(600, 20);
+  const explicit = await automaticRecipe(null, 'img/sv_actors/battler[4x1].png', '0'.repeat(64), header);
+  assert.deepEqual(explicit.grid, [4, 1]);
+  header.writeUInt32BE(301, 16);
+  assert.equal(await automaticRecipe(null, 'img/sv_actors/battler[4x1].png', '0'.repeat(64), header), undefined);
+});
+
 test('large parallax images receive a bounded preparation layout', async () => {
   const f = fixture();
   fs.unlinkSync(path.join(f.gameRoot, f.source));
@@ -1205,7 +1226,7 @@ test('legacy catalogs acquire content hashes without regenerating prepared asset
   const catalog = JSON.parse(fs.readFileSync(file));
   const hash = value => crypto.createHash('sha256').update(value).digest('hex');
   catalog.binding = hash(JSON.stringify({ gameRoot: f.gameRoot, cacheRoot: f.cacheRoot,
-    processorIdentity: { processor: 'lossless-images-v10-sparse-palette', decoder: 'png-rgba-v1', pageSize: 2048 }, recipes: [] }));
+    processorIdentity: { processor: 'lossless-images-v11-battler-grids', decoder: 'png-rgba-v1', pageSize: 2048 }, recipes: [] }));
   const payload = JSON.parse(catalog.payload);
   delete payload.entries[0].backingHash;
   delete payload.entries[0].pageHashes;
