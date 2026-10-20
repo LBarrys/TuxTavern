@@ -2607,3 +2607,18 @@ test('prepared Pixi world records preserve singular parents and root projection 
   assert.deepEqual(packet.values.slice(82, 89), [0, 0, 0, 0, 30, 50, 0.25]);
   assert.ok(packet.metadata[7 + 5] & 524288);
 });
+
+test('custom filter plans are released once their frame is submitted, or fails to submit', () => {
+  for (const fails of [false, true]) {
+    const harness = makeHarness(), { sandbox } = harness;
+    let disposed = 0;
+    const plan = { handle: 0x80000001, dispose() { disposed++; } };
+    const encode = sandbox.encodeNativeScene;
+    sandbox.encodeNativeScene = (...args) => ({ ...encode(...args), customFilterPlans: [plan] });
+    if (fails) sandbox.NativeHost.scene.submit = () => { throw new Error('refused'); };
+    const root = new sandbox.PIXI.Container();
+    if (fails) assert.throws(() => sandbox.submitNativeScene(root), /refused/);
+    else assert.equal(sandbox.submitNativeScene(root), true);
+    assert.equal(disposed, 1);
+  }
+});

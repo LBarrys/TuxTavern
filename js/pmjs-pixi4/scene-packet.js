@@ -830,6 +830,7 @@ function encodeNativeScene(stage, backgroundColor = null) {
     nativeSceneEmission = null;
   }
   nativeSceneEncodingDepth++;
+  var encoded = false;
   try {
     nativeCustomFilterPlans = [];
     resetNativeSceneRecords();
@@ -839,10 +840,13 @@ function encodeNativeScene(stage, backgroundColor = null) {
         0, nativeIdentityTransform, 1, null, 0, null);
     }
     writeNativeSceneNode(stage, 0xffffffff);
-    return { version: nativeScenePacketVersion,
+    var packet = { version: nativeScenePacketVersion,
       metadata: nativeSceneMetadata, values: nativeSceneValues,
       count: nativeSceneCount, customFilterPlans: nativeCustomFilterPlans };
+    encoded = true;
+    return packet;
   } finally {
+    if (!encoded) disposeNativeCustomFilterPlans(nativeCustomFilterPlans);
     nativeSceneEncodingDepth--;
     if (previous) {
       nativeSceneMetadata = previous.metadata;
@@ -885,6 +889,7 @@ function submitNativeScene(stage, backgroundColor = null) {
   var packet = encodeNativeScene(stage, backgroundColor);
   hideNonFiniteSceneRecords(packet);
   if (!NativeHost.scene) {
+    disposeNativeCustomFilterPlans(packet.customFilterPlans);
     throw new Error('native scene was not rendered: scene service unavailable');
   }
   try {
@@ -933,6 +938,8 @@ function submitNativeScene(stage, backgroundColor = null) {
       }
     }
     throw error;
+  } finally {
+    disposeNativeCustomFilterPlans(packet.customFilterPlans);
   }
   return true;
 }
