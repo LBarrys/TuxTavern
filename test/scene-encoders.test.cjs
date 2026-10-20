@@ -2029,6 +2029,21 @@ test('registry disable selects ordinary sprite encoding with the same packet', (
   assert.deepEqual(ordinary, optimized);
 });
 
+test('plain sprite segments carry the mipmap flag as ordinary sprites do', () => {
+  const harness = makeHarness();
+  const { sandbox, sprite } = harness;
+  const root = new sandbox.PIXI.Container();
+  for (let i = 0; i < 6; i++) {
+    const child = sprite(16 + i, 24 + i);
+    child.texture.baseTexture.mipmap = true;
+    root.addChild(child);
+  }
+  const optimized = submitOnly(harness, root);
+  for (let node = 1; node <= 6; node++) assert.equal(optimized.metadata[node * 7 + 5] & 65536, 65536);
+  sandbox.PMJS.optimizations.isEnabled = id => id !== 'scene.plain-sprite-segment';
+  assert.deepEqual(submitOnly(harness, root), optimized);
+});
+
 test('stage sprite-segment policy preserves packets and respects the registry', () => {
   const harness = makeHarness();
   const { sandbox, sprite } = harness;
