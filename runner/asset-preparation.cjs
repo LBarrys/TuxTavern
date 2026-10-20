@@ -11,7 +11,7 @@ const { acquireLock, createLease, retainLeases } = require('./preparation-lifeti
 const { catalogInvalidator, readCatalog, publishCatalog, retainedCatalogKeys } = require('./preparation-catalog.cjs');
 
 const CACHE_VERSION = 1;
-const PROCESSOR_IDENTITY = { processor: 'lossless-images-v6', decoder: 'png-rgba-v1', pageSize: 2048 };
+const PROCESSOR_IDENTITY = { processor: 'lossless-images-v7', decoder: 'png-rgba-v1', pageSize: 2048 };
 const HASH = /^[a-f0-9]{64}$/;
 const PNG = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 const ENCRYPTED_HEADER = Buffer.from('5250474d560000000003010000000000', 'hex');
@@ -100,7 +100,7 @@ async function decryptFile(file, output, key, extension) {
   await fsp.writeFile(output, body, { flag: 'wx' });
   await pipeline(fs.createReadStream(file, { start: 32 }), fs.createWriteStream(output, { flags: 'a' }));
 }
-async function automaticRecipe(file, source, sourceHash) {
+async function automaticRecipe(file, source, sourceHash, header) {
   let grid;
   const filenameGrid = path.basename(source).match(/\[([1-9]\d*)x([1-9]\d*)\]\.png$/i);
   if (filenameGrid) {
@@ -110,12 +110,27 @@ async function automaticRecipe(file, source, sourceHash) {
   else if (source.startsWith('img/characters/')) {
     grid = /^[!$]*\$/.test(path.basename(source)) ? [3, 4] : [12, 8];
   }
+  if (!grid && !source.startsWith('img/parallaxes/')) return undefined;
+  if (!header) {
+    const handle = await fsp.open(file, 'r');
+    header = Buffer.alloc(24);
+    try { if ((await handle.read(header, 0, 24, 0)).bytesRead !== 24) return undefined; }
+    finally { await handle.close(); }
+  }
+  if (!grid && header.length >= 24 && header.subarray(0, 8).equals(PNG)) {
+    const width = header.readUInt32BE(16), height = header.readUInt32BE(20);
+    if (width >= 2048 && height >= 2048) {
+      const divisions = extent => {
+        for (let count = Math.ceil(extent / 1536); count <= extent; ++count)
+          if (extent % count === 0) return count;
+        return null;
+      };
+      const columns = divisions(width), rows = divisions(height);
+      if (columns && rows && columns * rows <= 4096) grid = [columns, rows];
+    }
+  }
   if (!grid) return undefined;
-  const handle = await fsp.open(file, 'r');
-  const header = Buffer.alloc(24);
-  try { if ((await handle.read(header, 0, 24, 0)).bytesRead !== 24) return undefined; }
-  finally { await handle.close(); }
-  if (header.subarray(0, 8).equals(PNG) && header.readUInt32BE(16) > 0 && header.readUInt32BE(20) > 0 &&
+  if (header.length >= 24 && header.subarray(0, 8).equals(PNG) && header.readUInt32BE(16) > 0 && header.readUInt32BE(20) > 0 &&
       header.readUInt32BE(16) % grid[0] === 0 &&
       header.readUInt32BE(20) % grid[1] === 0) return { source, sourceHash, grid };
 }
@@ -606,4 +621,4 @@ async function prepareAssets({ gameRoot, cacheRoot, recipes = [], native, onProg
   return result;
 }
 
-module.exports = { prepareAssets, validRecipes, validDescriptor, PROCESSOR_IDENTITY };
+module.exports = { prepareAssets, validRecipes, validDescriptor, automaticRecipe, PROCESSOR_IDENTITY };
