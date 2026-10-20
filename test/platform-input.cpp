@@ -133,6 +133,13 @@ int main() {
   event.key.keysym.sym = SDLK_a;
   if (SDL_PushEvent(&event) != 1 || !platform.pollEvents()) return 1;
   if (platform.keysPressed().empty() || platform.keysPressed().back() != 65) return 1;
+  event.key.keysym.sym = SDLK_EQUALS;
+  event.key.keysym.scancode = SDL_SCANCODE_EQUALS;
+  if (SDL_PushEvent(&event) != 1 || !platform.pollEvents()) return 1;
+  if (platform.keyEvents().back().code != "Equal") {
+    std::cerr << "= key has code " << platform.keyEvents().back().code << ", not Equal\n";
+    return 1;
+  }
   platform.consumePressed();
   if ((platform.inputState() & escapePressed) != 0) {
     std::cerr << "consumePressed did not clear the pressed edge\n";

@@ -251,6 +251,18 @@ std::string browserCode(SDL_Scancode scan) {
     case SDL_SCANCODE_RIGHT: return "ArrowRight";
     case SDL_SCANCODE_UP: return "ArrowUp";
     case SDL_SCANCODE_DOWN: return "ArrowDown";
+    // SDL names these by their symbol; browsers by name (RJCheatMenu's Minus and Equal shortcuts).
+    case SDL_SCANCODE_MINUS: return "Minus";
+    case SDL_SCANCODE_EQUALS: return "Equal";
+    case SDL_SCANCODE_LEFTBRACKET: return "BracketLeft";
+    case SDL_SCANCODE_RIGHTBRACKET: return "BracketRight";
+    case SDL_SCANCODE_BACKSLASH: return "Backslash";
+    case SDL_SCANCODE_SEMICOLON: return "Semicolon";
+    case SDL_SCANCODE_APOSTROPHE: return "Quote";
+    case SDL_SCANCODE_GRAVE: return "Backquote";
+    case SDL_SCANCODE_COMMA: return "Comma";
+    case SDL_SCANCODE_PERIOD: return "Period";
+    case SDL_SCANCODE_SLASH: return "Slash";
     default: return SDL_GetScancodeName(scan);
   }
 }
