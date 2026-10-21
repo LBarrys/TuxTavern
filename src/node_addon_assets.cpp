@@ -579,6 +579,6 @@ void registerAssetMethods(napi_env env, napi_value exports) {
   set(env, assets, "preparationVersion", version);
   set(env, assets, "preparationWorkspaceVersion", number(env, 1));
   // Pages record the linked LZ4, so an upgrade prepares them again rather than trusting old ones.
-  set(env, assets, "preparationLz4Version", string(env, std::string("lz4-") + LZ4_versionString() + "-sparse-palette-v2"));
+  set(env, assets, "preparationLz4Version", string(env, std::string("lz4-") + LZ4_versionString() + "-indexed-palette-v3"));
 }
 }
