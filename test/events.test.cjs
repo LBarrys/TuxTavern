@@ -95,3 +95,17 @@ test('nested dispatch sees a new registration without reviving the outer snapsho
   target.dispatchEvent({ type: 'load', depth: 'outer' });
   assert.deepEqual(trace, ['outer:A', 'inner:A', 'inner:B']);
 });
+
+test('browser event listeners mark returned Promises for browser rejection reporting', t => {
+  const context = vm.createContext({ PMJS: {}, performance, console,
+    NativeHost: { runtime: { scheduling: require('node:timers') } } });
+  for (const name of ['scheduler', 'events']) {
+    vm.runInContext(fs.readFileSync(path.join(__dirname, '../js/pmjs-web', name + '.js'), 'utf8'), context);
+  }
+  t.after(() => context.PMJS.tasks.stop());
+  const target = new context.EventTarget();
+  const returned = Promise.resolve('handled later');
+  target.addEventListener('click', () => returned);
+  target.dispatchEvent({ type: 'click' });
+  assert.equal(context.PMJS.tasks.guestPromiseOrigin(returned), 'browser');
+});

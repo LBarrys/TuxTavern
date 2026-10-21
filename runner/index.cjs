@@ -1,6 +1,7 @@
 'use strict';
 
 const { createSubprocesses } = require('./subprocess.cjs');
+const { installPromiseRejectionBridge } = require('./promise-rejections.cjs');
 
 const { prepareMaps } = require('./map-preparation.cjs');
 
@@ -512,6 +513,7 @@ async function run(input) {
   let pendingInvalidations = 0, retryInvalidationAt = 0;
   let invalidateImages, invalidateMaps;
   let dispatcher;
+  let removePromiseRejectionBridge;
   let subprocesses, reloadRequested = false, finishSession;
   let cancelFrameSchedule = () => {};
   native.assets.invalidateMapCatalog = () => { pendingInvalidations |= 2; };
@@ -620,6 +622,17 @@ async function run(input) {
         typeof globalThis.__pmjsRender !== 'function') {
       throw new Error('bootstrap did not install __pmjsTick and __pmjsRender');
     }
+    removePromiseRejectionBridge = installPromiseRejectionBridge(hostProcess, {
+      getTasks: () => dispatcher,
+      reportUnhandled: (reason, promise, origin) => {
+        if (typeof globalThis.pmjsReportUnhandledPromiseRejection !== 'function') throw reason;
+        globalThis.pmjsReportUnhandledPromiseRejection(reason, promise, origin);
+      },
+      reportHandled: (promise, origin) => {
+        if (typeof globalThis.pmjsReportHandledPromiseRejection !== 'function') return;
+        globalThis.pmjsReportHandledPromiseRejection(promise, origin);
+      }
+    });
 
     if (reloadRequested) return { reload: true };
     const period = timing.renderPeriod;
@@ -694,6 +707,7 @@ async function run(input) {
     try { native.runtime.quit(); } catch (_) {}
     throw error;
   } finally {
+    if (removePromiseRejectionBridge) removePromiseRejectionBridge();
     cancelFrameSchedule();
     if (dispatcher) dispatcher.stop();
     if (subprocesses) await subprocesses.stop();
