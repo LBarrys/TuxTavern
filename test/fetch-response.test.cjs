@@ -10,15 +10,20 @@ const test = require('node:test');
 const decoder = fs.readFileSync(path.join(__dirname, '../js/pmjs-web/filesystem.js'), 'utf8')
   .match(/function decodeResourceUrlPath[\s\S]*?\n}\n/)[0];
 
-test('fetch responses carry a readable body as well as text and json', async () => {
-  const files = { 'img/replacements.json': Buffer.from('{"a":1}') };
+function page(fsHost, modules, extra = {}) {
   const context = vm.createContext({ performance, TextDecoder, ReadableStream, Blob, Promise, PMJS: {},
     EventTarget: function() {}, gameReadPath: file => file, __pmjsBuiltinRequire: require,
-    NativeHost: { fs: { readBytesAsync: async file => files[file] || null } } });
-  for (const name of ['scheduler', 'requests']) {
+    NativeHost: { fs: fsHost }, ...extra });
+  for (const name of ['scheduler', ...modules, 'requests']) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, '../js/pmjs-web', name + '.js'), 'utf8'), context);
   }
   vm.runInContext(decoder, context);
+  return context;
+}
+
+test('fetch responses carry a readable body as well as text and json', async () => {
+  const files = { 'img/replacements.json': Buffer.from('{"a":1}') };
+  const context = page({ readBytesAsync: async file => files[file] || null }, []);
   const response = await context.fetch('./img/replacements.json');
   assert.ok(response.ok);
   const chunks = [];
@@ -31,13 +36,8 @@ test('fetch responses carry a readable body as well as text and json', async () 
 
 test('text responses drop a leading byte order mark, as browsers decode them', async () => {
   const text = '\uFEFF { "testing": 1 }';
-  const context = vm.createContext({ performance, TextDecoder, ReadableStream, Blob, Promise, PMJS: {},
-    EventTarget: function() {}, gameReadPath: file => file, gamePath: file => file, __pmjsBuiltinRequire: require,
-    NativeHost: { fs: { readText: () => text, readBytesAsync: async () => Buffer.from(text) } } });
-  for (const name of ['scheduler', 'events', 'requests']) {
-    vm.runInContext(fs.readFileSync(path.join(__dirname, '../js/pmjs-web', name + '.js'), 'utf8'), context);
-  }
-  vm.runInContext(decoder, context);
+  const context = page({ readText: () => text, readBytesAsync: async () => Buffer.from(text) }, ['events'],
+    { gamePath: file => file });
   const request = new context.XMLHttpRequest();
   request.open('GET', 'data/RemLines.json', false);
   request.send();
@@ -47,13 +47,7 @@ test('text responses drop a leading byte order mark, as browsers decode them', a
 
 test('a blob URL is fetched from its blob even when revoked before the body is read', async () => {
   // Karryn's Prison: pixi-rpgm revokes a decrypted APNG's URL while pixi-apng streams its body.
-  const context = vm.createContext({ performance, TextDecoder, ReadableStream, Blob, Promise, PMJS: {},
-    URL: class {}, EventTarget: function() {}, gameReadPath: file => file, __pmjsBuiltinRequire: require,
-    NativeHost: { fs: { readBytesAsync: async () => null } } });
-  for (const name of ['scheduler', 'object-urls', 'requests']) {
-    vm.runInContext(fs.readFileSync(path.join(__dirname, '../js/pmjs-web', name + '.js'), 'utf8'), context);
-  }
-  vm.runInContext(decoder, context);
+  const context = page({ readBytesAsync: async () => null }, ['object-urls'], { URL: class {} });
   const url = context.URL.createObjectURL(new Blob([Buffer.from('\x89PNG frames', 'latin1')]));
   const fetching = context.fetch(url);
   context.URL.revokeObjectURL(url);
