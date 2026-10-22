@@ -68,8 +68,8 @@ struct RenderCommand {
 
   ImageHandle image = 0;
   std::array<float, 6> transform;
-  std::array<float, 4> source;
-  std::array<float, 2> destination;
+  std::array<float, 4> source{};
+  std::array<float, 2> destination{};
   std::array<float, 4> color;
   BlendMode blendMode = BlendMode::normal;
   bool repeat = false;

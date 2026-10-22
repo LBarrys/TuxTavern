@@ -134,7 +134,7 @@ int main() try {
   pmjs::Vfs media(mediaRoot);
   auto entry = pmjs::Vfs::DerivedFile{"img/a.png", "img/a.png_", "data/System.json", cache,
     pmjs::Vfs::fileIdentity(mediaRoot / "img/a.png_"),
-    pmjs::Vfs::fileIdentity(mediaRoot / "data/System.json"), {}};
+    pmjs::Vfs::fileIdentity(mediaRoot / "data/System.json"), {}, {}, {}, {}};
   const auto changedField = [](std::string identity, std::size_t fromEnd) {
     auto end = identity.size();
     for (std::size_t i = 0; i < fromEnd; ++i) end = identity.rfind(':', end - 1);
@@ -245,8 +245,8 @@ int main() try {
   for (int run = 0; run < 5; ++run) {
     walk = std::min(walk, timed([&] {
       walked = 0;
-      for (const auto& entry : std::filesystem::recursive_directory_iterator(large.path()))
-        walked += std::filesystem::is_regular_file(entry.symlink_status());
+      for (const auto& file : std::filesystem::recursive_directory_iterator(large.path()))
+        walked += std::filesystem::is_regular_file(file.symlink_status());
     }));
     index = std::min(index, timed([&] { pmjs::Vfs indexed(large.path()); }));
   }

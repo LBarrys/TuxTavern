@@ -166,7 +166,7 @@ class Workspace {
       owner->stats.liveWorkspaceBytes = owner->bytes_;
     }
   };
-  Workspace(std::size_t limit, AssetPreparationStats& stats) : stats(stats) {
+  Workspace(std::size_t limit, AssetPreparationStats& totals) : stats(totals) {
     allowance_ = limit ? availableAllowance() : 0;
     limit_ = std::min({limit, std::size_t{256U * 1024U * 1024U}, allowance_});
     stats.workspaceLimitBytes = limit_;
@@ -242,7 +242,7 @@ class PreparationSource {
     int next_ = 0;
     bool filling_ = false;
   };
-  PreparationSource(const std::filesystem::path& path, Workspace& workspace) : workspace(workspace), path_(path) {
+  PreparationSource(const std::filesystem::path& path, Workspace& pool) : workspace(pool), path_(path) {
     initial_ = open(); width = initial_->width; height = initial_->height;
     const auto size = static_cast<std::uint64_t>(width) * height * 4;
     if (size <= SIZE_MAX) cache_ = workspace.retain(static_cast<std::size_t>(size));

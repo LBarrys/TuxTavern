@@ -117,13 +117,13 @@ void Renderer::reduceConstantBlackGroups() {
       const auto pixelsIn = [&](const auto& box) {
         double left = std::max(double(bounds[0]), double(box[0]));
         double top = std::max(double(bounds[1]), double(box[1]));
-        double right = std::min(double(bounds[2]), double(box[2]));
-        double bottom = std::min(double(bounds[3]), double(box[3]));
+        double right2 = std::min(double(bounds[2]), double(box[2]));
+        double bottom2 = std::min(double(bounds[3]), double(box[3]));
         if (draw.clipped) {
           left = std::max(left, double(draw.clip[0])); top = std::max(top, double(draw.clip[1]));
-          right = std::min(right, double(draw.clip[2])); bottom = std::min(bottom, double(draw.clip[3]));
+          right2 = std::min(right2, double(draw.clip[2])); bottom2 = std::min(bottom2, double(draw.clip[3]));
         }
-        return std::max(0.0, right - left) * std::max(0.0, bottom - top);
+        return std::max(0.0, right2 - left) * std::max(0.0, bottom2 - top);
       };
       sourcePixels += pixelsIn(std::array<float, 4>{area[0], area[1], right, bottom});
       for (auto border : borders) {

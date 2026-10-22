@@ -374,11 +374,11 @@ int main() {
     verify(source,root/"block-ordinary",ordinaryBlocks);
     require(!ordinaryBlocks.blockGrid && pagePixels(blocks) < pagePixels(ordinaryBlocks));
     for (const bool wrongSize : {false,true}) {
-      auto malformed=blocks;
-      if (wrongSize) (*malformed.blockGrid)[0]=32;
-      else malformed.cells.front().rect[0]+=1;
+      auto broken=blocks;
+      if (wrongSize) (*broken.blockGrid)[0]=32;
+      else broken.cells.front().rect[0]+=1;
       const auto destination=root/(wrongSize?"block-invalid-size":"block-invalid-partition");
-      const auto repaired=pmjs::prepareAssetImage(source,destination,{3,1,std::nullopt,{}},&malformed);
+      const auto repaired=pmjs::prepareAssetImage(source,destination,{3,1,std::nullopt,{}},&broken);
       verify(source,destination,repaired);
       require(repaired.blockGrid == blocks.blockGrid);
     }

@@ -41,10 +41,10 @@ std::vector<std::uint8_t> render(pmjs::Renderer& renderer, pmjs::ImageHandle han
   auto* v = values.data() + sprite * packet::valueStride;
   m[0] = 1; m[1] = filter ? 0 : packet::noParent; m[2] = handle;
   m[4] = (variant / 12) % 4;
-  m[5] = (variant & 1 ? packet::nearestSampling : 0) |
-    (variant & 2 ? packet::premultipliedSpriteTexture : 0) |
-    (variant & 4 ? packet::hasClipRectangle : 0) |
-    (variant & 32 ? packet::mipmapSampling : 0);
+  m[5] = (variant & 1 ? packet::nearestSampling : 0U) |
+    (variant & 2 ? packet::premultipliedSpriteTexture : 0U) |
+    (variant & 4 ? packet::hasClipRectangle : 0U) |
+    (variant & 32 ? packet::mipmapSampling : 0U);
   v[0] = 64.0F / width; v[3] = 48.0F / height; v[6] = 0.63F;
   v[11] = v[13] = static_cast<float>(width);
   v[12] = v[14] = static_cast<float>(height);

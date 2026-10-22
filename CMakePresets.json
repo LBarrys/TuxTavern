@@ -21,7 +21,8 @@
       "displayName": "Local development (FreeType)",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "BUILD_TESTING": "ON"
+        "BUILD_TESTING": "ON",
+        "PMJS_ENABLE_WERROR": "ON"
       }
     },
     {

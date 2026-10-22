@@ -277,7 +277,8 @@ std::optional<ImageInfo> ImageStore::installTileLoad(std::shared_ptr<TileLoad> l
       if (!slot.cachedPixels && load->ordinary) slot.cachedPixels = std::move(load->ordinary);
       retainCpuPixels(image->handle);
     }
-    if (tileDiagnostics_) ++tileHits_; return image;
+    if (tileDiagnostics_) ++tileHits_;
+    return image;
   }
   const auto& descriptor = load->prototype->descriptor;
   auto pages = load->cachedPages ? load->cachedPages : load->prototype->pageOwner.lock();
@@ -303,7 +304,8 @@ std::optional<ImageInfo> ImageStore::installTileLoad(std::shared_ptr<TileLoad> l
   if (!image) return std::nullopt;
   auto& slot = slots_[(image->handle & tileIndexMask)-1U];
   slot.retainCpuPixels = retainCpu; slot.cachedPixels = std::move(load->ordinary);
-  if (tileDiagnostics_) ++tileHits_; return image;
+  if (tileDiagnostics_) ++tileHits_;
+  return image;
 }
 std::optional<ImageInfo> ImageStore::createTileSlot(ImageHandle handle, int width, int height) {
   auto info = inspect(handle);
@@ -355,7 +357,8 @@ std::optional<SpriteImageRegion> ImageStore::resolveTileRegion(Slot& slot,
     float x, float y, float width, float height, bool premultiplied) {
   const auto& backing = *slot.tiles;
   if (x < 0 || y < 0 || x+width > slot.width || y+height > slot.height) {
-    if (tileDiagnostics_) ++tileFallbacks_["logical-bounds"]; return std::nullopt;
+    if (tileDiagnostics_) ++tileFallbacks_["logical-bounds"];
+    return std::nullopt;
   }
   const auto& source = backing.prototype->descriptor.sources[backing.source];
   for (const auto& region : source.regions) {

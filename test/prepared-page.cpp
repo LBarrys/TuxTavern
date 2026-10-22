@@ -22,7 +22,7 @@ int main() {
   const auto root = std::filesystem::temp_directory_path() / ("pmjs-lz4-test-" + std::to_string(getpid()));
   std::filesystem::create_directories(root);
   try {
-    for (const auto [width, height] : {std::pair{1,1}, {37,19}, {2048,3}, {2048,2048}}) {
+    for (const auto& [width, height] : {std::pair{1,1}, {37,19}, {2048,3}, {2048,2048}}) {
       std::vector<std::uint8_t> rgba(static_cast<std::size_t>(width) * height * 4);
       std::uint32_t state = 0x12345678;
       for (auto& byte : rgba) { state = state * 1664525U + 1013904223U; byte = state >> 24; }
@@ -39,7 +39,7 @@ int main() {
         auto damaged = encoded; damaged[offset] ^= 1;
         require(!pmjs::readLz4Page(damaged, rgba.size()));
       }
-      for (const auto [offset, value] : {std::pair{4U,2U}, {8U,0U}, {8U,2049U}, {12U,0xffffffffU},
+      for (const auto& [offset, value] : {std::pair{4U,2U}, {8U,0U}, {8U,2049U}, {12U,0xffffffffU},
              {16U,0xffffffffU}, {20U,0U}, {20U,0xffffffffU}, {24U,0U}}) {
         auto damaged = encoded; put(damaged, offset, value); headerChecksum(damaged);
         require(!pmjs::readLz4Page(damaged, rgba.size()));
