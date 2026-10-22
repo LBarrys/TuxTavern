@@ -16,6 +16,7 @@
 
 #include <variant>
 #include <unordered_set>
+#include <unordered_map>
 
 namespace pmjs {
 
@@ -264,6 +265,8 @@ class CanvasStore {
     ~Content();
     Content(const Content&) = delete;
     Content& operator=(const Content&) = delete;
+    void setPixels(std::vector<std::uint8_t> value);
+    std::vector<std::uint8_t> takePixels();
 
     CanvasStore& owner;
     int width = 0;
@@ -301,6 +304,7 @@ class CanvasStore {
   bool realizeContent(Content& surface);
   bool uploadSurface(Surface& surface);
   void discardCommands(Content& surface);
+  void retainSnapshot(const CanvasCommand& command);
   void releaseCommandDependencies(CanvasCommand& cmd);
 
   void fillRectNow(Content& surface, int x, int y, int width, int height,
@@ -324,6 +328,10 @@ class CanvasStore {
   std::unique_ptr<FontState> fonts_;
   // Non-owning registry includes versions kept alive only by queued draws.
   std::unordered_set<Content*> contents_;
+  // Snapshot pixels can materialize after a command was recorded. Track unique
+  // dependencies separately from the full content/command graph.
+  std::unordered_map<const ImagePixelSnapshot*, std::size_t> snapshots_;
+  std::size_t pixelBytes_ = 0;
   std::vector<Surface> surfaces_;
   std::size_t liveCount_ = 0;
   std::size_t peakCpuBytes_ = 0;
