@@ -354,7 +354,7 @@ function createPreparationLog(details, { log = message => console.log(message), 
       phases[current.phase] = (phases[current.phase] || 0) + time - phaseStarted;
       const status = error ? 'failed' : result.cancelled ? 'cancelled' : result.error ? 'failed' :
         result.failedFiles || result.installFailures || result.installed < result.prepared ? 'partial' : 'complete';
-      const reused = (result.hits || 0) + (result.indexedNegative || 0) + (result.compilationHits || 0);
+      const reused = (result.hits || 0) + (result.compilationHits || 0);
       const cache = status !== 'complete' ? 'incomplete' : result.generated ? (reused ? 'mixed' : 'cold') :
         (reused || result.catalogHit ? 'warm' : 'empty');
       emit('finish', `status=${status} cache=${cache} catalog_hit=${result.catalogHit === true} ` +
@@ -376,7 +376,6 @@ async function prepareStartupAssets(options, native) {
   console.log(`[pmjs] preparation event=start workspace_bytes=${options.assetPreparation.workspaceBytes} ` +
     `processor=${JSON.stringify(native.assets.preparationVersion || null)} ` +
     `lz4_version=${JSON.stringify(native.assets.preparationLz4Version || null)}`);
-  const portableIndex = require('./asset-index.cjs').loadAssetIndex(options.assetIndex, native, options);
   let cancelled = false;
   let preparationFailed = false;
   let preparationError;
@@ -418,7 +417,6 @@ async function prepareStartupAssets(options, native) {
       cacheRoot: options.assetPreparation.cacheRoot, verifyHashes: options.assetPreparation.verifyHashes });
     preparation = await prepareAssets({ gameRoot: options.gameRoot,
       cacheRoot: options.assetPreparation.cacheRoot, recipes: options.assetPreparation.recipes, native,
-      portableIndex, portableAssetRoot: portableIndex && path.dirname(options.assetIndex),
       verifyHashes: options.assetPreparation.verifyHashes,
       workspaceBytes: options.assetPreparation.workspaceBytes,
       pageCodec: options.assetPreparation.pageCodec,
@@ -432,9 +430,6 @@ async function prepareStartupAssets(options, native) {
     activeLog.finish(preparation, preparationFailed ? preparationError : undefined);
     console.log(`[pmjs] asset preparation generated=${preparation.generated} hits=${preparation.hits} ` +
       `decrypted=${preparation.decrypted} fallback=${preparation.fallback} ` +
-      `indexed_negative=${preparation.indexedNegative} indexed_layout_attempts=${preparation.indexedLayoutAttempts} ` +
-      `indexed_zero_page=${preparation.indexedZeroPage} indexed_page_copies=${preparation.indexedPageCopies} ` +
-      `unindexed_processed=${preparation.unindexedProcessed} ` +
       `hashed_files=${preparation.validation?.hashedFiles || 0} hashed_bytes=${preparation.validation?.hashedBytes || 0} ` +
       `reused_files=${preparation.validation?.reusedFiles || 0} duration_ms=${preparation.durationMs.toFixed(1)}`);
     if (!cancelled && options.assetPreparation.maps) {
@@ -443,8 +438,6 @@ async function prepareStartupAssets(options, native) {
       current = { phase: 'map-discover', completed: 0, total: 0 };
       preparation.maps = await prepareMaps({ gameRoot: options.gameRoot,
         cacheRoot: options.assetPreparation.cacheRoot, native, width: options.width, height: options.height,
-        portableIndex: portableIndex?.maps,
-        portableAssetRoot: portableIndex && path.dirname(options.assetIndex),
         verifyHashes: options.assetPreparation.verifyHashes,
         shouldCancel: () => cancelled, onProgress: progress => {
           activeLog.progress(progress); current = progress;
@@ -455,7 +448,7 @@ async function prepareStartupAssets(options, native) {
       activeLog.finish(maps, preparationFailed ? preparationError : undefined);
       console.log(`[pmjs] map preparation generated=${maps.generated} hits=${maps.hits} ` +
         `compilation_hits=${maps.compilationHits} selected=${maps.selected} ` +
-        `indexed_copies=${maps.indexedCopies} native_packs=${maps.nativePacks} ` +
+        `native_packs=${maps.nativePacks} ` +
         `hashed_files=${maps.validation?.hashedFiles || 0} hashed_bytes=${maps.validation?.hashedBytes || 0} ` +
         `reused_files=${maps.validation?.reusedFiles || 0} duration_ms=${maps.durationMs.toFixed(1)}`);
     }

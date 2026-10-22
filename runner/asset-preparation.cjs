@@ -264,30 +264,20 @@ async function prepareAssets({ gameRoot, cacheRoot, recipes = [], native, onProg
   workspaceBytes = 64 * 1024 * 1024,
   pageCodec = 'lz4',
   preparationContext = 'live',
-  portableIndex = null, portableAssetRoot = null,
   processorIdentity = (native && native.assets && native.assets.preparationVersion) || PROCESSOR_IDENTITY }) {
   if (!['live', 'offline'].includes(preparationContext)) throw new Error('invalid preparation context');
   if (!['png', 'lz4'].includes(pageCodec)) throw new Error('assetPreparation.pageCodec must be png or lz4');
   if (!Number.isSafeInteger(workspaceBytes) || workspaceBytes < 0 || workspaceBytes > 256 * 1024 * 1024)
     throw new Error('assetPreparation.workspaceBytes must be an integer from 0 to 268435456');
   const offline = preparationContext === 'offline';
-  const indexedImages = new Map();
-  for (const record of portableIndex?.images || []) {
-    const records = indexedImages.get(record.source);
-    if (records) records.push(record);
-    else indexedImages.set(record.source, [record]);
-  }
   const started = performance.now();
   const result = { enabled: true, total: 0, completed: 0, generated: 0, hits: 0, negativeHits: 0,
     fallback: 0, failedFiles: 0, installFailures: 0, prepared: 0, installed: 0, decrypted: 0, sourceBytes: 0, cacheBytes: 0,
-    indexedNegative: 0, indexedLayoutAttempts: 0, indexedZeroPage: 0,
-    indexedPageCopies: 0, unindexedProcessed: 0,
     cancelled: false, entries: [], decryptedEntries: [], decisions: [], durationMs: 0 };
   const catalogFile = path.join(cacheRoot, 'catalog-'+identity(path.resolve(gameRoot))+'.json');
   result.invalidateCatalog = catalogInvalidator(catalogFile, logger);
   let release;
   let catalogNegativeHits = 0;
-  let indexedNegativeSkips = 0;
   let terminalPhase = 'complete';
   const report = (phase, source = '', terminal = false) => onProgress({
     phase, source, terminal, completed: result.completed, total: result.total,
@@ -412,124 +402,73 @@ async function prepareAssets({ gameRoot, cacheRoot, recipes = [], native, onProg
         if (recipe && recipe.sourceHash !== sourceHash) throw new Error('recipe source hash changed');
         const key = identity({ version: CACHE_VERSION, processorIdentity, sourceHash, source, recipe: recipe || null,
           ...(encrypted ? { encryption: { version: 1, settingsHash: settings.hash }, characterLayout: 'mz-standard-v1' } : {}) });
-        const findIndexed = () => indexedImages.get(source)?.find(record =>
-          record.sourceHash === sourceHash && identity(record.recipe) === identity(recipe || null) &&
-          record.encryptionSettingsSha256 === (encrypted ? settings.hash : null) &&
-          (record.descriptor === null && Array.isArray(record.outputs) && !record.outputs.length ||
-            record.descriptor && validDescriptor(record.descriptor)));
-        let indexed = encrypted ? null : findIndexed();
-        // A matching negative decision needs no prepared backing or cache entry.
-        // The ordinary loader will read the original source if it is requested.
-        const indexedNegativeSkip = !offline && !encrypted && extension === '.png' && indexed?.descriptor === null;
-        if (indexedNegativeSkip) {
-          ++result.indexedNegative;
-          ++result.fallback;
-          ++catalogNegativeHits;
-          ++indexedNegativeSkips;
+        const directory = path.join(cacheRoot, 'entries', key);
+        let manifest = await cachedEntry(directory, key, sourceHash, files);
+        if (manifest && encrypted && manifest.decrypted !== 'source' + extension) manifest = null;
+        if (manifest) {
+          result.hits += 1;
+          if (!manifest.descriptor && !manifest.decrypted) result.negativeHits += 1;
         } else {
-          const directory = path.join(cacheRoot, 'entries', key);
-          let manifest = await cachedEntry(directory, key, sourceHash, files);
-          if (manifest && encrypted && manifest.decrypted !== 'source' + extension) manifest = null;
-          if (manifest) {
-            result.hits += 1;
-            if (!manifest.descriptor && !manifest.decrypted) result.negativeHits += 1;
-          } else {
-            sourcePhase = 'prepare';
-            report('prepare', source);
-            if (cancelled()) break;
-            stage = await fsp.mkdtemp(path.join(cacheRoot, 'entries', '.stage-'));
-            const decrypted = encrypted ? 'source' + extension : undefined;
-            let input = file;
-            if (decrypted) {
-              input = path.join(stage, decrypted);
-              await decryptFile(file, input, settings.key, extension);
-              if (!recipe) recipe = await automaticRecipe(input, logicalSource, sourceHash);
-              indexed = findIndexed();
-            }
-            if (cancelled()) break;
-            let descriptor = null, copied = false;
-            const indexedFallback = indexed?.descriptor === null;
-            if (indexedFallback) ++result.indexedNegative;
-            if (indexed?.descriptor && indexed.descriptor.pages.every(p => p.path.endsWith(pageCodec === 'lz4' ? '.pml4' : '.png')) &&
-                portableAssetRoot && Array.isArray(indexed.outputs) &&
-                indexed.outputs.length === indexed.descriptor.pages.length) {
-              const pages = indexed.descriptor.pages;
-              try {
-                for (let i = 0; i < pages.length; ++i) {
-                  const item = indexed.outputs[i];
-                  if (!item || typeof item.path !== 'string' || !/^assets\/images\/[a-f0-9]{64}\/page-\d+\.(png|pml4)$/.test(item.path) ||
-                      path.basename(item.path) !== pages[i].path || !HASH.test(item.hash)) throw new Error('invalid indexed page');
-                  const candidate = path.join(portableAssetRoot, item.path);
-                  if (await hashFile(candidate) !== item.hash) throw new Error('indexed page checksum differs');
-                  const header = Buffer.alloc(pages[i].path.endsWith('.pml4') ? 32 : 24);
-                  const handle = await fsp.open(candidate, 'r');
-                  try {
-                    if ((await handle.read(header, 0, header.length, 0)).bytesRead !== header.length ||
-                        !pageHeaderMatches(header, pages[i], (await handle.stat()).size))
-                      throw new Error('indexed page header differs');
-                  } finally { await handle.close(); }
-                  await fsp.copyFile(candidate, path.join(stage, pages[i].path));
-                  if (await files.hash(path.join(stage, pages[i].path)) !== item.hash)
-                    throw new Error('indexed page changed while copying');
-                }
-                descriptor = indexed.descriptor;
-                copied = true;
-                if (pages.length) ++result.indexedPageCopies;
-                else ++result.indexedZeroPage;
-              } catch (_) {
-                for (const page of pages) await fsp.rm(path.join(stage, page.path), { force: true });
-              }
-            }
-            if (!copied && !indexedFallback && extension === '.png') {
-              if (indexed) ++result.indexedLayoutAttempts;
-              else ++result.unindexedProcessed;
-              descriptor = await native.assets.processImage(source, stage, recipe || null,
-                input, ...(native.assets.preparationWorkspaceVersion === 1
-                  ? [indexed ? indexed.descriptor : null, { workspaceBytes, ...(pageCodec === 'lz4' ? { pageCodec } : {}) }]
-                  : indexed ? [indexed.descriptor] : []));
-            }
-            if (cancelled()) break;
-            if (descriptor !== null && !validDescriptor(descriptor)) throw new Error('processor returned invalid logical image descriptor');
-            if (descriptor?.pages.some(p => !p.path.endsWith(pageCodec === 'lz4' ? '.pml4' : '.png')))
-              throw new Error('processor returned a different page codec');
-            // Ordinary boot assumes game assets remain unchanged while preparing.
-            if (verifyHashes && await hashFile(file) !== sourceHash) throw new Error('source changed during image preparation');
-            const outputs = {};
-            if (decrypted) outputs[decrypted] = await files.hash(input);
-            for (const page of descriptor ? descriptor.pages : []) outputs[page.path] = await files.hash(path.join(stage, page.path));
-            manifest = { version: CACHE_VERSION, key, source, sourceHash, descriptor, descriptorHash: identity(descriptor), outputs,
-              ...(decrypted ? { decrypted } : {}) };
-            // Cache entries are disposable and hash-validated; locks, leases and indexes still flush.
-            await writeJson(path.join(stage, 'manifest.json'), manifest, false);
-            if (!await cachedEntry(stage, key, sourceHash, files)) throw new Error('prepared output validation failed');
-            await fsp.rm(directory, { recursive: true, force: true });
-            await fsp.rename(stage, directory);
-            stage = null;
-            if (!await cachedEntry(directory, key, sourceHash, files)) throw new Error('published output validation failed');
-            result.generated += 1;
+          sourcePhase = 'prepare';
+          report('prepare', source);
+          if (cancelled()) break;
+          stage = await fsp.mkdtemp(path.join(cacheRoot, 'entries', '.stage-'));
+          const decrypted = encrypted ? 'source' + extension : undefined;
+          let input = file;
+          if (decrypted) {
+            input = path.join(stage, decrypted);
+            await decryptFile(file, input, settings.key, extension);
+            if (!recipe) recipe = await automaticRecipe(input, logicalSource, sourceHash);
           }
-          sourceIdentity = await refreshIdentity(source, sourceHash, sourceIdentity);
-          if (offline) result.decisions.push({ source, sourceHash, recipe: recipe || null,
-            encryptionSettingsSha256: encrypted ? settings.hash : null,
-            descriptor: manifest.descriptor, outputs: Object.fromEntries(Object.entries(manifest.outputs)
-              .filter(([name]) => name !== manifest.decrypted)) });
-          if (encrypted) settings.sourceIdentity = await refreshIdentity('data/System.json', settings.hash, settings.sourceIdentity);
-          keys.push(key);
-          if (manifest.decrypted) {
-            result.decryptedEntries.push({ source, logicalSource, file: path.join(directory, manifest.decrypted),
-              sourceIdentity, sourceHash, settingsIdentity: settings.sourceIdentity,
-              settingsHash: settings.hash, fileHash: manifest.outputs[manifest.decrypted] });
-            result.cacheBytes += (await fsp.stat(path.join(directory, manifest.decrypted))).size;
+          if (cancelled()) break;
+          let descriptor = null;
+          if (extension === '.png') {
+            descriptor = await native.assets.processImage(source, stage, recipe || null,
+              input, ...(native.assets.preparationWorkspaceVersion === 1
+                ? [null, { workspaceBytes, ...(pageCodec === 'lz4' ? { pageCodec } : {}) }]
+                : []));
           }
-          if (manifest.descriptor) {
-            for (const page of manifest.descriptor.pages) result.cacheBytes += (await fsp.stat(path.join(directory, page.path))).size;
-            result.entries.push({ source: logicalSource, directory, descriptor: manifest.descriptor, sourceHash, sourceIdentity,
-              backingHash: manifest.decrypted ? manifest.outputs[manifest.decrypted] : sourceHash,
-              pageHashes: manifest.descriptor.pages.map(page => manifest.outputs[page.path]),
-              ...(encrypted ? { decryptedFile: path.join(directory, manifest.decrypted) } : {}) });
-          } else if (!manifest.decrypted) { result.fallback += 1; ++catalogNegativeHits; }
+          if (cancelled()) break;
+          if (descriptor !== null && !validDescriptor(descriptor)) throw new Error('processor returned invalid logical image descriptor');
+          if (descriptor?.pages.some(p => !p.path.endsWith(pageCodec === 'lz4' ? '.pml4' : '.png')))
+            throw new Error('processor returned a different page codec');
+          // Ordinary boot assumes game assets remain unchanged while preparing.
+          if (verifyHashes && await hashFile(file) !== sourceHash) throw new Error('source changed during image preparation');
+          const outputs = {};
+          if (decrypted) outputs[decrypted] = await files.hash(input);
+          for (const page of descriptor ? descriptor.pages : []) outputs[page.path] = await files.hash(path.join(stage, page.path));
+          manifest = { version: CACHE_VERSION, key, source, sourceHash, descriptor, descriptorHash: identity(descriptor), outputs,
+            ...(decrypted ? { decrypted } : {}) };
+          // Cache entries are disposable and hash-validated; locks, leases and indexes still flush.
+          await writeJson(path.join(stage, 'manifest.json'), manifest, false);
+          if (!await cachedEntry(stage, key, sourceHash, files)) throw new Error('prepared output validation failed');
+          await fsp.rm(directory, { recursive: true, force: true });
+          await fsp.rename(stage, directory);
+          stage = null;
+          if (!await cachedEntry(directory, key, sourceHash, files)) throw new Error('published output validation failed');
+          result.generated += 1;
         }
-      } catch (error) {
+        sourceIdentity = await refreshIdentity(source, sourceHash, sourceIdentity);
+        if (offline) result.decisions.push({ source, sourceHash, recipe: recipe || null,
+          encryptionSettingsSha256: encrypted ? settings.hash : null,
+          descriptor: manifest.descriptor, outputs: Object.fromEntries(Object.entries(manifest.outputs)
+            .filter(([name]) => name !== manifest.decrypted)) });
+        if (encrypted) settings.sourceIdentity = await refreshIdentity('data/System.json', settings.hash, settings.sourceIdentity);
+        keys.push(key);
+        if (manifest.decrypted) {
+          result.decryptedEntries.push({ source, logicalSource, file: path.join(directory, manifest.decrypted),
+            sourceIdentity, sourceHash, settingsIdentity: settings.sourceIdentity,
+            settingsHash: settings.hash, fileHash: manifest.outputs[manifest.decrypted] });
+          result.cacheBytes += (await fsp.stat(path.join(directory, manifest.decrypted))).size;
+        }
+        if (manifest.descriptor) {
+          for (const page of manifest.descriptor.pages) result.cacheBytes += (await fsp.stat(path.join(directory, page.path))).size;
+          result.entries.push({ source: logicalSource, directory, descriptor: manifest.descriptor, sourceHash, sourceIdentity,
+            backingHash: manifest.decrypted ? manifest.outputs[manifest.decrypted] : sourceHash,
+            pageHashes: manifest.descriptor.pages.map(page => manifest.outputs[page.path]),
+            ...(encrypted ? { decryptedFile: path.join(directory, manifest.decrypted) } : {}) });
+        } else if (!manifest.decrypted) { result.fallback += 1; ++catalogNegativeHits; }
+            } catch (error) {
         result.fallback += 1;
         result.failedFiles += 1;
         logger.warn(`[pmjs] asset preparation fallback ${source}: ${error.message}`);
@@ -585,7 +524,7 @@ async function prepareAssets({ gameRoot, cacheRoot, recipes = [], native, onProg
       if (catalogCapable && result.installed === result.entries.length && result.decrypted === result.decryptedEntries.length) {
         report('publish');
         const summary = Object.fromEntries(Object.entries(result).filter(([, value]) => typeof value === 'number'));
-        summary.hits = keys.length + indexedNegativeSkips;
+        summary.hits = keys.length;
         summary.negativeHits = catalogNegativeHits;
         await publishCatalog(catalogFile, binding, cacheRoot, { keys, entries: result.entries,
           decryptedEntries: result.decryptedEntries, summary });
