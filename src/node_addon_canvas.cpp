@@ -172,42 +172,6 @@ napi_value paintCircle(napi_env env, napi_callback_info info) try {
   napi_throw_range_error(env, nullptr, error.what()); return nullptr;
 }
 
-napi_value paintPath(napi_env env, napi_callback_info info) try {
-  const auto args = arguments(env, info, 2);
-  const auto descriptor = args.at(1);
-  CanvasPathPaint request;
-  request.paths = canvasPaths(env, property(env, descriptor, "paths"));
-  if (hasProperty(env, descriptor, "commands")) {
-    const auto commands = property(env, descriptor, "commands");
-    for (uint32_t i = 0, count = canvasArrayLength(env, commands); i < count; ++i)
-      request.commands.push_back(asNumber(env, canvasElement(env, commands, i)));
-  }
-  if (hasProperty(env, descriptor, "dash")) {
-    const auto dash = property(env, descriptor, "dash");
-    for (uint32_t i = 0, count = canvasArrayLength(env, dash); i < count; ++i)
-      request.dash.push_back(asNumber(env, canvasElement(env, dash, i)));
-  }
-  if (hasProperty(env, descriptor, "dashOffset")) request.dashOffset = asNumber(env, property(env, descriptor, "dashOffset"));
-  const auto closed = property(env, descriptor, "closed");
-  for (uint32_t i = 0, count = canvasArrayLength(env, closed); i < count; ++i)
-    request.closed.push_back(asBoolean(env, canvasElement(env, closed, i)));
-  const auto transform = canvasNumbers<6>(env, property(env, descriptor, "transform"));
-  std::copy(transform.begin(), transform.end(), request.transform.begin());
-  request.alpha = asNumber(env, property(env, descriptor, "globalAlpha"));
-  request.stroke = asNumber(env, property(env, descriptor, "stroke"));
-  request.cap = asInt32(env, property(env, descriptor, "cap"));
-  request.join = asInt32(env, property(env, descriptor, "join"));
-  request.miterLimit = asNumber(env, property(env, descriptor, "miterLimit"));
-  request.clear = asBoolean(env, property(env, descriptor, "clear"));
-  if (hasProperty(env, descriptor, "rule")) request.evenOdd = asString(env, property(env, descriptor, "rule")) == "evenodd";
-  request.composite = canvasComposite(asString(env, property(env, descriptor, "composite")));
-  request.paint = canvasPaint(env, property(env, descriptor, "paint"));
-  request.clips = canvasClips(env, property(env, descriptor, "clips"));
-  return boolean(env, host(env).canvases.paintPath(asUint32(env, args.at(0)), request));
-} catch (const std::exception& error) {
-  napi_throw_range_error(env, nullptr, error.what()); return nullptr;
-}
-
 napi_value paintShadow(napi_env env, napi_callback_info info) try {
   const auto args = arguments(env, info, 3);
   const auto descriptor = args.at(2);
@@ -297,30 +261,6 @@ napi_value clearRect(napi_env env, napi_callback_info info) try {
 
 napi_value canvasDrawImage(napi_env env, napi_callback_info info) try {
   auto a=arguments(env,info,12); if(!host(env).canvases.drawImage(asUint32(env,a.at(0)),asUint32(env,a.at(1)),asNumber(env,a.at(2)),asNumber(env,a.at(3)),asNumber(env,a.at(4)),asNumber(env,a.at(5)),asNumber(env,a.at(6)),asNumber(env,a.at(7)),asNumber(env,a.at(8)),asNumber(env,a.at(9)),asNumber(env,a.at(10)), a.size() < 12 || asBoolean(env,a.at(11)))) throw std::runtime_error("invalid canvas image"); return undefined(env);
-} catch(const std::exception& error){napi_throw_range_error(env,nullptr,error.what());return nullptr;}
-
-napi_value paintRect(napi_env env, napi_callback_info info) try {
-  auto a = arguments(env, info, 13);
-  std::array<float, 4> rect, gradient;
-  for (size_t i = 0; i < 4; ++i) { rect[i] = asNumber(env, a.at(1 + i)); gradient[i] = asNumber(env, a.at(7 + i)); }
-  std::vector<float> offsets;
-  std::vector<uint32_t> colors;
-  uint32_t count = 0, colorCount = 0;
-  bool offsetArray = false, colorArray = false;
-  check(env, napi_is_array(env, a.at(11), &offsetArray), "invalid gradient offsets");
-  check(env, napi_is_array(env, a.at(12), &colorArray), "invalid gradient colors");
-  if (!offsetArray || !colorArray) throw std::invalid_argument("gradient stops must be arrays");
-  check(env, napi_get_array_length(env, a.at(11), &count), "invalid gradient offsets");
-  check(env, napi_get_array_length(env, a.at(12), &colorCount), "invalid gradient colors");
-  if (count != colorCount || count > 64) throw std::invalid_argument("invalid gradient stops");
-  for (uint32_t i = 0; i < count; ++i) {
-    napi_value offset, color;
-    check(env, napi_get_element(env, a.at(11), i, &offset), "invalid gradient offset");
-    check(env, napi_get_element(env, a.at(12), i, &color), "invalid gradient color");
-    offsets.push_back(asNumber(env, offset)); colors.push_back(asUint32(env, color));
-  }
-  return boolean(env, host(env).canvases.paintRect(asUint32(env, a.at(0)), rect,
-    asUint32(env, a.at(5)), asNumber(env, a.at(6)), gradient, offsets, colors));
 } catch(const std::exception& error){napi_throw_range_error(env,nullptr,error.what());return nullptr;}
 
 namespace {
@@ -685,7 +625,6 @@ void registerCanvasBindings(napi_env env, napi_value exports) {
   method(env, canvas, "captureDrawable", captureDrawable);
   method(env, canvas, "fillRect", fillRect);
   method(env, canvas, "paintCircle", paintCircle);
-  method(env, canvas, "paintPath", paintPath);
   method(env, canvas, "paintShadow", paintShadow);
   method(env, canvas, "drawAffineImage", drawAffineImage);
   method(env, canvas, "copyTransformedPixels", copyTransformedPixels);
@@ -694,7 +633,6 @@ void registerCanvasBindings(napi_env env, napi_value exports) {
   method(env, canvas, "clear", clearCanvas);
   method(env, canvas, "clearRect", clearRect);
   method(env, canvas, "drawImage", canvasDrawImage);
-  method(env, canvas, "paintRect", paintRect);
   method(env, canvas, "drawText", drawText);
   method(env, canvas, "drawOutlinedText", drawOutlinedText);
   method(env, canvas, "measureText", measureText);

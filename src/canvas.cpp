@@ -1521,23 +1521,6 @@ bool CanvasStore::clearRect(CanvasHandle handle, int x, int y, int width, int he
   return true;
 }
 
-bool CanvasStore::paintRect(CanvasHandle handle, const std::array<float, 4>& rect,
-    uint32_t color, float stroke, const std::array<float, 4>& gradient,
-    const std::vector<float>& offsets, const std::vector<uint32_t>& colors) {
-  if (!std::all_of(rect.begin(), rect.end(), [](float value) { return std::isfinite(value); }) ||
-      !std::all_of(gradient.begin(), gradient.end(), [](float value) { return std::isfinite(value); }) ||
-      !std::isfinite(stroke) || stroke < 0 || rect[2] < 0 || rect[3] < 0 ||
-      offsets.size() != colors.size() || offsets.size() > 64) return false;
-  for (size_t i = 0; i < offsets.size(); ++i) if (!std::isfinite(offsets[i]) || offsets[i] < 0 || offsets[i] > 1 ||
-    (i && offsets[i] < offsets[i - 1])) return false;
-  if (rect[2] == 0 || rect[3] == 0 || (color & 255) == 0 ||
-      (!colors.empty() && std::all_of(colors.begin(), colors.end(), [](uint32_t c) { return !(c & 255); }))) return lookup(handle) != nullptr;
-  auto* surface = writableContent(handle);
-  if (!surface || !realizeContent(*surface)) return false;
-  (void)color;
-  return false;
-}
-
 bool CanvasStore::drawImage(CanvasHandle destination, std::uint32_t source,
                             float sourceX, float sourceY,
                             float sourceWidth, float sourceHeight,

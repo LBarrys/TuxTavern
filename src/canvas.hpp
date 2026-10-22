@@ -101,16 +101,6 @@ struct CanvasCirclePaint : CanvasPaintState {
   double x = 0, y = 0, radius = 0;
   std::array<float, 6> transform = {1, 0, 0, 1, 0, 0};
 };
-struct CanvasPathPaint : CanvasPaintState {
-  std::vector<CanvasPath> paths;
-  std::vector<uint8_t> closed;
-  std::vector<float> commands, dash;
-  float dashOffset = 0;
-  std::array<float, 6> transform = {1, 0, 0, 1, 0, 0};
-  double stroke = 0, miterLimit = 10;
-  int cap = 0, join = 0;
-  bool clear = false, evenOdd = false;
-};
 
 struct CanvasAffineImage {
   double alpha = 1;
@@ -142,10 +132,7 @@ class CanvasStore {
   bool paintCircle(CanvasHandle handle, const CanvasCirclePaint& request);
   bool paintShadow(CanvasHandle handle, CanvasHandle source, double x, double y,
     double blur, uint32_t color, const CanvasPaintState& state, bool geometryMask = false);
-  bool paintPath(CanvasHandle handle, const CanvasPathPaint& request);
   bool drawAffineImage(CanvasHandle destination, uint32_t source, const CanvasAffineImage& request);
-  bool paintRect(CanvasHandle handle, const std::array<float, 4>& rect, uint32_t color, float stroke,
-    const std::array<float, 4>& gradient, const std::vector<float>& offsets, const std::vector<uint32_t>& colors);
   bool fillRadialGradient(CanvasHandle handle, int x, int y, int width, int height,
                           float centerX, float centerY, float innerRadius,
                           float outerRadius, const std::vector<float>& offsets,

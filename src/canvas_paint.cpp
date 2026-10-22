@@ -1,9 +1,5 @@
 #include "canvas.hpp"
 #include "checked_bounds.hpp"
-#ifdef PMJS_HAS_SKIA65
-#include "skia65/pmjs_skia65.h"
-#endif
-
 #include <algorithm>
 #include <cmath>
 #include <utility>
@@ -284,83 +280,6 @@ bool CanvasStore::paintCircle(CanvasHandle handle, const CanvasCirclePaint& requ
   markDirty(*surface, x0, y0, x1 - x0, y1 - y0);
   return true;
 }
-bool CanvasStore::paintPath(CanvasHandle handle, const CanvasPathPaint& request) {
-  if (!std::isfinite(request.alpha) || request.alpha < 0 || request.alpha > 1 ||
-      !std::isfinite(request.stroke) || request.stroke < 0 ||
-      !std::isfinite(request.miterLimit) || request.miterLimit <= 0 ||
-      !std::isfinite(request.dashOffset) || request.dash.size() % 2 ||
-      !std::all_of(request.dash.begin(), request.dash.end(), [](float v) { return std::isfinite(v) && v >= 0; }) ||
-      !std::all_of(request.commands.begin(), request.commands.end(), [](float v) { return std::isfinite(v); }) ||
-      request.cap < 0 || request.cap > 2 || request.join < 0 || request.join > 2 ||
-      request.paths.size() != request.closed.size() || !validPaint(request.paint) ||
-      !std::all_of(request.transform.begin(), request.transform.end(), [](float v) { return std::isfinite(v); }))
-    throw std::invalid_argument("invalid Canvas path paint");
-  for (const auto& clip : request.clips) for (const auto& path : clip.paths) for (const auto& point : path)
-    if (!std::isfinite(point[0]) || !std::isfinite(point[1])) throw std::invalid_argument("invalid Canvas clip point");
-  double minX = INFINITY, minY = INFINITY, maxX = -INFINITY, maxY = -INFINITY;
-  std::vector<float> points;
-  std::vector<uint32_t> sizes;
-  for (const auto& path : request.paths) {
-    sizes.push_back(path.size());
-    for (const auto& p : path) {
-      if (!std::isfinite(float(p[0])) || !std::isfinite(float(p[1]))) throw std::invalid_argument("invalid Canvas path point");
-      points.push_back(p[0]); points.push_back(p[1]);
-      minX = std::min(minX, p[0]); minY = std::min(minY, p[1]);
-      maxX = std::max(maxX, p[0]); maxY = std::max(maxY, p[1]);
-    }
-  }
-  auto* surface = lookupContent(handle);
-  if (!surface) throw std::invalid_argument("invalid Canvas handle");
-  const auto& t = request.transform;
-  const double determinant = double(t[0]) * t[3] - double(t[1]) * t[2];
-  if (!std::isfinite(determinant) || determinant == 0 || points.empty()) return true;
-#ifndef PMJS_HAS_SKIA65
-  return false;
-#else
-  const double padding = request.stroke / 2 * std::max(1.0, request.join == 0 ? request.miterLimit : 1.0) *
-    (std::hypot(double(t[0]), double(t[1])) + std::hypot(double(t[2]), double(t[3]))) + 1;
-  const int left = std::clamp(std::floor(minX - padding), 0.0, double(surface->width));
-  const int top = std::clamp(std::floor(minY - padding), 0.0, double(surface->height));
-  const int right = std::clamp(std::ceil(maxX + padding), 0.0, double(surface->width));
-  const int bottom = std::clamp(std::ceil(maxY + padding), 0.0, double(surface->height));
-  const bool unbounded = !request.clear && canvasCompositeClearsOutside(request.composite);
-  if ((right <= left || bottom <= top) && !unbounded) return true;
-  std::vector<uint8_t> coverage;
-  if (right > left && bottom > top) {
-    coverage.resize(size_t(right - left) * (bottom - top));
-    if (!pmjs_skia65_path_coverage(points.data(), sizes.data(), request.closed.data(), sizes.size(),
-        request.commands.data(), request.commands.size(), request.dash.data(), request.dash.size(), request.dashOffset,
-        t.data(), request.stroke, request.cap, request.join, request.miterLimit, !request.clear, request.evenOdd,
-        left, top, right - left, bottom - top, coverage.data()))
-      throw std::runtime_error("Canvas path rasterization failed");
-  }
-  surface = writableContent(handle);
-  if (!surface || !realizeContent(*surface)) throw std::runtime_error("Canvas path realization failed");
-  const int x0 = unbounded ? 0 : left, y0 = unbounded ? 0 : top;
-  const int x1 = unbounded ? surface->width : right, y1 = unbounded ? surface->height : bottom;
-  ClipRows clipRows(request.clips, x0, x1);
-  for (int y = y0; y < y1; ++y) for (int x = x0; x < x1; ++x) {
-    if (!clipRows.contains(x, y)) continue;
-    const unsigned mask = x >= left && x < right && y >= top && y < bottom && !coverage.empty() ?
-      coverage[size_t(y - top) * (right - left) + x - left] : 0;
-    if (!mask && !unbounded) continue;
-    auto* destination = surface->pixels.data() + (size_t(y) * surface->width + x) * 4;
-    if (request.clear) {
-      for (unsigned i = 0; i < 4; ++i) destination[i] = unsigned(destination[i]) * (256 - mask) >> 8;
-    } else {
-      auto source = samplePaint(request.paint, x + 0.5, y + 0.5);
-      const unsigned scale = std::round(request.alpha * 256);
-      for (auto& channel : source) channel = (unsigned(channel) * scale >> 8) * (mask + 1) >> 8;
-      compositeCanvasPixel(destination, source, request.composite, true);
-      if (!mask && surface->opaque && request.composite == CanvasComposite::copy) destination[3] = 255;
-      if (destination[0] > destination[3] || destination[1] > destination[3] || destination[2] > destination[3])
-        surface->mayHaveOverAlpha = true;
-    }
-  }
-  markDirty(*surface, x0, y0, x1 - x0, y1 - y0);
-  return true;
-#endif
-}
 bool CanvasStore::paintShadow(CanvasHandle handle, CanvasHandle sourceHandle, double x, double y,
     double blur, uint32_t color, const CanvasPaintState& state, bool geometryMask) {
   if (!std::isfinite(x) || !std::isfinite(y) || !std::isfinite(blur) || blur < 0 ||
@@ -373,11 +292,6 @@ bool CanvasStore::paintShadow(CanvasHandle handle, CanvasHandle sourceHandle, do
   for (size_t i = 3; i < source->pixels.size(); i += 4) visible |= source->pixels[i] != 0;
   if (!visible && !canvasCompositeClearsOutside(state.composite)) return true;
   std::vector<uint8_t> pixels(size_t(surface->width) * surface->height * 4);
-#ifdef PMJS_HAS_SKIA65
-  if (!pmjs_skia65_shadow_bgra(source->pixels.data(), source->width, source->height, x, y,
-      blur, color, geometryMask,
-      pixels.data(), surface->width, surface->height)) return false;
-#else
   // Portable builds use a separable Gaussian over the source alpha mask.
   const double sigma = blur ? 0.288675 * blur + 0.5 : 0;
   const int radius = std::min(8192.0, std::ceil(sigma * 3));
@@ -399,7 +313,6 @@ bool CanvasStore::paintShadow(CanvasHandle handle, CanvasHandle sourceHandle, do
     pixel[1] = importCanvasChannel((color >> 16) & 255, alpha);
     pixel[2] = importCanvasChannel(color >> 24, alpha); pixel[3] = alpha;
   }
-#endif
   surface = writableContent(handle);
   if (!surface || !realizeContent(*surface)) return false;
   ClipRows clipRows(state.clips, 0, surface->width);
