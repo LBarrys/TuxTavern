@@ -11,7 +11,7 @@ const runtimeRoot = path.resolve(__dirname, '..');
 const optimizationsSource = fs.readFileSync(
   path.join(runtimeRoot, 'js/pmjs-core/optimizations.js'), 'utf8');
 const source = fs.readFileSync(
-  path.join(runtimeRoot, 'js/pmjs-plugins/olivia/horror-effects.js'), 'utf8');
+  path.join(runtimeRoot, 'js/pmjs-plugins/olivia-horror-effects.js'), 'utf8');
 
 function createKnownOliviaSprite() {
   function Sprite() {

@@ -2,123 +2,123 @@
   "version": 1,
   "description": "Exceptional source provenance records. Ordinary PMJS contributions use the defaults; classifications require source review.",
   "files": {
-    "js/pmjs-plugins/dreamx/damage-popup-retirement.js": {
+    "js/pmjs-plugins/dreamx-damage-popup-retirement.js": {
       "origin": "compatibility",
       "source": "PMJS",
       "license": "MIT",
       "notice": "LICENSE"
     },
-    "js/pmjs-plugins/atlas-loader/image-retention.js": {
+    "js/pmjs-plugins/atlas-loader-image-retention.js": {
       "origin": "compatibility",
       "source": "PMJS",
       "license": "MIT",
       "notice": "LICENSE"
     },
-    "js/pmjs-plugins/audio-streaming/native-audio.js": {
+    "js/pmjs-plugins/audio-streaming-native-audio.js": {
       "origin": "compatibility",
       "source": "PMJS",
       "license": "MIT",
       "notice": "LICENSE"
     },
-    "js/pmjs-plugins/greenworks/compat.js": {
+    "js/pmjs-plugins/greenworks-compat.js": {
       "origin": "compatibility",
       "source": "PMJS",
       "license": "MIT",
       "notice": "LICENSE"
     },
-    "js/pmjs-plugins/mpp/fragment-sort.js": {
+    "js/pmjs-plugins/mpp-fragment-sort.js": {
       "origin": "permissive",
       "source": "https://github.com/v8/v8/tree/5.1.281",
       "revision": "5.1.281; ArraySort sorting helpers with PMJS dense-array wrappers",
       "license": "BSD-3-Clause",
       "notice": "third_party/v8.LICENSE"
     },
-    "js/pmjs-plugins/mpp/triangle-bitmap.js": {
+    "js/pmjs-plugins/mpp-triangle-bitmap.js": {
       "origin": "compatibility",
       "source": "PMJS",
       "license": "MIT",
       "notice": "LICENSE"
     },
-    "js/pmjs-plugins/olivia/horror-effects.js": {
+    "js/pmjs-plugins/olivia-horror-effects.js": {
       "origin": "compatibility",
       "source": "PMJS",
       "license": "MIT",
       "notice": "LICENSE"
     },
-    "js/pmjs-plugins/srd/battle-status-gauges.js": {
+    "js/pmjs-plugins/srd-battle-status-gauges.js": {
       "origin": "compatibility",
       "source": "PMJS",
       "license": "MIT",
       "notice": "LICENSE"
     },
-    "js/pmjs-plugins/srd/menu-backgrounds.js": {
+    "js/pmjs-plugins/srd-menu-backgrounds.js": {
       "origin": "compatibility",
       "source": "PMJS",
       "license": "MIT",
       "notice": "LICENSE"
     },
-    "js/pmjs-plugins/srd/shaking-text.js": {
+    "js/pmjs-plugins/srd-shaking-text.js": {
       "origin": "compatibility",
       "source": "PMJS",
       "license": "MIT",
       "notice": "LICENSE"
     },
-    "js/pmjs-plugins/startup-fullscreen/desktop.js": {
+    "js/pmjs-plugins/startup-fullscreen-desktop.js": {
       "origin": "compatibility",
       "source": "PMJS",
       "license": "MIT",
       "notice": "LICENSE"
     },
-    "js/pmjs-plugins/steamworks/compat.js": {
+    "js/pmjs-plugins/steamworks-compat.js": {
       "origin": "compatibility",
       "source": "PMJS",
       "license": "MIT",
       "notice": "LICENSE"
     },
-    "js/pmjs-plugins/terrax/bitmap-primitives.js": {
+    "js/pmjs-plugins/terrax-bitmap-primitives.js": {
       "origin": "compatibility",
       "source": "PMJS",
       "license": "MIT",
       "notice": "LICENSE"
     },
-    "js/pmjs-plugins/terrax/lighting.js": {
+    "js/pmjs-plugins/terrax-lighting.js": {
       "origin": "permissive",
       "source": "https://github.com/FreezyFz/TerraxLighting/tree/dac2b0eaf1f8128d705bd471942739deca33363c",
       "revision": "TerraxLighting 1.4.9; dac2b0eaf1f8128d705bd471942739deca33363c; PMJS adaptations",
       "license": "MIT",
       "notice": "third_party/terrax.LICENSE"
     },
-    "js/pmjs-plugins/yanfly/event-mini-label.js": {
+    "js/pmjs-plugins/yanfly-event-mini-label.js": {
       "origin": "compatibility",
       "source": "PMJS",
       "license": "MIT",
       "notice": "LICENSE"
     },
-    "js/pmjs-plugins/yanfly/core-text.js": {
+    "js/pmjs-plugins/yanfly-core-text.js": {
       "origin": "compatibility",
       "source": "PMJS",
       "license": "MIT",
       "notice": "LICENSE"
     },
-    "js/pmjs-plugins/yanfly/message-core.js": {
+    "js/pmjs-plugins/yanfly-message-core.js": {
       "origin": "compatibility",
       "source": "PMJS",
       "license": "MIT",
       "notice": "LICENSE"
     },
-    "js/pmjs-plugins/yanfly/slippery-tiles.js": {
+    "js/pmjs-plugins/yanfly-slippery-tiles.js": {
       "origin": "compatibility",
       "source": "PMJS",
       "license": "MIT",
       "notice": "LICENSE"
     },
-    "js/pmjs-plugins/yed/retained-tiles.js": {
+    "js/pmjs-plugins/yed-retained-tiles.js": {
       "origin": "compatibility",
       "source": "PMJS retained tile preparation from behavioral contracts",
       "license": "MIT",
       "notice": "LICENSE"
     },
-    "js/pmjs-plugins/yed/tiled.js": {
+    "js/pmjs-plugins/yed-tiled.js": {
       "origin": "compatibility",
       "source": "PMJS retained tile preparation from behavioral contracts",
       "license": "MIT",
@@ -334,61 +334,61 @@
       "license": "MIT",
       "notice": "third_party/pixi4.LICENSE"
     },
-    "js/pmjs-plugins/yanfly/core-character-presentation.js": {
+    "js/pmjs-plugins/yanfly-core-character-presentation.js": {
       "origin": "original"
     },
-    "js/pmjs-plugins/yanfly/core-transforms.js": {
+    "js/pmjs-plugins/yanfly-core-transforms.js": {
       "origin": "original"
     },
-    "js/pmjs-plugins/yanfly/event-copier.js": {
+    "js/pmjs-plugins/yanfly-event-copier.js": {
       "origin": "compatibility",
       "source": "PMJS",
       "license": "MIT",
       "notice": "LICENSE"
     },
-    "js/pmjs-plugins/irina/visual-novel-busts.js": {
+    "js/pmjs-plugins/irina-visual-novel-busts.js": {
       "origin": "compatibility",
       "source": "PMJS",
       "license": "MIT",
       "notice": "LICENSE"
     },
-    "js/pmjs-plugins/yanfly/common-event-menu.js": {
+    "js/pmjs-plugins/yanfly-common-event-menu.js": {
       "origin": "compatibility",
       "source": "PMJS",
       "license": "MIT",
       "notice": "LICENSE"
     },
-    "js/pmjs-plugins/yanfly/save-core.js": {
+    "js/pmjs-plugins/yanfly-save-core.js": {
       "origin": "compatibility",
       "source": "PMJS",
       "license": "MIT",
       "notice": "LICENSE"
     },
-    "js/pmjs-plugins/coelocanth/physical-attacks.js": {
+    "js/pmjs-plugins/coelocanth-physical-attacks.js": {
       "origin": "compatibility",
       "source": "PMJS",
       "license": "MIT",
       "notice": "LICENSE"
     },
-    "js/pmjs-plugins/input-form/native-form.js": {
+    "js/pmjs-plugins/input-form-native-form.js": {
       "origin": "compatibility",
       "source": "PMJS",
       "license": "MIT",
       "notice": "LICENSE"
     },
-    "js/pmjs-plugins/volume-control/menu.js": {
+    "js/pmjs-plugins/volume-control-menu.js": {
       "origin": "compatibility",
       "source": "PMJS",
       "license": "MIT",
       "notice": "LICENSE"
     },
-    "js/pmjs-plugins/yanfly/visual-atb-gauge.js": {
+    "js/pmjs-plugins/yanfly-visual-atb-gauge.js": {
       "origin": "compatibility",
       "source": "PMJS",
       "license": "MIT",
       "notice": "LICENSE"
     },
-    "js/pmjs-plugins/java-hut/native-audio.js": {
+    "js/pmjs-plugins/java-hut-native-audio.js": {
       "origin": "compatibility",
       "source": "PMJS",
       "license": "MIT",

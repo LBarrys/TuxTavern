@@ -15,7 +15,7 @@ for (const throws of [false, true]) {
         return 'loaded';
       } } });
     const original = context.Utils.isNwjs;
-    const file = require.resolve('../js/pmjs-plugins/startup-fullscreen/desktop.js');
+    const file = require.resolve('../js/pmjs-plugins/startup-fullscreen-desktop.js');
     vm.runInContext(fs.readFileSync(file, 'utf8'), context, { filename: file });
     context.PMJS.phases.emit('beforePlugins');
     assert.equal(context.PluginManager.loadScript('Other.js'), 'loaded');

@@ -6,7 +6,7 @@ const path = require('node:path');
 const test = require('node:test');
 const vm = require('node:vm');
 const { pinSourceFingerprint } = require('./helpers/reviewed-function-fixture.cjs');
-const source = fs.readFileSync(require.resolve('../js/pmjs-core/methods.js'), 'utf8') + '\n' + fs.readFileSync(require.resolve('../js/pmjs-plugins/srd/shaking-text.js'), 'utf8');
+const source = fs.readFileSync(require.resolve('../js/pmjs-core/methods.js'), 'utf8') + '\n' + fs.readFileSync(require.resolve('../js/pmjs-plugins/srd-shaking-text.js'), 'utf8');
 
 function fixture({ disabled = false, unknownCreate = false, unknownRemove = false, canvasContext } = {}) {
   const loaded = new Map(), phases = new Map(), refusals = [], retained = [];

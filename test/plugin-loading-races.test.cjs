@@ -40,7 +40,7 @@ test('map readiness waits for every requested copy template before event initial
     if (error) throw error;
     return !!map;
   } };
-  const h = adapter('yanfly/event-copier', { DataManager, Yanfly: { PreloadedMaps: templates } });
+  const h = adapter('yanfly-event-copier', { DataManager, Yanfly: { PreloadedMaps: templates } });
   h.install();
   assert.equal(DataManager.isMapLoaded(), false);
   map = { events: [{ copyMap: 1, copyEvent: 2 }] };
@@ -77,7 +77,7 @@ function bustFixture() {
     afterLoadBitmap() { this.bitmap = this._toBeLoadedBitmap; this.updateFrame(); }
     updateFrame() { events.push('frame:' + this._bustName); }
   }
-  const h = adapter('irina/visual-novel-busts', { Sprite_VisualNovelBust });
+  const h = adapter('irina-visual-novel-busts', { Sprite_VisualNovelBust });
   h.install();
   return { images, events, sprite: new Sprite_VisualNovelBust() };
 }
@@ -187,7 +187,7 @@ function menuFixture() {
     }
   }
   class Scene_Base { terminate() { return 'terminated'; } }
-  const h = adapter('yanfly/common-event-menu', { Window_CommonEventMenuPicture, Scene_Base });
+  const h = adapter('yanfly-common-event-menu', { Window_CommonEventMenuPicture, Scene_Base });
   h.install();
   return { window: new Window_CommonEventMenuPicture(), scene: new Scene_Base(), images, paints, timers, contents };
 }
@@ -251,7 +251,7 @@ function saveFixture() {
     terminate() { events.push('terminate'); }
   }
   const SceneManager = { _scene: null, changing: false, isSceneChanging() { return this.changing; } };
-  const h = adapter('yanfly/save-core', { Window_SaveInfo, Scene_File, SceneManager,
+  const h = adapter('yanfly-save-core', { Window_SaveInfo, Scene_File, SceneManager,
     JsonEx: { parse(text) { parseCalls++; return JSON.parse(text); } },
     setTimeout(callback, delay) { assert.equal(delay, 200); timers.set(++next, callback); return next; },
     clearTimeout(id) { timers.delete(id); }
@@ -290,7 +290,7 @@ test('a rewritten save preview that does not read _saveContents is kept', () => 
   class Window_SaveInfo {
     drawContents(y) { return ['own', y, this._info]; }
   }
-  const h = adapter('yanfly/save-core', { Window_SaveInfo, Scene_File: class {}, SceneManager: {} });
+  const h = adapter('yanfly-save-core', { Window_SaveInfo, Scene_File: class {}, SceneManager: {} });
   h.install();
   const window = new Window_SaveInfo();
   window._info = 'info';

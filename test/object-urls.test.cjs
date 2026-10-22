@@ -221,7 +221,7 @@ test('Atlas retention composes with other rules across path, generated, and byte
     return resource;
   } };
   vm.runInContext(fs.readFileSync(path.resolve(__dirname,
-    '../js/pmjs-plugins/atlas-loader/image-retention.js'), 'utf8'), context);
+    '../js/pmjs-plugins/atlas-loader-image-retention.js'), 'utf8'), context);
   context.PMJS.images.addRetentionRule(path =>
     path.startsWith('blob:') || path === 'generated-assets:/retain.png');
   for (const src of ['file:///game/img/atlases/main.png?version=1',

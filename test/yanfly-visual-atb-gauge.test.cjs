@@ -8,7 +8,7 @@ const vm = require('node:vm');
 const { loadPmjsRuntime } = require('./helpers/runtime-context.cjs');
 
 const id = 'plugins.yanfly.enemy-atb-refresh';
-const source = fs.readFileSync(require.resolve('../js/pmjs-plugins/yanfly/visual-atb-gauge.js'), 'utf8');
+const source = fs.readFileSync(require.resolve('../js/pmjs-plugins/yanfly-visual-atb-gauge.js'), 'utf8');
 
 // Independent faulty guest fixture; the adapter must replace this method.
 function brokenCheck() {

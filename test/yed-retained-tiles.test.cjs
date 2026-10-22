@@ -6,7 +6,7 @@ const vm = require('node:vm');
 
 function fixture() {
   const context = { PMJS: {}, $gameMap: { currentMapLevel: 0 } };
-  vm.runInNewContext(fs.readFileSync(require.resolve('../js/pmjs-plugins/yed/retained-tiles.js'), 'utf8'), context);
+  vm.runInNewContext(fs.readFileSync(require.resolve('../js/pmjs-plugins/yed-retained-tiles.js'), 'utf8'), context);
   const rect = { pointsBuf: [], textures: [{}], calls: 0,
     addRect(...values) { this.calls++; this.pointsBuf.push(values[1], values[2], ...values.slice(3), 0, 0, values[0]); } };
   const layer = { layerId: 0, children: [rect], position: {}, clear() { rect.pointsBuf.length = 0; rect._pmjsNativeGeneration = (rect._pmjsNativeGeneration || 0) + 1; } };

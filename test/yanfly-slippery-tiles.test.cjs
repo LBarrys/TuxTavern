@@ -11,7 +11,7 @@ const runtimeRoot = path.resolve(__dirname, '..');
 const optimizationsSource = fs.readFileSync(
   path.join(runtimeRoot, 'js/pmjs-core/optimizations.js'), 'utf8');
 const moduleSource = fs.readFileSync(
-  path.join(runtimeRoot, 'js/pmjs-plugins/yanfly/slippery-tiles.js'), 'utf8');
+  path.join(runtimeRoot, 'js/pmjs-plugins/yanfly-slippery-tiles.js'), 'utf8');
 const lifecycleSource = fs.readFileSync(
   path.join(runtimeRoot, 'js/pmjs-rpgmaker/lifecycle.js'), 'utf8');
 const methodsSource = fs.readFileSync(
@@ -333,7 +333,7 @@ test('MV 1.6.1 and YEP Slippery Tiles 1.05 production recognition',
       const parameters = { ...plugin.parameters };
       if (region !== undefined) parameters['Slippery Region'] = String(region);
       context.PluginManager.setParameters(plugin.name, parameters);
-      runModule(context, 'js/pmjs-plugins/yanfly/slippery-tiles.js');
+      runModule(context, 'js/pmjs-plugins/yanfly-slippery-tiles.js');
       context.PMJS.plugins.snapshotEffectiveManifest([plugin]);
       context.PMJS.plugins.execute(plugin.name, () => guest('js/plugins/YEP_SlipperyTiles.js'));
       assert.equal(context.Yanfly.Slip.version, 1.05);

@@ -15,7 +15,7 @@ const runtimeRoot = path.resolve(__dirname, '..');
 const optimizationsSource = fs.readFileSync(
   path.join(runtimeRoot, 'js/pmjs-core/optimizations.js'), 'utf8');
 const terraxSource = fs.readFileSync(
-  path.join(runtimeRoot, 'js/pmjs-plugins/terrax/lighting.js'), 'utf8');
+  path.join(runtimeRoot, 'js/pmjs-plugins/terrax-lighting.js'), 'utf8');
 const lifecycleSource = fs.readFileSync(
   path.join(runtimeRoot, 'js/pmjs-rpgmaker/lifecycle.js'), 'utf8');
 const methodsSource = fs.readFileSync(
@@ -37,7 +37,7 @@ function loadRegistrySupport(context) {
   vm.runInContext(fs.readFileSync(path.join(__dirname, '..',
     'js/pmjs-web/canvas-primitives.js'), 'utf8'), context);
   vm.runInContext(fs.readFileSync(path.join(runtimeRoot,
-    'js/pmjs-plugins/terrax/bitmap-primitives.js'), 'utf8'), context);
+    'js/pmjs-plugins/terrax-bitmap-primitives.js'), 'utf8'), context);
 
 }
 

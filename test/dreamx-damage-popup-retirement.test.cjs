@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const test = require('node:test');
 const vm = require('node:vm');
 const { loadPmjsRuntime } = require('./helpers/runtime-context.cjs');
-const source = fs.readFileSync(require.resolve('../js/pmjs-plugins/dreamx/damage-popup-retirement.js'), 'utf8');
+const source = fs.readFileSync(require.resolve('../js/pmjs-plugins/dreamx-damage-popup-retirement.js'), 'utf8');
 const id = 'plugins.dreamx.damage-popup-retirement';
 
 function legacyUpdate() {

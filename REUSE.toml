@@ -1,13 +1,13 @@
 version = 1
 
 [[annotations]]
-path = ["js/pmjs-plugins/mpp/fragment-sort.js", "third_party/v8.LICENSE"]
+path = ["js/pmjs-plugins/mpp-fragment-sort.js", "third_party/v8.LICENSE"]
 precedence = "override"
 SPDX-FileCopyrightText = "2012 the V8 project authors"
 SPDX-License-Identifier = "BSD-3-Clause"
 
 [[annotations]]
-path = ["js/pmjs-plugins/terrax/lighting.js", "test/terrax-lighting.test.cjs"]
+path = ["js/pmjs-plugins/terrax-lighting.js", "test/terrax-lighting.test.cjs"]
 precedence = "override"
 SPDX-FileCopyrightText = ["2016 Terraxz", "2026 PMJS contributors"]
 SPDX-License-Identifier = "MIT"

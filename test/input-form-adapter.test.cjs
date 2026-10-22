@@ -33,7 +33,7 @@ function setup() {
     c.document.body.appendChild(input); c.document.body.appendChild(submit); input.focus();
     this.setWaitMode('input_form'); c.Input.form_mode = true;
   };
-  const source = fs.readFileSync(require.resolve('../js/pmjs-plugins/input-form/native-form.js'), 'utf8')
+  const source = fs.readFileSync(require.resolve('../js/pmjs-plugins/input-form-native-form.js'), 'utf8')
     .replace(/'[a-f0-9]{64}'/, "'" + crypto.createHash('sha256').update('reviewed form fixture').digest('hex') + "'");
   vm.runInContext(source, c); loaded();
   return { c, values, stop: () => stop, Scene: () => pushed };

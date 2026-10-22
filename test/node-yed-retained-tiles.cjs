@@ -32,7 +32,7 @@ const context = vm.createContext({ PIXI: { Container }, PMJS: {
     return handle;
   }, releaseTileLayer: native.render.releaseTileLayer
 }, scene: { schema: native.scene.schema, packetVersion: native.scene.packetVersion } } });
-for (const file of ['pmjs-pixi4/scene-primitives.js', 'pmjs-plugins/yed/retained-tiles.js']) {
+for (const file of ['pmjs-pixi4/scene-primitives.js', 'pmjs-plugins/yed-retained-tiles.js']) {
   vm.runInContext(fs.readFileSync(path.join(__dirname, '../js', file), 'utf8'), context);
 }
 const rect = { pointsBuf: [], textures: [{ baseTexture: { source: { _nativeImage: atlas } } }],

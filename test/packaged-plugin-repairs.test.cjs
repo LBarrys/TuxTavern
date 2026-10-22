@@ -23,7 +23,7 @@ test('reviewed physical-attack repair preserves action behavior and parameter ty
     var enabled = eval(String(parameters));
     var types = String(parameters).split(' ');
     globalThis.select = function(type) { return enabled || types.indexOf(type) >= 0; };`;
-  const c = loadAdapter('coelocanth/physical-attacks.js', plugin, {});
+  const c = loadAdapter('coelocanth-physical-attacks.js', plugin, {});
   c.PluginManager.loadScript('physical_attack_animation.js');
   assert.equal(c.select(4), true); assert.equal(c.select(7), true); assert.equal(c.select(1), false);
   c.PluginManager.parameters = () => ({ PhysicalAttacks: 'false', SkillTypes: '' });
@@ -53,7 +53,7 @@ test('volume replacement uses the existing volume options, scene stack and menu 
   function Scene_Menu() {}
   Scene_Menu.prototype.createCommandWindow = Scene_Title.prototype.createCommandWindow;
   const pushed = [];
-  const c = loadAdapter('volume-control/menu.js', '# incompatible language', {
+  const c = loadAdapter('volume-control-menu.js', '# incompatible language', {
     Window_Options, Window_TitleCommand, Window_MenuCommand, Scene_Options, Scene_Title, Scene_Menu,
     SceneManager: { push(Scene) { pushed.push(Scene); } } });
   c.PluginManager.loadScript('volume setting.js');
@@ -68,8 +68,8 @@ test('volume replacement uses the existing volume options, scene stack and menu 
   assert.ok(options instanceof Scene_Options);
 });
 
-for (const [file, name] of [['coelocanth/physical-attacks.js', 'physical_attack_animation.js'],
-  ['volume-control/menu.js', 'volume setting.js']]) {
+for (const [file, name] of [['coelocanth-physical-attacks.js', 'physical_attack_animation.js'],
+  ['volume-control-menu.js', 'volume setting.js']]) {
   test('unrecognized packaged script remains delegated: ' + name, () => {
     const context = vm.createContext({ __pmjsBuiltinRequire: require,
       NativeHost: { fs: { readText: () => 'changed script' } },

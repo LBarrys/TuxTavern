@@ -64,7 +64,7 @@ function fixture({ ready = false, scale = true, configured = true, duringSetup =
       loadImage(filename) { assert.equal(filename, '$test'); return source; } } },
     PMJS: { plugins: { onLoaded(name, owner, callback) { loaded.set(name, callback); } },
       phases: { on(name, owner, callback) { phases.set(name, callback); } } } };
-  vm.runInNewContext(fs.readFileSync(require.resolve('../js/pmjs-plugins/srd/menu-backgrounds.js'), 'utf8'), context);
+  vm.runInNewContext(fs.readFileSync(require.resolve('../js/pmjs-plugins/srd-menu-backgrounds.js'), 'utf8'), context);
   return { ...context, source, loaded, phases, events, bitmaps,
     install() { loaded.get('SRD_MenuBackgrounds')(); phases.get('afterGuestPlugins')(); } };
 }

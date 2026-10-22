@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const crypto = require('node:crypto');
 const test = require('node:test');
-const source = fs.readFileSync(require.resolve('../js/pmjs-plugins/srd/battle-status-gauges.js'), 'utf8');
+const source = fs.readFileSync(require.resolve('../js/pmjs-plugins/srd-battle-status-gauges.js'), 'utf8');
 
 function fixture({ disabled = false, unknown = false, composed = false } = {}) {
   const loaded = new Map(), phases = new Map(), refusals = [], calls = { full: 0, gauge: 0 };

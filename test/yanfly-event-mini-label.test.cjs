@@ -11,7 +11,7 @@ const runtimeRoot = path.resolve(__dirname, '..');
 const optimizationsSource = fs.readFileSync(
   path.join(runtimeRoot, 'js/pmjs-core/optimizations.js'), 'utf8');
 const moduleSource = fs.readFileSync(
-  path.join(runtimeRoot, 'js/pmjs-plugins/yanfly/event-mini-label.js'), 'utf8');
+  path.join(runtimeRoot, 'js/pmjs-plugins/yanfly-event-mini-label.js'), 'utf8');
 const lifecycleSource = fs.readFileSync(
   path.join(runtimeRoot, 'js/pmjs-rpgmaker/lifecycle.js'), 'utf8');
 const methodsSource = fs.readFileSync(

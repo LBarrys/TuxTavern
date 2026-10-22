@@ -8,8 +8,8 @@ const vm = require('node:vm');
 
 const root = path.resolve(__dirname, '..');
 const coreCode = fs.readFileSync(path.join(root, 'js/pmjs-core/achievements.js'), 'utf8');
-const greenworksCode = fs.readFileSync(path.join(root, 'js/pmjs-plugins/greenworks/compat.js'), 'utf8');
-const steamworksCode = fs.readFileSync(path.join(root, 'js/pmjs-plugins/steamworks/compat.js'), 'utf8');
+const greenworksCode = fs.readFileSync(path.join(root, 'js/pmjs-plugins/greenworks-compat.js'), 'utf8');
+const steamworksCode = fs.readFileSync(path.join(root, 'js/pmjs-plugins/steamworks-compat.js'), 'utf8');
 
 function harness(initial, catalog) {
   const files = new Map(Object.entries(initial || {}));

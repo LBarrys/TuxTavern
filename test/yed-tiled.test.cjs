@@ -7,7 +7,7 @@ const vm = require('node:vm');
 const test = require('node:test');
 const crypto = require('node:crypto');
 const runtime = path.resolve(__dirname, '..');
-const adapter = fs.readFileSync(path.join(runtime, 'js/pmjs-plugins/yed/tiled.js'), 'utf8');
+const adapter = fs.readFileSync(path.join(runtime, 'js/pmjs-plugins/yed-tiled.js'), 'utf8');
 const methodNames = [...adapter.matchAll(/^    ([\w]+): '[a-f0-9]{64}'/gm)].map(match => match[1]);
 
 test('native preparation accepts retained work once and preserves guest fallback', () => {

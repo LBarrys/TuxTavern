@@ -381,7 +381,7 @@ test('greenworks compatibility registers its supported module aliases', () => {
     },
   };
   vm.createContext(context);
-  const compatCode = fs.readFileSync(path.join(jsDir, 'pmjs-plugins/greenworks/compat.js'), 'utf8');
+  const compatCode = fs.readFileSync(path.join(jsDir, 'pmjs-plugins/greenworks-compat.js'), 'utf8');
   vm.runInContext(compatCode, context);
   const gw = modules.greenworks;
   assert.equal(modules['./greenworks'], gw);

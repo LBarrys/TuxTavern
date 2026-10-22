@@ -8,7 +8,7 @@ const test = require('node:test');
 const vm = require('node:vm');
 const { makeBitmapTextHarness } = require('./helpers/bitmap-text-harness.cjs');
 const { pinSourceFingerprint } = require('./helpers/reviewed-function-fixture.cjs');
-const adapter = fs.readFileSync(require.resolve('../js/pmjs-plugins/yanfly/core-text.js'), 'utf8');
+const adapter = fs.readFileSync(require.resolve('../js/pmjs-plugins/yanfly-core-text.js'), 'utf8');
 const optimization = 'plugins.yanfly.core-native-text';
 
 function mockNative(disabled = false) {

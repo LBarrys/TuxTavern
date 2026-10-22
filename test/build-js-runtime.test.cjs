@@ -69,20 +69,20 @@ test('SRD menu adapter is selected only for enabled plugin demand', () => {
   const out = path.join(root, 'out.js');
   const args = [tool, '--game', game, '--output', out];
   childProcess.execFileSync(process.execPath, args);
-  assert.match(fs.readFileSync(out, 'utf8'), /BEGIN js\/pmjs-plugins\/srd\/menu-backgrounds\.js/);
+  assert.match(fs.readFileSync(out, 'utf8'), /BEGIN js\/pmjs-plugins\/srd-menu-backgrounds\.js/);
   fs.writeFileSync(path.join(game, 'js/plugins.js'),
     'var $plugins = ' + JSON.stringify([{ name: 'SRD_MenuBackgrounds', status: false }]) + ';');
   childProcess.execFileSync(process.execPath, args);
-  assert.doesNotMatch(fs.readFileSync(out, 'utf8'), /BEGIN js\/pmjs-plugins\/srd\/menu-backgrounds\.js/);
+  assert.doesNotMatch(fs.readFileSync(out, 'utf8'), /BEGIN js\/pmjs-plugins\/srd-menu-backgrounds\.js/);
 });
 
 test('loading and portable-achievement adapters follow enabled guest plugins', () => {
   const root = temporaryDirectory('pmjs-loading-adapters-');
   const entries = [
-    ['YEP_EventCopier', 'yanfly/event-copier'],
-    ['YEP_SaveCore', 'yanfly/save-core'],
-    ['YEP_CommonEventMenu', 'yanfly/common-event-menu'],
-    ['Irina_VisualNovelBusts', 'irina/visual-novel-busts']
+    ['YEP_EventCopier', 'yanfly-event-copier'],
+    ['YEP_SaveCore', 'yanfly-save-core'],
+    ['YEP_CommonEventMenu', 'yanfly-common-event-menu'],
+    ['Irina_VisualNovelBusts', 'irina-visual-novel-busts']
   ];
   const game = writeMvGame(root, { plugins: entries.map(([name]) => ({ name, status: true })) });
   const output = path.join(root, 'out.js');
@@ -162,7 +162,7 @@ test('capability manifest selects only runtime-owned adapters before bootstrap',
     [tool, '--manifest', manifest, '--game', game, '--output', out]).toString();
   assert.match(report, /unmatched enabled plugins: 1/);
   const bundle = fs.readFileSync(out, 'utf8');
-  const adapter = bundle.indexOf('BEGIN js/pmjs-plugins/yed/tiled.js');
+  const adapter = bundle.indexOf('BEGIN js/pmjs-plugins/yed-tiled.js');
   assert.ok(adapter > bundle.indexOf('BEGIN js/pmjs-core/optimizations.js'));
   assert.ok(adapter < bundle.indexOf('BEGIN js/pmjs-mv/bootstrap.js'));
   for (const key of ['port', 'modules', 'append', 'prepend']) {
@@ -294,8 +294,8 @@ test('capability manifest supports explicit adapter selection', () => {
   childProcess.execFileSync(process.execPath,
     [tool, '--manifest', manifest, '--game', game, '--output', out]);
   const bundleContent = fs.readFileSync(out, 'utf8');
-  assert.match(bundleContent, /BEGIN js\/pmjs-plugins\/yed\/tiled\.js/);
-  assert.doesNotMatch(bundleContent, /BEGIN js\/pmjs-plugins\/aetherflow\//);
+  assert.match(bundleContent, /BEGIN js\/pmjs-plugins\/yed-tiled\.js/);
+  assert.doesNotMatch(bundleContent, /BEGIN js\/pmjs-plugins\/aetherflow/);
   fs.writeFileSync(manifest, JSON.stringify({
     adapters: ['No_Such_Plugin'],
   }));
@@ -318,12 +318,12 @@ test('adapter modes are deterministic with and without game evidence', () => {
   fs.writeFileSync(manifest, JSON.stringify({ adapters: 'all' }));
   run('--game', game, '--output', out);
   const allBundle = fs.readFileSync(out, 'utf8');
-  assert.match(allBundle, /BEGIN js\/pmjs-plugins\/yed\/tiled\.js/);
-  assert.doesNotMatch(allBundle, /BEGIN js\/pmjs-plugins\/aetherflow\//);
+  assert.match(allBundle, /BEGIN js\/pmjs-plugins\/yed-tiled\.js/);
+  assert.doesNotMatch(allBundle, /BEGIN js\/pmjs-plugins\/aetherflow/);
 
   fs.writeFileSync(manifest, JSON.stringify({ adapters: 'none' }));
   run('--game', game, '--output', out);
-  assert.doesNotMatch(fs.readFileSync(out, 'utf8'), /BEGIN js\/pmjs-plugins\/yed\/tiled\.js/);
+  assert.doesNotMatch(fs.readFileSync(out, 'utf8'), /BEGIN js\/pmjs-plugins\/yed-tiled\.js/);
 });
 
 test('print-modules writes only JSON to stdout', () => {
@@ -336,7 +336,7 @@ test('print-modules writes only JSON to stdout', () => {
       '--print-modules']).toString();
   const modules = JSON.parse(output);
   assert.ok(Array.isArray(modules));
-  assert.ok(modules.some(entry => entry.module === 'js/pmjs-plugins/yed/tiled.js'));
+  assert.ok(modules.some(entry => entry.module === 'js/pmjs-plugins/yed-tiled.js'));
 });
 
 test('--game composes the default capability bundle without a manifest', () => {
@@ -347,7 +347,7 @@ test('--game composes the default capability bundle without a manifest', () => {
   const output = childProcess.execFileSync(process.execPath,
     [tool, '--game', game, '--print-modules']).toString();
   const modules = JSON.parse(output);
-  assert.ok(modules.some(entry => entry.module === 'js/pmjs-plugins/yed/tiled.js'));
+  assert.ok(modules.some(entry => entry.module === 'js/pmjs-plugins/yed-tiled.js'));
   assert.equal(modules.at(-1).module, 'js/pmjs-mv/bootstrap.js');
 });
 
@@ -413,8 +413,8 @@ test('auto adapter overrides and Pixi compatibility use inspected evidence', () 
   childProcess.execFileSync(process.execPath,
     [tool, '--manifest', manifest, '--game', game, '--output', out]);
   const bundle = fs.readFileSync(out, 'utf8');
-  assert.doesNotMatch(bundle, /BEGIN js\/pmjs-plugins\/yed\/tiled\.js/);
-  assert.match(bundle, /BEGIN js\/pmjs-plugins\/yanfly\/event-mini-label\.js/);
+  assert.doesNotMatch(bundle, /BEGIN js\/pmjs-plugins\/yed-tiled\.js/);
+  assert.match(bundle, /BEGIN js\/pmjs-plugins\/yanfly-event-mini-label\.js/);
 
   fs.writeFileSync(path.join(game, 'js', 'libs', 'pixi.js'), "PIXI.VERSION = '5.3.0';\n");
   assert.throws(() => childProcess.execFileSync(process.execPath,
@@ -439,7 +439,7 @@ test('a standalone source copy builds without the surrounding workspace', () => 
   const game = writeMvGame(root, { plugins: [{ name: 'YED_Tiled', status: true }] });
   const output = path.join(root, 'standalone.js');
   childProcess.execFileSync(process.execPath, [path.join(clone, 'tools/build-js-runtime.mjs'), '--game', game, '--output', output], { cwd: root });
-  assert.match(fs.readFileSync(output, 'utf8'), /BEGIN js\/pmjs-plugins\/yed\/tiled.js/);
+  assert.match(fs.readFileSync(output, 'utf8'), /BEGIN js\/pmjs-plugins\/yed-tiled.js/);
 });
 
 test('primitive recording ships with the selected Terrax adapter', () => {
@@ -451,10 +451,10 @@ test('primitive recording ships with the selected Terrax adapter', () => {
   childProcess.execFileSync(process.execPath, [tool, '--game', game, '--output', output]);
   const bundle = fs.readFileSync(output, 'utf8');
   const recorder = '// BEGIN js/pmjs-web/canvas-primitives.js';
-  const bridge = '// BEGIN js/pmjs-plugins/terrax/bitmap-primitives.js';
+  const bridge = '// BEGIN js/pmjs-plugins/terrax-bitmap-primitives.js';
   assert.ok(bundle.includes(recorder));
   assert.ok(bundle.indexOf(recorder) < bundle.indexOf(bridge));
-  assert.ok(bundle.indexOf(bridge) < bundle.indexOf('// BEGIN js/pmjs-plugins/terrax/lighting.js'));
+  assert.ok(bundle.indexOf(bridge) < bundle.indexOf('// BEGIN js/pmjs-plugins/terrax-lighting.js'));
   for (const profile of ['mv', 'mz']) {
     childProcess.execFileSync(process.execPath, [tool, '--profile', profile, '--output', output]);
     assert.ok(!fs.readFileSync(output, 'utf8').includes(recorder));

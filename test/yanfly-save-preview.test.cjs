@@ -43,7 +43,7 @@ function fixture() {
     clearTimeout(id) { timers.delete(id); },
     PMJS: { plugins: { onLoaded(_plugin, _owner, install) { install(); } } }
   });
-  vm.runInContext(fs.readFileSync(require.resolve('../js/pmjs-plugins/yanfly/save-core.js'), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(require.resolve('../js/pmjs-plugins/yanfly-save-core.js'), 'utf8'), context);
   const window = scene._infoWindow = new Window_SaveInfo();
   return { window, scene, SceneManager, timers, images, image, draws, warnings,
     tick() { const pending = [...timers.values()]; timers.clear(); pending.forEach(fn => fn()); } };

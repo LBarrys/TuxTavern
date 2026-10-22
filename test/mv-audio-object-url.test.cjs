@@ -85,7 +85,7 @@ function contextFor(decrypter, XMLHttpRequest, clock = Date, streaming = false) 
       get: function() { return -1; }, set: function() { throw new Error('browser pitch used'); } };
     const functions = { ...replacements, pitchget: pitch.get, pitchset: pitch.set };
     const adapter = fs.readFileSync(path.resolve(__dirname,
-      '../js/pmjs-plugins/audio-streaming/native-audio.js'), 'utf8');
+      '../js/pmjs-plugins/audio-streaming-native-audio.js'), 'utf8');
     const fixture = adapter.replace(/(\w+): '[a-f0-9]{64}'/g, (entry, name) => {
       if (!functions[name]) return entry;
       const body = Function.prototype.toString.call(functions[name])

@@ -5,7 +5,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 const WRITER_REQUIREMENTS = new Set(['js/pmjs-core/methods.js', 'js/pmjs-web/canvas.js', 'js/pmjs-pixi4/render-preflight.js',
-  'js/pmjs-pixi4/scene-primitives.js', 'js/pmjs-mv/bitmap-mesh.js', 'js/pmjs-plugins/mpp/triangle-bitmap.js',
+  'js/pmjs-pixi4/scene-primitives.js', 'js/pmjs-mv/bitmap-mesh.js', 'js/pmjs-plugins/mpp-triangle-bitmap.js',
   'js/pmjs-pixi4/scene-filters.js', 'js/pmjs-pixi4/scene-packet.js',
   'js/pmjs-mv/render-prepare.js',
   'js/pmjs-pixi4/scene-prepare.js', 'js/pmjs-pixi4/scene-classify.js',

@@ -7,7 +7,7 @@ const path = require('node:path');
 const test = require('node:test');
 const vm = require('node:vm');
 const source = fs.readFileSync(require.resolve('../js/pmjs-core/methods.js'), 'utf8') + '\n' + fs.readFileSync(path.join(__dirname,
-  '../js/pmjs-plugins/yanfly/message-core.js'), 'utf8');
+  '../js/pmjs-plugins/yanfly-message-core.js'), 'utf8');
 
 function install({ enabled = true, changedCharacter = false, changedBody = false, changedMeasure = false,
   fontWrapper = false } = {}) {

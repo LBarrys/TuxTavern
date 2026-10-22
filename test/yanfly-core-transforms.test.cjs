@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const test = require('node:test');
 const vm = require('node:vm');
-const adapter = fs.readFileSync(require.resolve('../js/pmjs-plugins/yanfly/core-transforms.js'), 'utf8');
+const adapter = fs.readFileSync(require.resolve('../js/pmjs-plugins/yanfly-core-transforms.js'), 'utf8');
 
 test('YEP_CoreEngine transform adapter is a no-op without the Pixi 4 render preflight', () => {
   const phases = [];
