@@ -10,7 +10,6 @@ install(FILES tools/build-js-runtime.mjs tools/game-inspect.mjs tools/pmjs.mjs
   tools/package-self-test.cjs DESTINATION share/pmjs/tools)
 install(FILES LICENSE THIRD_PARTY_NOTICES.md DESTINATION .)
 install(DIRECTORY third_party/ DESTINATION share/pmjs/notices FILES_MATCHING PATTERN "*.LICENSE")
-install(DIRECTORY docs/ DESTINATION share/pmjs/docs FILES_MATCHING PATTERN "*.md")
 
 configure_file(cmake/build-config.json.in build-config.json @ONLY)
 install(CODE "execute_process(COMMAND \"${NODE_EXECUTABLE}\" \"${CMAKE_CURRENT_SOURCE_DIR}/tools/install-manifest.mjs\"

@@ -41,7 +41,7 @@ Saves stay in the game folder; everything else is in `~/.local/share/tuxtavern/`
 
 ## Tests
 
-`sh test/launcher/run.sh` (launcher, cheats, shims); `npm test` and `ctest` (PMJS, see [building](docs/building.md)).
+`sh test/launcher/run.sh` (launcher, cheats, shims); `npm test` and `ctest` (PMJS, see [DEVELOPING](DEVELOPING.md)).
 
 ## Credits
 
