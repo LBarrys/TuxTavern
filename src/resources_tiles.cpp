@@ -101,6 +101,8 @@ void ImageStore::clearTileSetIndex() {
   {
     const std::lock_guard lock(tileVerificationMutex_);
     verifiedTileFiles_.clear();
+    verifiedTileFiles_.rehash(0);
+    tileVerificationCacheEstimatedBytes_ = verifiedTileFiles_.bucket_count() * sizeof(void*);
   }
 }
 std::shared_ptr<ImageFileSource> ImageStore::captureTileFile(const std::filesystem::path& path) const {
@@ -124,6 +126,17 @@ std::size_t descriptorBytes(const PreparedTileSet& descriptor) {
   for (const auto& page : descriptor.pages) bytes += page.path.native().capacity();
   return bytes;
 }
+std::size_t tileVerificationEntryBytes(const std::string& key) {
+  return key.capacity() + sizeof(std::string) + 2 * sizeof(void*);
+}
+}
+std::size_t ImageStore::tileVerificationCacheEntries() const {
+  const std::lock_guard lock(tileVerificationMutex_);
+  return verifiedTileFiles_.size();
+}
+std::size_t ImageStore::tileVerificationCacheEstimatedBytes() const {
+  const std::lock_guard lock(tileVerificationMutex_);
+  return tileVerificationCacheEstimatedBytes_;
 }
 ImageStore::TileIdentityState ImageStore::tileIdentityState(
     const std::string& expected, const ImageFileSource& file, const std::string& hash) const {
@@ -135,9 +148,7 @@ ImageStore::TileIdentityState ImageStore::tileIdentityState(
   }
   const auto verified = file.key() + '\n' + hash;
   const std::lock_guard lock(tileVerificationMutex_);
-  if (verifiedTileFiles_.contains(verified)) {
-    return TileIdentityState::verified;
-  }
+  if (verifiedTileFiles_.contains(verified)) return TileIdentityState::verified;
   return TileIdentityState::inodeOnly;
 }
 
@@ -149,15 +160,33 @@ bool ImageStore::tileContentMatches(const std::string& expectedIdentity,
   const auto verified = file.key() + '\n' + hash;
   {
     const std::lock_guard lock(tileVerificationMutex_);
-    if (verifiedTileFiles_.contains(verified)) {
-      return true;
-    }
+    if (verifiedTileFiles_.contains(verified)) return true;
   }
-  const bool matches = contentHashMatches(bytes, hash);
-  if (!matches) return false;
+  if (!contentHashMatches(bytes, hash)) return false;
+  const auto entryBytes = tileVerificationEntryBytes(verified);
+  if (entryBytes > tileVerificationCacheByteLimit) return true;
   {
     const std::lock_guard lock(tileVerificationMutex_);
-    verifiedTileFiles_.insert(verified);
+    if (verifiedTileFiles_.contains(verified)) return true;
+    if (verifiedTileFiles_.size() >= tileVerificationCacheEntryLimit ||
+        tileVerificationCacheEstimatedBytes_ > tileVerificationCacheByteLimit - entryBytes) {
+      verifiedTileFiles_.clear();
+      verifiedTileFiles_.rehash(0);
+      tileVerificationCacheEstimatedBytes_ = verifiedTileFiles_.bucket_count() * sizeof(void*);
+    }
+    if (tileVerificationCacheEstimatedBytes_ > tileVerificationCacheByteLimit - entryBytes) return true;
+    const auto oldBucketCount = verifiedTileFiles_.bucket_count();
+    const auto [_, inserted] = verifiedTileFiles_.insert(verified);
+    if (inserted) {
+      tileVerificationCacheEstimatedBytes_ += entryBytes +
+        (verifiedTileFiles_.bucket_count() - oldBucketCount) * sizeof(void*);
+      if (verifiedTileFiles_.size() > tileVerificationCacheEntryLimit ||
+          tileVerificationCacheEstimatedBytes_ > tileVerificationCacheByteLimit) {
+        verifiedTileFiles_.clear();
+        verifiedTileFiles_.rehash(0);
+        tileVerificationCacheEstimatedBytes_ = verifiedTileFiles_.bucket_count() * sizeof(void*);
+      }
+    }
   }
   return true;
 }
