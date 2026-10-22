@@ -190,7 +190,7 @@ test('direct stock renderers do not dispatch an overridden leaf hook', () => {
 test('Pixi baseline loads before plugin setup, with scan after adapters', () => {
   const runtimeRoot = path.join(__dirname, '..');
   const generic = JSON.parse(fs.readFileSync(path.join(runtimeRoot,
-    'profiles/mv.json'), 'utf8')).modules;
+    'js/profiles/mv.json'), 'utf8')).modules;
   assert.ok(generic.indexOf('js/pmjs-pixi4/render-preflight.js') >
     generic.indexOf('js/pmjs-mv/plugin-loader.js'));
   assert.ok(generic.indexOf('js/pmjs-pixi4/render-preflight.js') <

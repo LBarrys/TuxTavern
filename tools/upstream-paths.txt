@@ -30,3 +30,7 @@ js/pmjs-plugins/yanfly/slippery-tiles.js js/pmjs-plugins/yanfly-slippery-tiles.j
 js/pmjs-plugins/yanfly/visual-atb-gauge.js js/pmjs-plugins/yanfly-visual-atb-gauge.js
 js/pmjs-plugins/yed/retained-tiles.js js/pmjs-plugins/yed-retained-tiles.js
 js/pmjs-plugins/yed/tiled.js js/pmjs-plugins/yed-tiled.js
+profiles/mv-pixi7.json js/profiles/mv-pixi7.json
+profiles/mv.json js/profiles/mv.json
+profiles/mz.json js/profiles/mz.json
+profiles/plugin-adapters.json js/profiles/plugin-adapters.json

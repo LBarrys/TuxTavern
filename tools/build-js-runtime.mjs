@@ -79,7 +79,7 @@ let detectedRuntime = null;
 
 function loadProfile(name) {
   if (!/^[a-zA-Z0-9_-]+$/.test(name)) throw new Error(`invalid profile: ${name}`);
-  const profilePath = path.join(root, 'profiles', `${name}.json`);
+  const profilePath = path.join(root, 'js/profiles', `${name}.json`);
   const baseDir = root;
   if (!fs.existsSync(profilePath)) {
     console.error(`error: profile '${name}' not found at ${profilePath}`);
@@ -135,7 +135,7 @@ function resolveCapabilityManifest(manifest, manifestPath) {
   if (!gameArgument) throw new Error(`capability manifest ${manifestPath} requires --game`);
   const adaptersOption = manifest.adapters === undefined ? 'auto' : manifest.adapters;
 
-  const registryPath = path.join(root, 'profiles', 'plugin-adapters.json');
+  const registryPath = path.join(root, 'js/profiles', 'plugin-adapters.json');
   const registry = loadAdapterRegistry(registryPath);
 
   let inspection;

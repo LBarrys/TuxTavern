@@ -12,8 +12,8 @@ const WRITER_REQUIREMENTS = new Set(['js/pmjs-core/methods.js', 'js/pmjs-web/can
   'js/pmjs-pixi4/scene-encoders.js', 'js/pmjs-pixi4/scene-effects.js']);
 
 const root = path.resolve(__dirname, '../..');
-const profile = JSON.parse(fs.readFileSync(path.join(root, 'profiles/mv.json'), 'utf8'));
-const adapters = JSON.parse(fs.readFileSync(path.join(root, 'profiles/plugin-adapters.json'), 'utf8'));
+const profile = JSON.parse(fs.readFileSync(path.join(root, 'js/profiles/mv.json'), 'utf8'));
+const adapters = JSON.parse(fs.readFileSync(path.join(root, 'js/profiles/plugin-adapters.json'), 'utf8'));
 const mpp = adapters.adapters.find(adapter => adapter.plugins.includes('MPP_EncounterEffect'));
 const writerSources = [...profile.modules.slice(0, -1), ...mpp.modules, profile.modules.at(-1)]
   .filter(source => WRITER_REQUIREMENTS.has(source));

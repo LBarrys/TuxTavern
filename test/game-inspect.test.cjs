@@ -40,7 +40,7 @@ var $plugins =
 while (true) {}
 `,
   });
-  const registry = path.join(__dirname, '..', 'profiles', 'plugin-adapters.json');
+  const registry = path.join(__dirname, '..', 'js/profiles', 'plugin-adapters.json');
   const inspection = inspectGame(dir, registry);
   assert.equal(inspection.engine, 'mv');
   assert.equal(inspection.mvVersion, '1.6.1');
@@ -113,7 +113,7 @@ test('Pixi inspection closes a failed read before trying the next candidate', as
 
 test('game inspection rejects unknown engines and missing manifests', async () => {
   const { inspectGame, readPluginManifest } = await loadInspect();
-  const registry = path.join(__dirname, '..', 'profiles', 'plugin-adapters.json');
+  const registry = path.join(__dirname, '..', 'js/profiles', 'plugin-adapters.json');
   const empty = temporaryDirectory('pmjs-game-empty-');
   fs.mkdirSync(path.join(empty, 'js'), { recursive: true });
   assert.throws(() => inspectGame(empty, registry), /plugin manifest not found/);
@@ -136,6 +136,6 @@ test('adapter registry rejects duplicates and malformed entries', async () => {
   const bad = path.join(dir, 'bad.json');
   fs.writeFileSync(bad, JSON.stringify({ adapters: [{ plugins: ['A'] }] }));
   assert.throws(() => loadAdapterRegistry(bad), /requires nonempty plugins and modules arrays/);
-  const good = path.join(__dirname, '..', 'profiles', 'plugin-adapters.json');
+  const good = path.join(__dirname, '..', 'js/profiles', 'plugin-adapters.json');
   assert.ok(loadAdapterRegistry(good).length > 0);
 });

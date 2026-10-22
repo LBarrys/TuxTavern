@@ -38,8 +38,8 @@ function writeMzGame(root, { pixiVersion = '5.3.12', plugins = [] } = {}) {
 test('bundle generation is deterministic and resolves modules from its own checkout', () => {
   const root = temporaryDirectory('pmjs-bundle-');
   const game = writeMvGame(root);
-  fs.mkdirSync(path.join(root, 'profiles'));
-  fs.writeFileSync(path.join(root, 'profiles/mv.json'), JSON.stringify({ modules: ['foreign.js'] }));
+  fs.mkdirSync(path.join(root, 'js/profiles'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'js/profiles/mv.json'), JSON.stringify({ modules: ['foreign.js'] }));
   const out = path.join(root, 'out.js');
   const args = [tool, '--game', game, '--output', out];
   childProcess.execFileSync(process.execPath, args, { cwd: root });
@@ -375,7 +375,7 @@ test('--game composes the MZ profile with authored engine order and terminal boo
 test('MV and MZ profiles compose only the shared input bridge', () => {
   for (const profileName of ['mv', 'mz']) {
     const profile = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..',
-      'profiles', profileName + '.json'), 'utf8'));
+      'js/profiles', profileName + '.json'), 'utf8'));
     assert.equal(profile.modules.filter(module => module.endsWith('/input.js'))
       .join(','), 'js/pmjs-rpgmaker/input.js');
   }
@@ -433,7 +433,7 @@ test('auto composition requires a readable Pixi version', () => {
 test('a standalone source copy builds without the surrounding workspace', () => {
   const root = temporaryDirectory('pmjs-standalone-');
   const clone = path.join(root, 'runtime');
-  for (const directory of ['js', 'profiles']) fs.cpSync(path.join(__dirname, '..', directory), path.join(clone, directory), { recursive: true });
+  for (const directory of ['js']) fs.cpSync(path.join(__dirname, '..', directory), path.join(clone, directory), { recursive: true });
   fs.mkdirSync(path.join(clone, 'tools'));
   for (const file of ['build-js-runtime.mjs', 'game-inspect.mjs']) fs.copyFileSync(path.join(__dirname, '../tools', file), path.join(clone, 'tools', file));
   const game = writeMvGame(root, { plugins: [{ name: 'YED_Tiled', status: true }] });
@@ -468,9 +468,9 @@ test('explicit adapter files execute in supplied order before engine bootstrap',
   for (const name of ['build-js-runtime.mjs', 'game-inspect.mjs']) {
     fs.copyFileSync(path.resolve(__dirname, '../tools', name), path.join(root, 'tools', name));
   }
-  fs.mkdirSync(path.join(root, 'profiles'));
+  fs.mkdirSync(path.join(root, 'js/profiles'), { recursive: true });
   fs.mkdirSync(path.join(root, 'js/pmjs-mv'), { recursive: true });
-  fs.writeFileSync(path.join(root, 'profiles/mv.json'),
+  fs.writeFileSync(path.join(root, 'js/profiles/mv.json'),
     JSON.stringify({ modules: ['js/base.js', 'js/pmjs-mv/bootstrap.js'] }));
   fs.writeFileSync(path.join(root, 'js/base.js'), 'globalThis.order = ["base"];');
   fs.writeFileSync(path.join(root, 'js/pmjs-mv/bootstrap.js'), 'order.push("boot");');
