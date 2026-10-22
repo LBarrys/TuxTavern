@@ -878,15 +878,17 @@ std::optional<ImageInfo> ImageStore::loadPng(const std::filesystem::path& path,
     if (retainCpuPixels) this->retainCpuPixels(cached->handle);
     return cached;
   }
-  std::shared_ptr<ImageFileSource> fallback;
   if (!tileSet.empty()) {
     auto load = capturePrepared(*source, tileSet);
-    if (load) fallback = capturePreparedFallback(*load);
-    if (load && validatePrepared(*load, retainCpuPixels)) {
-      if (auto image = installPreparedLoad(*source, std::move(load), retainCpuPixels)) return image;
+    if (load) {
+      if (validatePrepared(*load, retainCpuPixels)) {
+        if (auto image = installPreparedLoad(*source, load, retainCpuPixels)) return image;
+      }
+      if (auto pixels = decodePreparedFallback(*load))
+        return installDecoded(*source, std::move(*pixels), retainCpuPixels);
     }
   } else if (auto prepared = acquirePrepared(*source, retainCpuPixels)) return prepared;
-  auto pixels = decodeFile(fallback ? *fallback : *source);
+  auto pixels = decodeFile(*source);
   if (!pixels) return std::nullopt;
   return installDecoded(*source, std::move(*pixels), retainCpuPixels);
 }
@@ -2179,8 +2181,8 @@ std::shared_ptr<ImageStore::PreparedLoad> ImageStore::capturePrepared(
   return load;
 }
 
-std::shared_ptr<ImageFileSource> ImageStore::capturePreparedFallback(const PreparedLoad& load) {
-  return load.tiles ? captureTileFallback(*load.tiles) : nullptr;
+std::optional<ImagePixels> ImageStore::decodePreparedFallback(const PreparedLoad& load) const {
+  return load.tiles ? decodeTileFallback(*load.tiles) : std::nullopt;
 }
 
 bool ImageStore::validatePrepared(PreparedLoad& load, bool retainCpu) {

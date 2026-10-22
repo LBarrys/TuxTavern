@@ -109,7 +109,6 @@ struct AsyncImageLoad {
   napi_async_work work = nullptr;
   std::vector<napi_deferred> deferreds;
   std::unique_ptr<pmjs::ImageFileSource> source;
-  std::shared_ptr<pmjs::ImageFileSource> fallbackSource;
   std::string key, tileSet;
   bool retainCpuPixels = false;
   bool prepareCpuPixels = false, tileValidationFailed = false;
@@ -208,17 +207,27 @@ void executeImageLoad(napi_env, void* opaque) noexcept {
   auto* load = static_cast<AsyncImageLoad*>(opaque);
   if (load->prepared) {
     try {
-      if (pmjs::ImageStore::validatePrepared(*load->prepared, load->prepareCpuPixels)) return;
+      if (state && state->images.validatePrepared(*load->prepared, load->prepareCpuPixels)) return;
     } catch (...) {
       // Invalid prepared backing still permits decoding the captured source.
     }
     load->tileValidationFailed = !load->tileSet.empty();
+    try {
+      if (state) load->pixels = state->images.decodePreparedFallback(*load->prepared);
+    } catch (...) {
+      load->pixels = std::nullopt;
+    }
+    if (!load->pixels && load->source) {
+      try { load->pixels = pmjs::ImageStore::decodeFile(*load->source); }
+      catch (...) { load->pixels = std::nullopt; }
+    }
     load->prepared.reset();
+    return;
   }
-  if (load->deferrable && !load->fallbackSource &&
+  if (load->deferrable &&
       (load->deferredSize = pmjs::ImageStore::imageSize(*load->source))) return;
   try {
-    load->pixels = pmjs::ImageStore::decodeFile(load->fallbackSource ? *load->fallbackSource : *load->source);
+    load->pixels = pmjs::ImageStore::decodeFile(*load->source);
   } catch (...) {
     load->pixels = std::nullopt;
   }
@@ -340,7 +349,6 @@ napi_value queueImageLoad(napi_env env, const std::filesystem::path& path,
   load->retainCpuPixels = retainCpuPixels;
   load->prepareCpuPixels = retainCpuPixels;
   load->prepared = state->images.capturePrepared(*load->source, tileSet);
-  if (load->prepared) load->fallbackSource = pmjs::ImageStore::capturePreparedFallback(*load->prepared);
   // The page knows a burst (it queues them all at once); natively it shows as many pending.
   load->deferrable = tileSet.empty() && !retainCpuPixels && state->images.defersLoad(
     burst || state->pendingImageLoads.size() >= pmjs::ImageStore::deferBurst);

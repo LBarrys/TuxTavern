@@ -8,6 +8,7 @@
 #include <filesystem>
 #include <memory>
 #include <optional>
+#include <span>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -239,8 +240,8 @@ class ImageStore {
   struct PreparedLoad;
   std::shared_ptr<PreparedLoad> capturePrepared(const ImageFileSource& source,
       const std::string& tileSet = {}) const;
-  static bool validatePrepared(PreparedLoad& load, bool retainCpuPixels = false);
-  static std::shared_ptr<ImageFileSource> capturePreparedFallback(const PreparedLoad& load);
+  bool validatePrepared(PreparedLoad& load, bool retainCpuPixels = false);
+  std::optional<ImagePixels> decodePreparedFallback(const PreparedLoad& load) const;
   std::optional<ImageInfo> installPreparedLoad(const ImageFileSource& source,
       std::shared_ptr<PreparedLoad> load, bool retainCpuPixels);
   std::optional<ImageInfo> inspect(ImageHandle handle) const;
@@ -480,8 +481,17 @@ class ImageStore {
   };
 
   std::shared_ptr<TileLoad> captureTileLoad(const ImageFileSource& source, const std::string& identity) const;
-  static bool validateTileLoad(TileLoad& load, bool retainCpu);
-  static std::shared_ptr<ImageFileSource> captureTileFallback(const TileLoad& load);
+  bool validateTileLoad(TileLoad& load, bool retainCpu);
+  std::optional<ImagePixels> decodeTileFallback(const TileLoad& load) const;
+  enum class TileIdentityState { exact, inodeOnly, verified, changed };
+  TileIdentityState tileIdentityState(const std::string& expected,
+      const ImageFileSource& file, const std::string& hash) const;
+  bool tileContentMatches(const std::string& expectedIdentity,
+      const ImageFileSource& file, const std::string& hash, std::span<const std::uint8_t> bytes) const;
+  std::shared_ptr<ImageFileSource> captureTileSnapshot(TilePrototype& prototype,
+      std::size_t source) const;
+  std::optional<ImagePixels> decodeTileSnapshot(TilePrototype& prototype,
+      std::size_t source) const;
   std::optional<ImageInfo> installTileLoad(std::shared_ptr<TileLoad> load, bool retainCpu);
   std::optional<ImagePixels> readTileRegion(const Slot& slot, int x, int y, int width, int height) const;
   std::optional<SpriteImageRegion> resolveTileRegion(Slot& slot, float x, float y,
@@ -497,9 +507,9 @@ class ImageStore {
   std::shared_ptr<bool> alive_ = std::make_shared<bool>(true);
   std::unordered_map<std::string, std::shared_ptr<TileCatalog>> tileSets_;
   mutable std::unordered_map<std::string, std::weak_ptr<ImageFileSource>> tileFiles_;
+  mutable std::mutex tileFileMutex_;
+  mutable std::mutex tileVerificationMutex_;
   mutable std::unordered_set<std::string> verifiedTileFiles_;
-  bool tileIdentityMatches(const std::string& expected, const ImageFileSource& file,
-                           const std::string& hash) const;
   std::shared_ptr<ImageFileSource> captureTileFile(const std::filesystem::path& path) const;
   std::uint64_t tileHits_ = 0, tileRegions_ = 0, tileMaterializations_ = 0;
   std::uint64_t sceneryWindowHits_ = 0;

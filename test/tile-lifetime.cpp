@@ -71,7 +71,8 @@ int main() try {
       "catalog replacement duplicated metadata");
     auto image = images.loadPng(root/"source.png", false, "set-0");
     require(image && images.hasTileBacking(image->handle), "prepared load failed");
-    require(fileCount() == baseline+2, "active backing file capture wrong");
+    // The snapshot is opened only when a fallback needs it.
+    require(fileCount() == baseline+1, "active backing file capture wrong");
     const auto prototypeBytes = images.tileMetadataBytes()-catalogBytes;
     require(prototypeBytes > 0, "active backing metadata not accounted");
     auto view = images.createTileSlot(image->handle, 16, 16);
@@ -90,7 +91,7 @@ int main() try {
       !images.hasCpuPixels(image->handle), "covered read unnecessarily decoded ordinary source");
     auto source = pmjs::ImageStore::openFile(root/"source.png");
     auto pending = images.capturePrepared(*source, "set-0");
-    require(pending && pmjs::ImageStore::validatePrepared(*pending, true), "worker snapshot validation failed");
+    require(pending && images.validatePrepared(*pending, true), "worker snapshot validation failed");
     require(images.tileMetadataBytes() == catalogBytes+prototypeBytes,
       "pending shared load duplicated backing metadata");
     descriptor.identity = "set-0";
