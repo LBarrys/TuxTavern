@@ -1,5 +1,5 @@
 'use strict';
-const { model, value, install } = require('../../lib/editor.js');
+const { model, value, hooks } = require('../../lib/editor.js');
 
 let failed = 0;
 function is(desc, got, want) {
@@ -214,12 +214,9 @@ c.forget(0);
 is('and forgotten', c.spots(), []);
 
 delete pl._rpgmCheats;
-const page = { ...g, $gamePlayer: Object.assign(new Player(), { _rpgmCheats: { noclip: true } }), handlers: {} };
+const page = { ...g, $gamePlayer: Object.assign(new Player(), { _rpgmCheats: { noclip: true } }) };
 delete page.rpgmCheats;
-page.addEventListener = (type, f) => { page.handlers[type] = f; };
-page.document = { createElement: () => ({ append() {} }) };
-install(page);
-page.handlers.load();
-is('cheats kept in a save work once the page loads, before F8 is pressed', page.$gamePlayer.isThrough(), true);
+hooks(page);
+is('cheats kept in a save work once hooked, before F8 is pressed', page.$gamePlayer.isThrough(), true);
 
 process.exit(failed ? 1 : 0);
