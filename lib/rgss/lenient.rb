@@ -34,22 +34,5 @@ if Object.const_defined?(:Win32API) && Win32API.method_defined?(:mkxp_native_cal
       @kgl2_wrap_impl = nil
       @mkxp_native_available = false
     end
-
-    # A game may freeze its Win32API objects (Nettle Tribe's Input-EX, for WFInput.dll). mkxp-z's
-    # stub for a DLL it cannot load marks the object as called, which then raises FrozenError.
-    # Answer as the stub does: 0, logged once.
-    alias_method :call_without_frozen_stub, :call
-
-    def call(*args)
-      unless frozen? && !@mkxp_wrap_impl && !@kgl2_wrap_impl && !@mkxp_native_available
-        return call_without_frozen_stub(*args)
-      end
-      @@frozen_stubs ||= {}
-      unless @@frozen_stubs["#{@dll}:#{@func}"]
-        @@frozen_stubs["#{@dll}:#{@func}"] = true
-        $stdout.puts "[Win32API] [#{@dll}:#{@func}] #{args}" rescue nil
-      end
-      0
-    end
   end
 end
