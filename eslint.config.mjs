@@ -23,8 +23,7 @@ export default [
   {
     files: [
       'tools/generate-*-reference.cjs',
-      'test/helpers/title-canvas-scenario.cjs',
     ],
-    languageOptions: { globals: { ...globals.browser, __titleReadCanvas: 'readonly' } },
+    languageOptions: { globals: globals.browser },
   },
 ];
