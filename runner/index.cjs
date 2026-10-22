@@ -584,7 +584,7 @@ async function run(input) {
     native.runtime.childProcess = subprocesses.api;
     const hostSetTimeout = hostTimers.setTimeout;
     const hostSetImmediate = hostTimers.setImmediate;
-    native.runtime.scheduling = { ...hostTimers };
+    native.runtime.scheduling = { ...hostTimers, nextTick: hostProcess.nextTick.bind(hostProcess) };
     const physicalDisplay = (native.runtime && typeof native.runtime.displaySize === 'function')
       ? native.runtime.displaySize()
       : { width: 640, height: 480 };

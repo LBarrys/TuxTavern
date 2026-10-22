@@ -226,6 +226,17 @@ FsDirent.prototype.isSymbolicLink = function() { return this._type === 3; };
 function deliverNodeCallback(callback) {
   PMJS.tasks.enqueue(callback, { errorMode: 'uncaught' });
 }
+var readFileCallbackWarningEmitted = false;
+function warnMissingReadFileCallback() {
+  if (readFileCallbackWarningEmitted) return;
+  readFileCallbackWarningEmitted = true;
+  var warning = new Error('Calling an asynchronous function without callback is deprecated.');
+  warning.name = 'DeprecationWarning';
+  warning.code = 'DEP0013';
+  if (!globalThis.process || !globalThis.process.emit || !globalThis.process.emit('warning', warning)) {
+    console.warn(warning.stack || warning);
+  }
+}
 
 var fsModule = {
   Stats: globalThis.__pmjsBuiltinRequire('fs').Stats,
@@ -241,7 +252,10 @@ var fsModule = {
   },
   readFile: function(path, options, callback) {
     if (typeof options === 'function') { callback = options; options = undefined; }
-    if (typeof callback !== 'function') throw new TypeError('readFile requires a callback');
+    if (typeof callback !== 'function') {
+      warnMissingReadFileCallback();
+      callback = function(error) { if (error) throw error; };
+    }
     PMJS.tasks.enqueue(function() {
       Promise.resolve().then(function() { return fsReadContentsAsync(path, options); }).then(
         function(result) { deliverNodeCallback(function() { return callback(null, result); }); },
