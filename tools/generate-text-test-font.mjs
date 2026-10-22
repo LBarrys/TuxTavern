@@ -1,5 +1,5 @@
 // Subset licensed DejaVu Sans for shaping tests; requires hb-subset (HarfBuzz utilities):
-//   node tools/unicode/generate-text-test-font.mjs /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
+//   node tools/generate-text-test-font.mjs /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
 // The committed font came from fontTools. This one has the same glyphs, cmaps, names and
 // shaping but other bytes: after regenerating, update fontSha256 in
 // test/assets/reference/text-layout.json, whose Chromium metrics it then still meets.
@@ -148,4 +148,4 @@ tags.forEach((tag, index) => {
 const output = Buffer.concat([header, ...bodies]);
 const headOffset = header.readUInt32BE(20 + tags.indexOf('head') * 16);
 output.writeUInt32BE((0xb1b0afba - checksum(output)) >>> 0, headOffset + 8);
-fs.writeFileSync(new URL('../../test/assets/text-shaping.ttf', import.meta.url), output);
+fs.writeFileSync(new URL('../test/assets/text-shaping.ttf', import.meta.url), output);

@@ -35,3 +35,5 @@ profiles/mv.json js/profiles/mv.json
 profiles/mz.json js/profiles/mz.json
 profiles/plugin-adapters.json js/profiles/plugin-adapters.json
 bin/pmjs tools/pmjs.sh
+tools/unicode/generate-default-ignorables.mjs tools/generate-default-ignorables.mjs
+tools/unicode/generate-text-test-font.mjs tools/generate-text-test-font.mjs
