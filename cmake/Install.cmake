@@ -1,7 +1,8 @@
 find_program(NODE_EXECUTABLE node REQUIRED)
 
 install(TARGETS pmjs_native LIBRARY DESTINATION lib)
-install(PROGRAMS bin/pmjs tuxtavern DESTINATION bin)
+install(PROGRAMS tuxtavern DESTINATION bin)
+install(PROGRAMS tools/pmjs.sh DESTINATION bin RENAME pmjs)
 install(DIRECTORY lib/ DESTINATION share/tuxtavern)
 install(DIRECTORY js runner DESTINATION share/pmjs
   FILES_MATCHING PATTERN "*.js" PATTERN "*.cjs" PATTERN "*.json" PATTERN "*.ttf" PATTERN "*.LICENSE")

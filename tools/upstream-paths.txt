@@ -34,3 +34,4 @@ profiles/mv-pixi7.json js/profiles/mv-pixi7.json
 profiles/mv.json js/profiles/mv.json
 profiles/mz.json js/profiles/mz.json
 profiles/plugin-adapters.json js/profiles/plugin-adapters.json
+bin/pmjs tools/pmjs.sh
