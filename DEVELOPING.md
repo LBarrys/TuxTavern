@@ -75,13 +75,30 @@ directory per game.
 Requirements: Node-API 8+, SDL2, EGL and GLES 3.0+. Compatibility references: MV 1.6.2/Pixi 4.5.4,
 MZ 1.10.0/Pixi 5.3.12; MV on Pixi 7.4.2 (pixi-rpgm, as in Karryn's Prison) is newer.
 
-Diagnostics:
+## Environment variables
 
-- `PMJS_GRAPHICS_DIAGNOSTICS=1`: graphics diagnostics.
-- `PMJS_EVENT_DIAGNOSTICS=1`: MV event-stall timing and reports.
-- `PMJS_REQUIRE_HARDWARE_GL=1`: reject software rendering.
-- `PMJS_COMPAT_VERBOSE=1`: log unsupported operations.
-- `PMJS_STRICT_COMPAT=1`: stop at the first unsupported operation.
+| Variable | Effect |
+|---|---|
+| `PMJS_RENDER_HZ` | `30`, `60`, `120` or `0` (uncapped). Unset: 60 on screens up to 60 Hz, as fast as it can above |
+| `PMJS_UNCAPPED=1` | Draw uncapped |
+| `PMJS_SWAP_INTERVAL` | `-1`, `0`, `1` or `auto` (vsync) |
+| `PMJS_CATCHUP_MODE` | MV catch-up after a slow frame: `smooth` or `burst` |
+| `PMJS_LOGIC_HZ` | Only `60` is accepted: MV logic runs at its authored rate |
+| `PMJS_WINDOW_SIZE` | Window size, e.g. `1280x720` |
+| `PMJS_PRESENT_SCALE` | `fit` (default) or `integer` |
+| `PMJS_PRESENT_FILTER` | `nearest`, `linear` or `sharp` |
+| `PMJS_EXIT_HOTKEY` | SDL controller button that quits, or `none` |
+| `PMJS_DEFER_IMAGES` | `1` always decode images later, `0` never; unset: only in load bursts |
+| `PMJS_PREPARED_FRAME_CACHE_BYTES` | Prepared frame cache size (default 4 MiB) |
+| `PMJS_DISABLE_OPT=id,…` | Turn off named optimisations |
+| `PMJS_OPT_DIAGNOSTICS=1`, `PMJS_BOOT_DIAGNOSTICS=1` | List optimisation decisions; also boot steps |
+| `PMJS_GRAPHICS_DIAGNOSTICS=1`, `PMJS_AUDIO_DIAGNOSTICS=1` | Graphics or audio diagnostics |
+| `PMJS_EVENT_DIAGNOSTICS=1` | MV event-stall timing and reports |
+| `PMJS_REQUIRE_HARDWARE_GL=1` | Reject software rendering |
+| `PMJS_COMPAT_VERBOSE=1`, `PMJS_STRICT_COMPAT=1` | Log unsupported operations; stop at the first one |
+| `PMJS_SPARSE_TILING=1`, `PMJS_TILE_NEAREST_SHADER=0`, `PMJS_FILTER_BOUNDS=0` | Renderer switches, for comparing output |
+| `PMJS_DIALOG_MODE`, `PMJS_DIALOG_HEADLESS` | Tests: `strict` or `headless` browser dialogs; headless answers as JSON |
+| `PMJS_NODE` | Node binary `pmjs` runs (default `node`) |
 
 ## Web compatibility
 
