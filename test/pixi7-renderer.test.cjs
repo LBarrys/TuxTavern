@@ -25,7 +25,7 @@ test('Pixi 7 extract: base64 and image are Promises, pixels is synchronous', asy
       return { extract: { canvas() { const canvas = new CanvasElement(); canvas.width = 4; canvas.height = 4; return canvas; } } };
     } },
   });
-  vm.runInContext(fs.readFileSync(path.join(__dirname, '../js/pmjs-pixi7/renderer.js'), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '../js/pmjs-pixi5/pixi7-renderer.js'), 'utf8'), context);
   context.Graphics._createRenderer();
   const extract = context.Graphics._renderer.extract;
   const url = extract.base64({});
@@ -57,7 +57,7 @@ test('Pixi 7 event system hears document presses and releases over the canvas', 
     PMJS: { pixi7: {} },
     PIXI: { EventSystem, Renderer: function(options) { return { view: options.view, extract: {} }; } },
   });
-  vm.runInContext(fs.readFileSync(path.join(__dirname, '../js/pmjs-pixi7/renderer.js'), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '../js/pmjs-pixi5/pixi7-renderer.js'), 'utf8'), context);
   context.Graphics._createRenderer();
   const events = context.Graphics._renderer.events;
   assert.ok(events instanceof EventSystem);

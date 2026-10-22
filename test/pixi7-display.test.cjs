@@ -49,7 +49,7 @@ function harness() {
   runModule(context, 'js/pmjs-core/methods.js');
   runModule(context, 'js/pmjs-pixi5/scene.js');
   runModule(context, 'js/pmjs-pixi5/renderer.js');
-  runModule(context, 'js/pmjs-pixi7/display.js');
+  runModule(context, 'js/pmjs-pixi5/pixi7-display.js');
   context.PMJS.methods.install();
   fixture.renderer = { plugins: { tilemap: { tileAnim: [0, 0] } } };
   fixture.render = stage => {
@@ -173,7 +173,7 @@ test('a bound texture counts as uploaded for FastCutIns', () => {
   const f = harness(), c = f.context;
   c.Graphics = { _width: 8, _height: 8 };
   c.Utils = { isOptionValid: () => false };
-  runModule(c, 'js/pmjs-pixi7/renderer.js');
+  runModule(c, 'js/pmjs-pixi5/pixi7-renderer.js');
   c.Graphics._createRenderer();
   const renderer = c.Graphics._renderer;
   const baseTexture = { valid: true, _glTextures: {} };

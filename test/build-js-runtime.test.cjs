@@ -220,7 +220,7 @@ test('MV on Pixi 7 loads the index.html scripts around the engine in page order'
   const out = path.join(root, 'out.js');
   childProcess.execFileSync(process.execPath, [tool, '--game', game, '--output', out]);
   const bundle = fs.readFileSync(out, 'utf8');
-  assert.match(bundle, /BEGIN js\/pmjs-pixi7\/setup.js/);
+  assert.match(bundle, /BEGIN js\/pmjs-pixi5\/pixi7-setup.js/);
   const runtimeGame = JSON.parse(bundle.match(/globalThis\.PMJS_RUNTIME_GAME = (\{[^\n]+\});/)[1]);
   assert.deepEqual(runtimeGame.libraries, ['js/libs/pixi.js', 'js/libs/pixi-tilemap.umd.js', 'js/libs/logger.js']);
   assert.deepEqual(runtimeGame.scripts, ['js/modmanager.js', 'js/mods.js']);
@@ -234,7 +234,7 @@ test('MV on Pixi 7 loads the index.html scripts around the engine in page order'
         detectCompressedTextures: {}, extensions: { remove(extension) { context.removed = extension; } } };
     } } } };
   context.globalThis = context;
-  for (const file of ['pmjs-pixi7/setup.js', 'pmjs-mv/engine.js']) {
+  for (const file of ['pmjs-pixi5/pixi7-setup.js', 'pmjs-mv/engine.js']) {
     vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../js', file), 'utf8'), context);
   }
   assert.deepEqual(paths, ['js/libs/pixi.js', 'js/libs/pixi-tilemap.umd.js', 'js/libs/logger.js',
