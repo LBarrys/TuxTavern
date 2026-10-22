@@ -46,6 +46,13 @@ function run(root, installed) {
   return { calls: fs.readFileSync(log, 'utf8').trim().split('\n'), state };
 }
 
+test('apk.sh asks for SDL2 build files by what they provide, so sdl2-compat systems can build', () => {
+  const text = fs.readFileSync(script, 'utf8');
+  const makedepends = text.match(/makedepends="([^"]*)"/)[1];
+  assert.match(makedepends, / pc:sdl2 /);
+  assert.doesNotMatch(makedepends, /\bsdl2-dev\b/);
+});
+
 test('apk.sh packages the checkout and installs it from the local repository', { skip: !usable && 'needs Alpine, root and unshare' }, () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tuxtavern-apk-'));
   fs.mkdirSync(path.join(root, 'bin'));
@@ -62,6 +69,8 @@ test('apk.sh packages the checkout and installs it from the local repository', {
   const mkpkg = first.calls.find(call => call.startsWith('apk mkpkg'));
   assert.match(mkpkg, new RegExp(`version:${version}-r0 `), 'a newer day starts at r0');
   assert.match(mkpkg, /depends:nodejs so:libSDL2-2\.0\.so\.0 .* ffmpeg-libswscale --sign-key \/root\/keys\/local\.rsa/);
+  const build = first.calls.find(call => call.startsWith('apk add -q --virtual .tuxtavern-build'));
+  assert.match(build, / pc:sdl2 /, 'SDL2 headers come from sdl2 or sdl2-compat, whichever fits');
   assert.deepEqual(first.calls.slice(-2), ['apk add -u tuxtavern@busylinux', 'apk del -q .tuxtavern-build'],
     'build tools stay until TuxTavern is installed');
   assert.ok(first.calls.includes('openssl genrsa'), 'a missing signing key is created');

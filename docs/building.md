@@ -25,7 +25,7 @@ As a package, rebuilt and upgraded after each `git pull`: `doas sh tools/apk.sh`
 
 ```sh
 doas apk add build-base cmake samurai pkgconf git nodejs-dev linux-headers \
-  sdl2-dev mesa-dev libpng-dev libwebp-dev zlib-dev libjpeg-turbo-dev \
+  pc:sdl2 mesa-dev libpng-dev libwebp-dev zlib-dev libjpeg-turbo-dev \
   freetype-dev harfbuzz-dev lz4-dev ffmpeg-dev
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
 cmake --build build --target pmjs_native
