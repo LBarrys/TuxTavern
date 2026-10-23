@@ -4,6 +4,8 @@ const path = require('node:path');
 const { png } = require('./helpers/png.cjs');
 const { spritePacket, drawPacket } = require('./helpers/sparse-palette.cjs');
 const native = require(path.resolve(process.argv[2]));
+// --palettes-off: without PMJS_PALETTE_IMAGES=1, drawing leaves palette storage.
+const palettesOff = process.argv.includes('--palettes-off');
 native.initialize({ gameRoot: __dirname, width: 64, height: 48,
   windowTitle: 'Linear tiling storage', imageWarmCacheBytes: 0 });
 const pixels = Buffer.alloc(64 * 64 * 4);
@@ -31,7 +33,7 @@ try {
       }
       assert.deepEqual(drawPacket(native, packet(indexed)), drawPacket(native, packet(reference)),
         'tiling pixels differ from independent ordinary RGBA backing');
-      assert.equal(owner(indexed).palette, nearest, 'only nearest tiling keeps indexed backing');
+      assert.equal(owner(indexed).palette, nearest && !palettesOff, 'only nearest tiling keeps indexed backing');
       if (!nearest) assert.equal(owner(indexed).gpuBytes, 64 * 64 * 2,
         'linear fallback must retain compact grayscale-alpha storage');
       const uploads = native.images.memory().textureUploadBytes;

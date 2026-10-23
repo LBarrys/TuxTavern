@@ -96,6 +96,7 @@ MZ 1.10.0/Pixi 5.3.12; MV on Pixi 7.4.2 (pixi-rpgm, as in Karryn's Prison) is ne
 | `PMJS_EVENT_DIAGNOSTICS=1` | MV event-stall timing and reports |
 | `PMJS_REQUIRE_HARDWARE_GL=1` | Reject software rendering |
 | `PMJS_COMPAT_VERBOSE=1`, `PMJS_STRICT_COMPAT=1` | Log unsupported operations; stop at the first one |
+| `PMJS_PALETTE_IMAGES=1` | Draw few-colour images from palettes: less GPU memory, slower drawing |
 | `PMJS_SPARSE_TILING=1`, `PMJS_TILE_NEAREST_SHADER=0`, `PMJS_FILTER_BOUNDS=0` | Renderer switches, for comparing output |
 | `PMJS_DIALOG_MODE`, `PMJS_DIALOG_HEADLESS` | Tests: `strict` or `headless` browser dialogs; headless answers as JSON |
 | `PMJS_NODE` | Node binary `pmjs` runs (default `node`) |

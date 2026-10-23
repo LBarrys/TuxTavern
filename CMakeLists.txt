@@ -159,7 +159,7 @@ if(BUILD_TESTING)
   target_compile_options(pmjs-grayscale-images-test PRIVATE ${PMJS_BASE_COMPILE_OPTIONS})
   target_link_libraries(pmjs-grayscale-images-test PRIVATE pmjs_runtime)
   add_test(NAME native-grayscale-images COMMAND ${XVFB_RUN} -a $<TARGET_FILE:pmjs-grayscale-images-test>)
-  set_tests_properties(native-grayscale-images PROPERTIES ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;SDL_AUDIODRIVER=dummy")
+  set_tests_properties(native-grayscale-images PROPERTIES ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;SDL_AUDIODRIVER=dummy;PMJS_PALETTE_IMAGES=1")
   add_executable(pmjs-tile-lifetime-test test/tile-lifetime.cpp)
   target_compile_options(pmjs-tile-lifetime-test PRIVATE ${PMJS_BASE_COMPILE_OPTIONS})
   target_link_libraries(pmjs-tile-lifetime-test PRIVATE pmjs_runtime)
@@ -348,7 +348,11 @@ if(BUILD_TESTING)
     PROPERTIES ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;SDL_AUDIODRIVER=dummy")
   add_test(NAME node-sparse-palette COMMAND ${XVFB_RUN} -a ${NODE_EXECUTABLE}
     "${CMAKE_CURRENT_SOURCE_DIR}/test/node-sparse-palette.cjs" $<TARGET_FILE:pmjs_native>)
-  set_tests_properties(node-sparse-palette PROPERTIES ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;SDL_AUDIODRIVER=dummy")
+  set_tests_properties(node-sparse-palette PROPERTIES ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;SDL_AUDIODRIVER=dummy;PMJS_PALETTE_IMAGES=1")
+  set_tests_properties(node-linear-tiling-palette PROPERTIES ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;SDL_AUDIODRIVER=dummy;PMJS_PALETTE_IMAGES=1")
+  add_test(NAME node-linear-tiling-palette-off COMMAND ${XVFB_RUN} -a ${NODE_EXECUTABLE}
+    "${CMAKE_CURRENT_SOURCE_DIR}/test/node-linear-tiling-palette.cjs" $<TARGET_FILE:pmjs_native> --palettes-off)
+  set_tests_properties(node-linear-tiling-palette-off PROPERTIES ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;SDL_AUDIODRIVER=dummy")
   add_test(NAME node-prepared-frame-effects COMMAND ${XVFB_RUN} -a ${NODE_EXECUTABLE}
     "${CMAKE_CURRENT_SOURCE_DIR}/test/node-prepared-frame-effects.cjs" $<TARGET_FILE:pmjs_native>)
   set_tests_properties(node-prepared-frame-effects

@@ -505,6 +505,7 @@ class Renderer {
   RendererStats stats_;
   bool diagnostics_ = false;
   bool sparseTiling_ = false;
+  bool paletteImages_ = false;
   std::vector<FilterContentBounds> filterBounds_;
   bool filterBoundsEnabled_ = true;
   std::uint32_t program_ = 0;
