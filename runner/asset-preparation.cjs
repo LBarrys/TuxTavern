@@ -11,7 +11,7 @@ const { acquireLock, createLease, retainLeases } = require('./preparation-lifeti
 const { catalogInvalidator, readCatalog, publishCatalog, retainedCatalogKeys } = require('./preparation-catalog.cjs');
 
 const CACHE_VERSION = 1;
-const PROCESSOR_IDENTITY = { processor: 'lossless-images-v8-pixel-facts', decoder: 'png-rgba-v1', pageSize: 2048 };
+const PROCESSOR_IDENTITY = { processor: 'lossless-images-v9-layered-storage', decoder: 'png-rgba-v1', pageSize: 2048 };
 const HASH = /^[a-f0-9]{64}$/;
 const PNG = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 const ENCRYPTED_HEADER = Buffer.from('5250474d560000000003010000000000', 'hex');
@@ -169,7 +169,7 @@ function validStorageDecision(value) {
     value.source.every(n => Number.isInteger(n) && n >= 0 && n < 4) &&
     Array.isArray(value.swizzle) && value.swizzle.length === 4 &&
     value.swizzle.every(n => Number.isInteger(n) && (n >= 0 && n < value.channels || n === 4 || n === 5)) &&
-    (!value.paletteBits || value.channels === 4 && value.width >= 2048 && value.height >= 2048) &&
+    (!value.paletteBits || value.channels === 4) &&
     (value.pixelFactsVersion === undefined || value.pixelFactsVersion === 1 &&
       typeof value.opaque === 'boolean' && typeof value.allZero === 'boolean' &&
       !(value.opaque && value.allZero) &&
