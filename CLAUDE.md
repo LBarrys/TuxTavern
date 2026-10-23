@@ -26,7 +26,7 @@ Runs Windows RPG Maker XP/VX/VX Ace/MV/MZ games natively on Alpine Linux (musl).
 - Every change gets a test that fails without it. All must pass:
   - `sh test/launcher/run.sh` and `busybox sh test/launcher/run.sh` (launcher, `lib/`)
   - `npm test`, `npx eslint js runner tools test`, `ctest` (needs Xvfb)
-- `tuxtavern` and `build-mkxp-z.sh` are POSIX sh: `shellcheck` clean, run under GNU sh and BusyBox sh.
+- `tuxtavern`, `build-mkxp-z.sh`, `tools/pmjs.sh` and `tools/apk.sh` are POSIX sh: `shellcheck` clean, run under GNU sh and BusyBox sh.
 - MV/MZ: behave like NW.js (e.g. `require`/`process` in the page, no `module`/`exports`).
 - RGSS shims loaded before the game's scripts hook with `alias_method`, never `prepend`
   (a game's later `alias` would recurse forever). `prepend` only after game scripts load.
