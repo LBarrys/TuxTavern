@@ -113,6 +113,8 @@ struct AsyncImageLoad {
   bool retainCpuPixels = false;
   bool prepareCpuPixels = false, tileValidationFailed = false;
   std::shared_ptr<pmjs::ImageStore::PreparedLoad> prepared;
+  // Failed tile loads may still own GPU pages; release them on completion.
+  std::shared_ptr<pmjs::ImageStore::PreparedLoad> failedPrepared;
   std::optional<pmjs::ImagePixels> pixels;
   bool deferrable = false;
   std::optional<std::pair<int, int>> deferredSize;
@@ -221,7 +223,7 @@ void executeImageLoad(napi_env, void* opaque) noexcept {
       try { load->pixels = pmjs::ImageStore::decodeFile(*load->source); }
       catch (...) { load->pixels = std::nullopt; }
     }
-    load->prepared.reset();
+    load->failedPrepared = std::move(load->prepared);
     return;
   }
   if (load->deferrable &&
@@ -241,6 +243,7 @@ void completeImageLoad(napi_env env, napi_status status, void* opaque) noexcept 
   try {
     napi_delete_async_work(env, load->work);
     load->work = nullptr;
+    load->failedPrepared.reset();
     if (!owner) throw std::runtime_error("image runtime is unavailable");
     // A caller may request CPU pixels after validation has already finished.
     if (status == napi_ok && load->prepared && load->retainCpuPixels && !load->prepareCpuPixels) {
