@@ -82,70 +82,6 @@ bool premultipliedUnchanged(const std::uint8_t* rgba, std::size_t bytes) {
   return true;
 }
 
-std::optional<std::vector<std::array<int, 4>>> sparseImageRegions(
-    const void* pixels, int width, int height, bool premultiplied) {
-  constexpr int blockSize = 32;
-  constexpr std::size_t maximumRegions = 64;
-  const int columns = (width + blockSize - 1) / blockSize;
-  const int rows = (height + blockSize - 1) / blockSize;
-  std::vector<bool> occupied(static_cast<std::size_t>(columns) * rows);
-  const auto* rgba = static_cast<const std::uint8_t*>(pixels);
-  std::size_t coveredArea = 0;
-  const auto sourceArea = static_cast<std::size_t>(width) * height;
-  for (int y = 0; y < height; ++y) {
-    for (int x = 0; x < width; ++x) {
-      const auto* pixel = rgba + (static_cast<std::size_t>(y) * width + x) * 4;
-      if (!pixel[3]) {
-        // Premultiplied textures may carry additive color at zero alpha.
-        if (premultiplied && (pixel[0] || pixel[1] || pixel[2])) return std::nullopt;
-        continue;
-      }
-      for (int dy = -1; dy <= 1; ++dy) {
-        const int row = ((y + dy + height) % height) / blockSize;
-        for (int dx = -1; dx <= 1; ++dx) {
-          const int column = ((x + dx + width) % width) / blockSize;
-          const auto index = static_cast<std::size_t>(row) * columns + column;
-          if (occupied[index]) continue;
-          occupied[index] = true;
-          coveredArea += static_cast<std::size_t>(std::min(blockSize, width - column * blockSize)) *
-              std::min(blockSize, height - row * blockSize);
-          if (coveredArea > sourceArea / 2) return std::nullopt;
-        }
-      }
-    }
-  }
-  std::vector<std::array<int, 4>> regions;
-  std::vector<std::size_t> previousRuns;
-  for (int row = 0; row < rows; ++row) {
-    std::vector<std::size_t> currentRuns;
-    for (int column = 0; column < columns;) {
-      if (!occupied[static_cast<std::size_t>(row) * columns + column]) {
-        ++column;
-        continue;
-      }
-      const int start = column;
-      while (column < columns && occupied[static_cast<std::size_t>(row) * columns + column]) ++column;
-      const int x = start * blockSize;
-      const int runWidth = std::min(width, column * blockSize) - x;
-      const int runHeight = std::min(blockSize, height - row * blockSize);
-      const auto found = std::find_if(previousRuns.begin(), previousRuns.end(), [&](std::size_t index) {
-        return regions[index][0] == x && regions[index][2] == runWidth;
-      });
-      if (found != previousRuns.end()) {
-        regions[*found][3] += runHeight;
-        currentRuns.push_back(*found);
-      } else {
-        if (regions.size() == maximumRegions) return std::nullopt;
-        currentRuns.push_back(regions.size());
-        regions.push_back({x, row * blockSize, runWidth, runHeight});
-      }
-    }
-    previousRuns = std::move(currentRuns);
-  }
-  regions.shrink_to_fit();
-  return regions;
-}
-
 int grayscaleChannels(const ImagePixels& pixels) {
   // Keep the constant-pixel representation independent of channel compression.
   if (pixels.width == 1 && pixels.height == 1) return 4;
@@ -707,8 +643,6 @@ ImageStore::ImageStore() : preparedPool_(std::make_shared<PreparedPool>()) {
   tileDiagnostics_ = diagnostics && std::string(diagnostics) == "1";
   const char* defer = std::getenv("PMJS_DEFER_IMAGES");
   deferMode_ = !defer || !*defer ? DeferMode::bursts : std::string(defer) == "0" ? DeferMode::never : DeferMode::always;
-  const char* sparse = std::getenv("PMJS_SPARSE_TILING");
-  sparseTiling_ = sparse && std::string(sparse) == "1";
 }
 
 ImageStore::~ImageStore() {
@@ -1047,7 +981,6 @@ ImageStorageDecision ImageStore::classifyStorage(const ImagePixels& pixels) {
     result.opaque &= pixels.rgba[i+3] == 255;
     result.allZero &= !(pixels.rgba[i] || pixels.rgba[i+1] || pixels.rgba[i+2] || pixels.rgba[i+3]);
   }
-  result.sparseRegions = sparseImageRegions(pixels.rgba.data(), pixels.width, pixels.height, false);
   if (result.channels.channels == 1) return result;
   const std::size_t limit = result.channels.channels == 2 ? 256 : 65536;
   std::unordered_set<std::uint32_t> colors;
@@ -1075,16 +1008,7 @@ bool ImageStore::installStorageDecision(const std::filesystem::path& path,
   for (auto c : decision.channels.source) if (c > 3) return false;
   for (auto c : decision.channels.swizzle)
     if (c >= decision.channels.channels && c != 4 && c != 5) return false;
-  if (decision.hasPixelFacts) {
-    if (decision.opaque && decision.allZero) return false;
-    if (decision.sparseRegions) {
-      if (decision.sparseRegions->size() > 64) return false;
-      for (const auto& r : *decision.sparseRegions)
-        if (r[0] < 0 || r[1] < 0 || r[2] <= 0 || r[3] <= 0 ||
-            r[2] > decision.width || r[3] > decision.height ||
-            r[0] > decision.width-r[2] || r[1] > decision.height-r[3]) return false;
-    }
-  }
+  if (decision.hasPixelFacts && decision.opaque && decision.allZero) return false;
   const auto source = openFile(path);
   if (!source || source->key() != sourceIdentity) return false;
   storageDecisions_[sourceIdentity] = decision;
@@ -1319,9 +1243,6 @@ std::optional<ImageInfo> ImageStore::createImage(int width, int height,
   while (index < slots_.size() && slots_[index].live) ++index;
   if (index >= indexMask) return std::nullopt;
   if (index == slots_.size()) slots_.emplace_back();
-  auto sparseRegions = sparseTiling_ && pixels
-    ? (decision && decision->hasPixelFacts ? decision->sparseRegions : sparseImageRegions(pixels, width, height, premultiplied))
-    : decltype(slots_[index].sparseRegions){};
   const auto texture = deferred || palette ? 0U : uploadTexture(width, height, pixels, storage);
   if (!texture && !deferred && !palette) return std::nullopt;
   if (texture) ++textureCreates_;
@@ -1352,9 +1273,6 @@ std::optional<ImageInfo> ImageStore::createImage(int width, int height,
   slot.sourcePath.clear();
   slot.lastPreparedFallbackReason.clear();
   slot.cachedPixels.reset();
-  slot.sparseRegions.reset();
-  slot.sparseRevision = slot.contentRevision;
-  slot.sparseRegions = std::move(sparseRegions);
   slot.gpuOnly = pixels == nullptr && !deferred;
   slot.renderTarget = false;
   slot.premultiplied = premultiplied;
@@ -1394,7 +1312,6 @@ std::size_t ImageStore::cpuBytes() const {
           for (const auto& palette : page.retiredPalettes)
             if (!seen.insert(palette.get()).second) result -= palette->colors.capacity(); }
     }
-    if (slot.live && slot.sparseRegions) result += slot.sparseRegions->capacity() * sizeof(std::array<int, 4>);
     if (slot.live && slot.prepared) for (const auto& page : slot.prepared->pages)
       {
         if (page.pixels && seen.insert(page.pixels.get()).second) result += page.pixels->rgba.capacity();
@@ -1425,7 +1342,6 @@ std::size_t ImageStore::residentBytes(const Slot& slot) const {
       (slot.prepared ? slot.prepared->gpuBytes : 0U) +
       slot.mipmapBytes + slot.premultipliedMipmapBytes +
       (slot.cachedPixels ? slot.cachedPixels->rgba.capacity() : 0U) +
-      (slot.sparseRegions ? slot.sparseRegions->capacity() * sizeof(std::array<int, 4>) : 0U) +
       (slot.prepared ? [&]() { std::size_t bytes = 0; for (const auto& page : slot.prepared->pages) { if (page.pixels) bytes += page.pixels->rgba.capacity(); if (page.sparse) bytes += page.sparse->cpuBytes(); } return bytes; }() : 0U);
 }
 
@@ -1539,7 +1455,6 @@ std::vector<ImageMemoryEntry> ImageStore::memoryEntries() const {
         (slot.prepared ? slot.prepared->gpuBytes : 0U) +
         slot.mipmapBytes + slot.premultipliedMipmapBytes + sharedGpuBytes,
       paletteCpuBytes(slot) + (slot.cachedPixels ? slot.cachedPixels->rgba.capacity() : 0U) +
-          (slot.sparseRegions ? slot.sparseRegions->capacity() * sizeof(std::array<int, 4>) : 0U) +
         (slot.prepared ? [&]() { std::size_t bytes = 0; for (const auto& page : slot.prepared->pages) { if (page.pixels) bytes += page.pixels->rgba.capacity(); if (page.sparse) bytes += page.sparse->cpuBytes(); } return bytes; }() : 0U),
       slot.lastUsedSerial,
       slot.references == 0 && slot.pins == 0 &&
@@ -1568,7 +1483,6 @@ bool ImageStore::updateRgba(ImageHandle handle, const void* pixels) {
   if (!preservePixelReads(handle)) return false;
   auto& slot = slots_[(handle & indexMask) - 1U];
   ++slot.contentRevision;
-  slot.sparseRegions.reset();
   slot.knownAllZero = false;
   if (!detachSharedTexture(slot)) return false;
   clearPrepared(slot);
@@ -1609,7 +1523,6 @@ bool ImageStore::updateRgbaRegion(ImageHandle handle, int x, int y, int width,
   if (!preservePixelReads(handle)) return false;
   auto& slot = slots_[(handle & indexMask) - 1U];
   ++slot.contentRevision;
-  slot.sparseRegions.reset();
   const bool canProveZero = slot.knownAllZero ||
       (x == 0 && y == 0 && width == info->width && height == info->height);
   slot.knownAllZero = false;
@@ -1735,14 +1648,6 @@ std::optional<std::uint64_t> ImageStore::contentRevision(ImageHandle handle) con
   // External framebuffer writes have no tracked content revision.
   if (slot.gpuOnly || slot.renderTarget || slot.tiles) return std::nullopt;
   return slot.contentRevision;
-}
-
-const std::vector<std::array<int, 4>>* ImageStore::sparseRegions(ImageHandle handle) const {
-  if (!inspect(handle)) return nullptr;
-  const auto& slot = slots_[(handle & indexMask) - 1U];
-  if (slot.gpuOnly || slot.renderTarget || slot.prepared || slot.tiles ||
-      slot.sparseRevision != slot.contentRevision || !slot.sparseRegions) return nullptr;
-  return &*slot.sparseRegions;
 }
 
 std::optional<bool> ImageStore::isOpaque(ImageHandle handle) {
@@ -1959,7 +1864,6 @@ void ImageStore::destroySlot(std::size_t index) {
   slot.sourcePath.clear();
   slot.lastPreparedFallbackReason.clear();
   slot.cachedPixels.reset();
-  slot.sparseRegions.reset();
   slot.prepared.reset();
   slot.tiles.reset();
   if (slot.deferredSource) --deferredFiles_;
