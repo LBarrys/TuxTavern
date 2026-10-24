@@ -20,6 +20,8 @@ function createRenderers(count = 1, configure) {
     }
   };
   context.PIXI.WebGLRenderer = class {};
+  context.NativeHost.render.setClearColor = () => {};
+  context.NativeHost.render.setClearBeforeRender = () => {};
   context.NativeHost.render.setScreenRenderSize = () => {};
   context.NativeHost.render.setRenderTargetSize = () => {};
   for (const name of ['renderer-managers', 'renderer-facade']) {
