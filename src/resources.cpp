@@ -4,6 +4,7 @@
 #include "file_identity.hpp"
 #include "checked_bounds.hpp"
 #include "png_recovery.hpp"
+#include "png_color.hpp"
 #include "psd_decoder.hpp"
 
 #include <algorithm>
@@ -282,30 +283,60 @@ std::uint32_t uploadTexture(int width, int height, const void* rgba, ImageChanne
   return texture;
 }
 
-std::optional<ImagePixels> decodePngFromMemory(const void* data, std::size_t size,
-    std::size_t maxDecodedBytes = 128U*1024U*1024U) {
-  if (!data || size < 8) return std::nullopt;
-  png_image image{};
-  image.version = PNG_IMAGE_VERSION;
-  if (!png_image_begin_read_from_memory(&image, data, size)) return std::nullopt;
-  // Browser image decoding treats untagged 16-bit samples as encoded sRGB.
-  image.flags |= PNG_IMAGE_FLAG_16BIT_sRGB;
-  image.format = PNG_FORMAT_RGBA;
-  const auto extent = checkedImageExtent(static_cast<int>(image.width), static_cast<int>(image.height), 8192, maxDecodedBytes);
-  if (!extent) {
-    png_image_free(&image);
+std::optional<ImagePixels> decodePngFromMemory(const void *data, std::size_t size,
+                                               std::size_t maxDecodedBytes = 128U * 1024U * 1024U) {
+  if (!data || size < 8)
+    return std::nullopt;
+  struct Input {
+    const unsigned char *data;
+    size_t size, offset;
+  };
+  struct State {
+    png_structp png = nullptr;
+    png_infop info = nullptr;
+    ~State() { if (png) png_destroy_read_struct(&png, info ? &info : nullptr, nullptr); }
+    Input input;
+    ImagePixels result;
+    std::vector<png_bytep> rows;
+  };
+  const auto state = std::make_unique<State>();
+  auto& png = state->png;
+  auto& info = state->info;
+  png = png_create_read_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
+  info = png ? png_create_info_struct(png) : nullptr;
+  if (!info) return std::nullopt;
+  state->input = {static_cast<const unsigned char *>(data), size, 0};
+  auto &result = state->result;
+  auto &rows = state->rows;
+  if (setjmp(png_jmpbuf(png))) {
     return std::nullopt;
   }
-  ImagePixels result;
+  png_set_chunk_malloc_max(png, 1024U * 1024U);
+  png_set_read_fn(png, &state->input, [](png_structp reader, png_bytep output, png_size_t length) {
+    auto &in = *static_cast<Input *>(png_get_io_ptr(reader));
+    if (length > in.size - in.offset)
+      png_error(reader, "truncated PNG");
+    std::memcpy(output, in.data + in.offset, length);
+    in.offset += length;
+  });
+  png_read_info(png, info);
+  const auto extent = checkedImageExtent(png_get_image_width(png, info), png_get_image_height(png, info),
+                                         8192, maxDecodedBytes);
+  if (!extent) {
+    return std::nullopt;
+  }
+  configurePng(png, info);
+  png_set_interlace_handling(png);
+  png_read_update_info(png, info);
   result.width = extent->width;
   result.height = extent->height;
   result.rgba.resize(extent->rgbaBytes);
-  if (!png_image_finish_read(&image, nullptr, result.rgba.data(), 0, nullptr)) {
-    png_image_free(&image);
-    return std::nullopt;
-  }
-  png_image_free(&image);
-  return result;
+  rows.resize(result.height);
+  for (int y = 0; y < result.height; ++y)
+    rows[y] = result.rgba.data() + size_t(y) * result.width * 4;
+  png_read_image(png, rows.data());
+  png_read_end(png, info);
+  return std::move(result);
 }
 
 struct JpegError {
@@ -325,9 +356,10 @@ std::optional<ImagePixels> decodeJpegFromMemory(const void* data, std::size_t si
   JpegError error{};
   decoder.err = jpeg_std_error(&error.base);
   error.base.error_exit = recoverJpegError;
-  std::uint8_t* raw = nullptr;
+  // Heap-owned so a longjmp out of libjpeg cannot leak it.
+  const auto state = std::make_unique<std::vector<unsigned char>>();
+  auto& raw = *state;
   if (setjmp(error.recovery)) {
-    std::free(raw);
     jpeg_destroy_decompress(&decoder);
     return std::nullopt;
   }
@@ -344,17 +376,15 @@ std::optional<ImagePixels> decodeJpegFromMemory(const void* data, std::size_t si
     jpeg_destroy_decompress(&decoder);
     return std::nullopt;
   }
-  decoder.out_color_space = JCS_RGB;
+  const bool cmyk = decoder.jpeg_color_space == JCS_CMYK || decoder.jpeg_color_space == JCS_YCCK;
+  decoder.out_color_space = cmyk ? JCS_CMYK : JCS_RGB;
   jpeg_start_decompress(&decoder);
   const std::size_t width = static_cast<std::size_t>(extent->width);
-  const std::size_t rgbBytes = extent->rgbBytes;
-  raw = static_cast<std::uint8_t*>(std::malloc(rgbBytes));
-  if (!raw) {
-    jpeg_destroy_decompress(&decoder);
-    return std::nullopt;
-  }
+  const std::size_t channels = cmyk ? 4 : 3;
+  const std::size_t rgbBytes = width * extent->height * channels;
+  raw.resize(rgbBytes);
   while (decoder.output_scanline < decoder.output_height) {
-    JSAMPROW row = raw + decoder.output_scanline * width * 3U;
+    JSAMPROW row = raw.data() + decoder.output_scanline * width * channels;
     jpeg_read_scanlines(&decoder, &row, 1);
   }
   jpeg_finish_decompress(&decoder);
@@ -364,14 +394,14 @@ std::optional<ImagePixels> decodeJpegFromMemory(const void* data, std::size_t si
   result.width = extent->width;
   result.height = extent->height;
   result.rgba.resize(extent->rgbaBytes);
-  for (std::size_t source = 0, destination = 0; source < rgbBytes;
-       source += 3U, destination += 4U) {
-    result.rgba[destination] = raw[source];
-    result.rgba[destination + 1U] = raw[source + 1U];
-    result.rgba[destination + 2U] = raw[source + 2U];
+  for (std::size_t source = 0, destination = 0; source < rgbBytes; source += channels, destination += 4U) {
+    for (size_t channel = 0; channel < 3; ++channel) {
+      result.rgba[destination + channel] = cmyk
+        ? unsigned(raw[source + channel]) * raw[source + 3] / 255
+        : raw[source + channel];
+    }
     result.rgba[destination + 3U] = 255;
   }
-  std::free(raw);
   return result;
 }
 

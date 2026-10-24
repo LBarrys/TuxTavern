@@ -634,10 +634,8 @@ int main() {
     }, {4,4,std::nullopt,{}});
     require(result.pages.empty() && result.cells.size() == 16);
     write(source, 8, 8, [](int,int) { return AssetColor{13,27,31,0}; }, 0, 16);
-    refused = false;
-    try { pmjs::prepareAssetImage(source, root / "16bit"); }
-    catch (const pmjs::AssetPreparationUnsupported&) { refused = true; }
-    require(refused);
+    const auto wideTransparent = pmjs::prepareAssetImage(source, root / "16bit");
+    require(wideTransparent.uniform == AssetColor({13,27,31,0}));
     // A WebP under a .png name (as games ship) is skipped quietly, not an invalid PNG.
     std::ofstream(source, std::ios::binary | std::ios::trunc) << std::string("RIFF\x1e\0\0\0WEBPVP8L", 16);
     refused = false;

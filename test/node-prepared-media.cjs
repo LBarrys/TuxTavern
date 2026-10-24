@@ -65,7 +65,7 @@ async function main() {
   assert.ok(cold.entries[0].descriptor.pages.every(page => page.path.endsWith(pageCodec === 'lz4' ? '.pml4' : '.png')));
   assert.throws(() => native.assets.processImage(imageSource, path.join(root, 'invalid-codec'), null,
     path.join(gameRoot, imageSource), null, { pageCodec: 'lz4hc3' }), /pageCodec must be png or lz4/);
-  assert.equal(native.assets.preparationVersion.processor, 'lossless-images-v12-perimeter-probes');
+  assert.equal(native.assets.preparationVersion.processor, 'lossless-images-v13-png-gamma');
   assert.equal(cold.decrypted, 3);
   assert.equal(cold.installed, pageCodec === 'lz4' ? 2 : 1);
   assert.equal(cold.fallback, pageCodec === 'lz4' ? 0 : 1, 'LZ4 retains standalone pages; PNG requires a layout saving');
