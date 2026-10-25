@@ -123,11 +123,11 @@ Renderer::Renderer(int width, int height, ImageStore& images)
   if (sparseTiling && std::string(sparseTiling) != "0" && std::string(sparseTiling) != "1")
     throw std::runtime_error("PMJS_SPARSE_TILING must be 0 or 1");
   sparseTiling_ = sparseTiling && std::string(sparseTiling) == "1";
-  // Palette images halve GPU memory again but cost frame time (1.7x under software GL), so opt-in.
+  // Palette images save GPU memory but cost frame time under software GL (1.7x); =0 turns them off.
   const char* paletteImages = std::getenv("PMJS_PALETTE_IMAGES");
   if (paletteImages && *paletteImages && std::string(paletteImages) != "0" && std::string(paletteImages) != "1")
     throw std::runtime_error("PMJS_PALETTE_IMAGES must be 0 or 1");
-  paletteImages_ = paletteImages && std::string(paletteImages) == "1";
+  paletteImages_ = !(paletteImages && std::string(paletteImages) == "0");
   const char* filterBounds = std::getenv("PMJS_FILTER_BOUNDS");
   filterBoundsEnabled_ = !(filterBounds && std::string(filterBounds) == "0");
   presentation_.scaleMode = presentScaleModeFromEnvironment();

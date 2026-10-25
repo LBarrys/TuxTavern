@@ -4,7 +4,7 @@ const path = require('node:path');
 const { png } = require('./helpers/png.cjs');
 const { spritePacket, drawPacket } = require('./helpers/sparse-palette.cjs');
 const native = require(path.resolve(process.argv[2]));
-// --palettes-off: without PMJS_PALETTE_IMAGES=1, drawing leaves palette storage.
+// --palettes-off (with PMJS_PALETTE_IMAGES=0): drawing leaves palette storage.
 const palettesOff = process.argv.includes('--palettes-off');
 native.initialize({ gameRoot: __dirname, width: 64, height: 48,
   windowTitle: 'Linear tiling storage', imageWarmCacheBytes: 0 });
