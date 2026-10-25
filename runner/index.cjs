@@ -471,6 +471,8 @@ async function prepareStartupAssets(options, native) {
 }
 
 async function run(input) {
+  // Shared scene walks meet many display-object subclass shapes; V8's default (4) deoptimizes them.
+  require('node:v8').setFlagsFromString('--max-valid-polymorphic-map-count=128');
   const startupStarted = performance.now();
   const options = validate(input);
   console.log(`[pmjs] startup event=start started_at=${new Date().toISOString()} ` +

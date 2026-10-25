@@ -9,6 +9,19 @@ const { parse } = require('../runner/cli.cjs');
 const { run, createPreparationLog, validate, parseTimingConfig, resolveSwapDefault, advanceDeadline } = require('../runner/index.cjs');
 const { temporaryDirectory } = require('./helpers/temp.cjs');
 
+test('run raises the polymorphic map limit, but importing the runner does not', () => {
+  const runner = JSON.stringify(path.resolve(__dirname, '../runner/index.cjs'));
+  childProcess.execFileSync(process.execPath, ['-e', `
+    const assert = require('node:assert/strict');
+    const v8 = require('node:v8');
+    const before = v8.cachedDataVersionTag();
+    const { run } = require(${runner});
+    assert.equal(v8.cachedDataVersionTag(), before);
+    run({}).catch(() => {});
+    assert.notEqual(v8.cachedDataVersionTag(), before);
+  `]);
+});
+
 function fixture(source) {
   const root = temporaryDirectory('pmjs-runner-');
   const bootstrap = path.join(root, 'bootstrap.js');
