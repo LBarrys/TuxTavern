@@ -350,6 +350,9 @@ if(BUILD_TESTING)
       "${CMAKE_CURRENT_SOURCE_DIR}/test/${PMJS_NODE_TEST}.cjs" $<TARGET_FILE:pmjs_native> "${CMAKE_CURRENT_BINARY_DIR}/test-assets")
     set_tests_properties(${PMJS_NODE_TEST} PROPERTIES ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1")
   endforeach()
+  # Its speed limits are for optimised code; Debug builds run about 4x slower.
+  set_tests_properties(node-canvas-lighting PROPERTIES ENVIRONMENT
+    "LIBGL_ALWAYS_SOFTWARE=1;PMJS_TEST_DEBUG_BUILD=$<CONFIG:Debug>")
   foreach(PMJS_FRAME_BUDGET 0 64 8000 32000 262144)
     add_test(NAME node-prepared-animation-pressure-${PMJS_FRAME_BUDGET} COMMAND ${XVFB_RUN} -a ${NODE_EXECUTABLE}
       "${CMAKE_CURRENT_SOURCE_DIR}/test/node-prepared-animation-pressure.cjs" $<TARGET_FILE:pmjs_native> ${PMJS_FRAME_BUDGET})
