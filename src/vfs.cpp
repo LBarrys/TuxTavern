@@ -84,6 +84,7 @@ void Vfs::indexPath(const std::filesystem::path& path) {
   auto status = std::filesystem::symlink_status(path, error);
   if (error) return;
   if (std::filesystem::is_symlink(status)) {
+    ++resolvedPaths_;
     const auto target = std::filesystem::canonical(path, error);
     if (error || !isContainedBy(root_, target)) return;
     status = std::filesystem::status(path, error);

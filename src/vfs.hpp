@@ -57,6 +57,8 @@ class Vfs {
   bool exists(const std::string& path) const;
   bool isDirectory(const std::string& path) const;
   const std::filesystem::path& root() const { return root_; }
+  // Paths the index resolved; only symbolic links should need it.
+  std::size_t resolvedPaths() const { return resolvedPaths_; }
 
  private:
   static std::optional<std::string> normalize(const std::string& path);
@@ -74,6 +76,7 @@ class Vfs {
   std::filesystem::path root_;
   std::unordered_map<std::string, std::filesystem::path> files_;
   std::unordered_map<std::string, std::filesystem::path> directories_;
+  std::size_t resolvedPaths_ = 0;
 };
 
 }  // namespace pmjs

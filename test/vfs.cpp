@@ -71,6 +71,7 @@ int main() try {
           "outside-root symlink was exposed");
   require(!vfs.exists("data/Broken.alias"),
           "broken symlink was exposed");
+  require(vfs.resolvedPaths() == 3, "each link, and only the links, must be resolved");
 
   const auto overlay = fixture.path() / "overlay";
   std::filesystem::create_directories(overlay / "files" / "data");
@@ -254,8 +255,13 @@ int main() try {
     index = std::min(index, timed([&] { pmjs::Vfs indexed(large.path()); }));
   }
   require(walked == 20000, "large fixture was not written");
+  // Resolving every path made indexing that game take over a second.
+  require(pmjs::Vfs(large.path()).resolvedPaths() == 0, "indexing resolved plain paths");
+#ifdef __OPTIMIZE__
+  // Unoptimised builds spend their time in the index's own code, not in the walk both share.
   require(index < walk * 4.5, "indexing took " + std::to_string(index) + " ms against a " +
           std::to_string(walk) + " ms walk");
+#endif
   return 0;
 } catch (const std::exception& error) {
   std::cerr << error.what() << '\n';
