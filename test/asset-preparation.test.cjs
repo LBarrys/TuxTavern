@@ -921,6 +921,28 @@ for (const engine of ['MV', 'MZ']) {
     assert.deepEqual(fs.readFileSync(f.native.assets.sourcePath('audio/bgm/theme.ogg')), wav);
   });
 
+  test(engine + ': encrypted WebP, JPEG and AVIF images get a plaintext cache (Exorcism Goddess, Corrupted Seas)', async () => {
+    const header = (...parts) => Buffer.concat([...parts.map(part => Buffer.from(part)), Buffer.alloc(48)]);
+    const images = { webp: header('RIFF', [64, 0, 0, 0], 'WEBPVP8L'), jpeg: header([0xff, 0xd8, 0xff, 0xe0]),
+      avif: header([0, 0, 0, 32], 'ftypavif') };
+    for (const [name, image] of Object.entries(images)) {
+      const f = encryptedFixture(engine);
+      fs.writeFileSync(path.join(f.gameRoot, f.encryptedImage), f.encrypt(image));
+      f.native.assets.processImage = async (source, output, recipe, file) => {
+        assert.deepEqual(fs.readFileSync(file), image, name);
+        return null;
+      };
+      const cold = await prepareAssets(f);
+      assert.equal(cold.failedFiles, 0, name);
+      assert.equal(cold.fallback, 0, name);
+      assert.equal(cold.decrypted, 2, name);
+      assert.deepEqual(fs.readFileSync(f.native.assets.sourcePath('img/pictures/a.png')), image, name);
+      const warm = await prepareAssets(f);
+      assert.equal(warm.hits, 2, name);
+      assert.equal(warm.generated, 0, name);
+    }
+  });
+
   test(engine + ': cancelling encrypted preparation publishes no plaintext aliases or prepared images', async () => {
     const f = encryptedFixture(engine);
     let cancel = false;

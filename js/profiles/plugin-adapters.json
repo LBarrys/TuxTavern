@@ -120,6 +120,14 @@
     },
     {
       "plugins": [
+        "maka-constants"
+      ],
+      "modules": [
+        "js/pmjs-plugins/startup-fullscreen-desktop.js"
+      ]
+    },
+    {
+      "plugins": [
         "SRD_BattleStatusCustomizer"
       ],
       "modules": [

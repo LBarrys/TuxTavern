@@ -19,9 +19,15 @@
     errorView = null;
   }
 
+  // MZ sizes the screen in Scene_Boot.start; a load error before that (Corrupted Seas' title
+  // picture) would paint into an empty canvas. NW.js shows its error at the window's size.
+  function screenSize() {
+    return { width: Graphics.width || innerWidth, height: Graphics.height || innerHeight };
+  }
+
   function paintError() {
     if (!errorView) return;
-    var width = Graphics.width, height = Graphics.height;
+    var size = screenSize(), width = size.width, height = size.height;
     var canvas = errorView.canvas;
     if (!canvas) canvas = errorView.canvas = document.createElement('canvas');
     if (canvas.width !== width) canvas.width = width;
@@ -73,7 +79,8 @@
   function updateLayers() {
     var canvas = Graphics._canvas;
     if (!canvas) return;
-    if (errorView && (errorView.width !== Graphics.width || errorView.height !== Graphics.height)) paintError();
+    var size = screenSize();
+    if (errorView && (errorView.width !== size.width || errorView.height !== size.height)) paintError();
     PMJS.web.presentation.setLayers(canvas, typeof Video !== 'undefined' && Video._element,
       errorView && errorView.canvas);
     PMJS.web.presentation.setHitRegion(errorView && retryButton(), canvas,

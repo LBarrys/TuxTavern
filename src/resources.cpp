@@ -6,6 +6,7 @@
 #include "png_recovery.hpp"
 #include "png_color.hpp"
 #include "psd_decoder.hpp"
+#include "avif_decoder.hpp"
 
 #include <algorithm>
 #include <array>
@@ -374,6 +375,7 @@ std::optional<ImagePixels> decodeMemory(const void* data, std::size_t size,
   if (size >= 12 && std::memcmp(bytes, "RIFF", 4) == 0 && std::memcmp(bytes + 8, "WEBP", 4) == 0)
     return decodeWebpFromMemory(data, size, maxDecodedBytes);
   if (size >= 6 && std::memcmp(bytes, "8BPS\0\1", 6) == 0) return decodePsdFromMemory(data, size, maxDecodedBytes);
+  if (size >= 12 && std::memcmp(bytes + 4, "ftyp", 4) == 0) return decodeAvifFromMemory(data, size, maxDecodedBytes);
   if (auto recovered = recoverPngBytes({bytes, size}, maxDecodedBytes))
     return decodePngFromMemory(recovered->data(), recovered->size(), maxDecodedBytes);
   return std::nullopt;

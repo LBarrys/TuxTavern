@@ -1,4 +1,5 @@
 #include "media_decoder.hpp"
+#include "avif_decoder.hpp"
 #include "checked_bounds.hpp"
 
 extern "C" {
@@ -245,7 +246,69 @@ std::optional<std::uint64_t> metadataNumber(AVDictionary* first,
                                   : std::nullopt;
 }
 
+bool isAvif(const std::uint8_t* bytes, std::size_t size) {
+  if (size < 16 || std::memcmp(bytes + 4, "ftyp", 4)) return false;
+  const std::size_t box = (std::size_t(bytes[0]) << 24) | (std::size_t(bytes[1]) << 16) |
+    (std::size_t(bytes[2]) << 8) | bytes[3];
+  const auto brand = [bytes](std::size_t offset) {
+    return !std::memcmp(bytes + offset, "avif", 4) || !std::memcmp(bytes + offset, "avis", 4);
+  };
+  if (brand(8)) return true;
+  for (std::size_t offset = 16; offset + 4 <= std::min(box, size); offset += 4)
+    if (brand(offset)) return true;
+  return false;
+}
+
 }  // namespace
+
+// NW.js (Chromium) draws AVIF images whatever their file name; Corrupted Seas ships one as an
+// encrypted .png_ that its title loads at boot.
+std::optional<ImagePixels> decodeAvifFromMemory(const void* data, std::size_t size, std::size_t maxDecodedBytes) {
+  const auto* bytes = static_cast<const std::uint8_t*>(data);
+  if (!data || size > 64U * 1024U * 1024U || !isAvif(bytes, size)) return std::nullopt;
+  try {
+    MemoryInput input({bytes, bytes + size});
+    auto format = open(input.context, nullptr);
+    if (!format) return std::nullopt;
+    auto [index, codec] = decoder(format.get(), AVMEDIA_TYPE_VIDEO, nullptr);
+    if (!codec) return std::nullopt;
+    Packet packet(av_packet_alloc());
+    Frame frame(av_frame_alloc());
+    if (!packet || !frame) return std::nullopt;
+    bool flushed = false;
+    for (;;) {
+      if (!flushed) {
+        int sent;
+        if (av_read_frame(format.get(), packet.get()) < 0) {
+          flushed = true;
+          sent = avcodec_send_packet(codec.get(), nullptr);
+        } else if (packet->stream_index != index) {
+          av_packet_unref(packet.get());
+          continue;
+        } else {
+          sent = avcodec_send_packet(codec.get(), packet.get());
+          av_packet_unref(packet.get());
+        }
+        if (sent < 0 && sent != AVERROR(EAGAIN)) return std::nullopt;
+      }
+      const int received = avcodec_receive_frame(codec.get(), frame.get());
+      if (received >= 0) break;
+      if (received != AVERROR(EAGAIN) || flushed) return std::nullopt;
+    }
+    const auto extent = checkedImageExtent(frame->width, frame->height, 8192, maxDecodedBytes);
+    if (!extent || (frame->flags & AV_FRAME_FLAG_CORRUPT)) return std::nullopt;
+    Sws scaler(sws_getContext(frame->width, frame->height, static_cast<AVPixelFormat>(frame->format),
+      frame->width, frame->height, AV_PIX_FMT_RGBA, SWS_BILINEAR | SWS_ACCURATE_RND,
+      nullptr, nullptr, nullptr), sws_freeContext);
+    if (!scaler || !configureVideoColors(scaler.get(), *frame, nullptr)) return std::nullopt;
+    ImagePixels pixels{extent->width, extent->height, std::vector<std::uint8_t>(extent->rgbaBytes)};
+    std::uint8_t* planes[] = {pixels.rgba.data(), nullptr, nullptr, nullptr};
+    const int strides[] = {extent->width * 4, 0, 0, 0};
+    if (sws_scale(scaler.get(), frame->data, frame->linesize, 0, frame->height,
+        planes, strides) != frame->height) return std::nullopt;
+    return pixels;
+  } catch (const std::exception&) { return std::nullopt; }
+}
 
 double DecodedAudio::duration() const {
   return sampleRate > 0 && channels > 0

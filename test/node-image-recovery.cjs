@@ -47,8 +47,16 @@ async function main() {
     // Lossless WebP of the same pixels (canvas.encodeWebP). Games ship WebP under .png names,
     // which browsers sniff and draw.
     const webp = Buffer.from('UklGRiwAAABXRUJQVlA4TB8AAAAvAUAAAB8gEEjeHzqN+RcQFPwf3fxHZA/gBgwR/Q8BAA==', 'base64');
+    // Lossless RGB AVIF of the same pixels (ffmpeg libaom-av1 lossless=1, gbrp). Corrupted Seas
+    // ships an AVIF as an encrypted .png_.
+    const avif = Buffer.from(
+      'AAAAIGZ0eXBhdmlmAAAAAGF2aWZtaWYxbWlhZk1BMUEAAAD5bWV0YQAAAAAAAAAvaGRscgAAAAAAAAAAcGljdAAAAAAAAAAA' +
+      'AAAAAFBpY3R1cmVIYW5kbGVyAAAAAA5waXRtAAAAAAABAAAAHmlsb2MAAAAARAAAAQABAAAAAQAAASEAAAA4AAAAKGlpbmYA' +
+      'AAAAAAEAAAAaaW5mZQIAAAAAAQAAYXYwMUNvbG9yAAAAAGppcHJwAAAAS2lwY28AAAAUaXNwZQAAAAAAAAACAAAAAgAAABBw' +
+      'aXhpAAAAAAMICAgAAAAMYXYxQ4EgAAAAAAATY29scm5jbHgAAgACAACAAAAAF2lwbWEAAAAAAAAAAQABBAECgwQAAABAbWRh' +
+      'dAoHOAA20BDQAjItEAAAQH8wJANQlhSk0pNKTk0oP//rZi+bcH3B9wgGZEH/xvjHp4YSiUolKJxw', 'base64');
     const files = { png: original, prefix: damagedPrefix,
-      checksum: damagedChecksum, psd: psd(pixels, false), rle: psd(pixels, true), webp };
+      checksum: damagedChecksum, psd: psd(pixels, false), rle: psd(pixels, true), webp, avif };
     for (const [name, bytes] of Object.entries(files)) {
       fs.writeFileSync(path.join(directory, name + '.png'), bytes);
     }
@@ -79,7 +87,7 @@ async function main() {
       idat.offset + idat.size + 8)), idat.offset + idat.size + 8);
     const oversized = Buffer.from(psd(pixels, false)); oversized.writeUInt32BE(8193, 18);
     for (const bytes of [badChunk, badStream, badWindow, original.subarray(0, 36),
-      psd(pixels, false).subarray(0, 40), oversized, webp.subarray(0, 30)]) {
+      psd(pixels, false).subarray(0, 40), oversized, webp.subarray(0, 30), avif.subarray(0, 200)]) {
       assert.throws(() => native.images.loadBytes(bytes));
       await assert.rejects(native.images.loadBytesAsync(bytes));
     }

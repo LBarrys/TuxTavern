@@ -21,7 +21,8 @@ for (const throws of [false, true]) {
     assert.equal(context.PluginManager.loadScript('Other.js'), 'loaded');
     if (throws) assert.throws(() => context.PluginManager.loadScript('StartUpFullScreen.js'), /load failed/);
     else assert.equal(context.PluginManager.loadScript('StartUpFullScreen.js'), 'loaded');
+    assert.equal(context.PluginManager.loadScript('maka-constants.js'), 'loaded');
     assert.equal(context.Utils.isNwjs, original);
-    assert.deepEqual(visits, [['Other.js', false], ['StartUpFullScreen.js', true]]);
+    assert.deepEqual(visits, [['Other.js', false], ['StartUpFullScreen.js', true], ['maka-constants.js', true]]);
   });
 }

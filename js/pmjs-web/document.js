@@ -141,6 +141,11 @@ globalThis.HTMLImageElement = NativeImage;
 globalThis.HTMLVideoElement = VideoElement;
 globalThis.Image = NativeImage;
 globalThis.CanvasRenderingContext2D = CanvasContext2D;
+// Web Audio is native here, yet plugins patch its classes as they load (Carnal Outbreak's
+// "Parche sonido" wraps AudioBuffer.prototype.start). Nothing constructs them.
+if (!globalThis.AudioBuffer) {
+  globalThis.AudioBuffer = function AudioBuffer() { throw new TypeError('AudioBuffer is not supported'); };
+}
 globalThis.addEventListener = EventTarget.prototype.addEventListener.bind(documentTarget);
 globalThis.removeEventListener = EventTarget.prototype.removeEventListener.bind(documentTarget);
 globalThis.dispatchEvent = EventTarget.prototype.dispatchEvent.bind(documentTarget);

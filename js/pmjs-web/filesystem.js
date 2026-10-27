@@ -12,7 +12,13 @@ function gamePath(path) {
   var normalized = normalizePath(path);
   if (normalized === '/game') return '.';
   if (normalized.indexOf('/game/') === 0) return normalized.slice(6);
-  return normalized.charAt(0) === '/' ? normalized.slice(1) : normalized;
+  if (normalized.charAt(0) === '/') return normalized.slice(1);
+  var subdirectory = NativeHost.runtime && NativeHost.runtime.gameSubdirectory;
+  var head = normalized.split('/')[0];
+  if (subdirectory && head.toLowerCase() === String(subdirectory).toLowerCase()) {
+    return normalized.slice(head.length + 1) || '.';
+  }
+  return normalized;
 }
 
 function gameReadPath(path) {

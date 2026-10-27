@@ -93,5 +93,13 @@ try {
   assert.equal(native.canvas.memory().liveCount, baseline + 1, 'replacement releases the owned overlay');
   g.eraseError();
   assert.equal(native.canvas.memory().liveCount, baseline);
+  // Corrupted Seas: a boot image fails before Scene_Boot.start sizes the screen.
+  g.width = 0; g.height = 0;
+  show();
+  const unsized = presented();
+  assert.ok(unsized.some((value, i) => i % 4 === 0 && value === 255 && unsized[i + 1] === 255 && unsized[i + 2] === 255),
+    'an error before the screen is sized is still visible');
+  g.eraseError();
+  g.width = 64; g.height = 64;
   console.log('MZ presentation, native pointer events and repeated resource recovery passed');
 } finally { native.runtime.quit(); }

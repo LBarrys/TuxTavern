@@ -470,6 +470,16 @@ async function prepareStartupAssets(options, native) {
     invalidateMaps: preparation.maps && preparation.maps.invalidateCatalog };
 }
 
+// NW.js runs from the folder of Game.exe and its package.json: above www/ in MV games, so guest paths like
+// www/data name the game root there, even when www/ keeps a stray package.json (Satisfy Him).
+function gamePackage(gameRoot) {
+  const root = path.resolve(gameRoot);
+  const above = path.basename(root).toLowerCase() === 'www' ? path.join(path.dirname(root), 'package.json') : null;
+  const file = [path.join(root, 'package.json'), above].find(filename => filename && fs.existsSync(filename));
+  return { manifest: file ? JSON.parse(fs.readFileSync(file, 'utf8')) : {},
+    subdirectory: above && fs.existsSync(above) ? path.basename(root) : null };
+}
+
 async function run(input) {
   // Shared scene walks meet many display-object subclass shapes; V8's default (4) deoptimizes them.
   require('node:v8').setFlagsFromString('--max-valid-polymorphic-map-count=128');
@@ -547,10 +557,9 @@ async function run(input) {
     native.runtime.runScript = source => vm.runInThisContext(String(source), {
       filename: 'inline-script.js'
     });
-    const packageFile = [path.join(options.gameRoot, 'package.json'),
-      ...(path.basename(options.gameRoot).toLowerCase() === 'www' ? [path.join(path.dirname(options.gameRoot), 'package.json')] : [])]
-      .find(filename => fs.existsSync(filename));
-    native.runtime.manifest = packageFile ? JSON.parse(fs.readFileSync(packageFile, 'utf8')) : {};
+    const gamePackageInfo = gamePackage(options.gameRoot);
+    native.runtime.manifest = gamePackageInfo.manifest;
+    if (gamePackageInfo.subdirectory) native.runtime.gameSubdirectory = gamePackageInfo.subdirectory;
     native.runtime.arguments = options.guestArguments || [];
     native.runtime.reload = () => {
       if (reloadRequested) return true;
@@ -715,5 +724,5 @@ async function run(input) {
   }
 }
 
-module.exports = { run, createPreparationLog, validate, resolveDefaults, progressLines, stageProgress, stageKeyOf, parseTimingConfig, resolveSwapDefault, advanceDeadline,
+module.exports = { run, gamePackage, createPreparationLog, validate, resolveDefaults, progressLines, stageProgress, stageKeyOf, parseTimingConfig, resolveSwapDefault, advanceDeadline,
   PMJS_MV_LOGIC_HZ, PMJS_SUPPORTED_RENDER_HZ };

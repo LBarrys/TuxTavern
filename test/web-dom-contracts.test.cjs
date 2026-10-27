@@ -138,3 +138,13 @@ test('session storage is isolated from persistent storage and a new guest', () =
   assert.equal(c.sessionStorage.key(0), 'key'); assert.equal(setup().c.sessionStorage.getItem('key'), null);
   c.sessionStorage.clear(); assert.equal(c.localStorage.getItem('key'), 'persistent');
 });
+test('plugins can patch Web Audio classes while loading (Carnal Outbreak "Parche sonido")', () => {
+  const { c } = setup();
+  vm.runInContext(`(function () {
+    const _start = AudioBuffer.prototype.start;
+    AudioBuffer.prototype.start = function (when, offset, duration) {
+      return _start.call(this, when, offset < 0 || isNaN(offset) ? 0 : offset, duration);
+    };
+  })();`, c);
+  assert.equal(typeof c.AudioBuffer.prototype.start, 'function');
+});

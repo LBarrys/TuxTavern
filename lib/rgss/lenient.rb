@@ -34,5 +34,22 @@ if Object.const_defined?(:Win32API) && Win32API.method_defined?(:mkxp_native_cal
       @kgl2_wrap_impl = nil
       @mkxp_native_available = false
     end
+
+    alias_method :call_without_frozen_receiver, :call
+
+    # Nettle Tribe's Input-EX freezes its Win32API objects. mkxp-z marks a call it can only
+    # tolerate (a Windows DLL) in @called, which raises FrozenError on a frozen object; RGSS
+    # never wrote to it. Tolerate it the same way, logging once per function.
+    def call(*args)
+      unless frozen? && TOLERATE_ERRORS && !@mkxp_wrap_impl && !@kgl2_wrap_impl && !@mkxp_native_available
+        return call_without_frozen_receiver(*args)
+      end
+      @@tuxtavern_frozen_calls ||= {}
+      unless @@tuxtavern_frozen_calls["#{@dll}:#{@func}"]
+        @@tuxtavern_frozen_calls["#{@dll}:#{@func}"] = true
+        $stdout.puts("[Win32API] [#{@dll}:#{@func}] #{args}")
+      end
+      0
+    end
   end
 end

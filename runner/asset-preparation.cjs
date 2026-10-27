@@ -73,8 +73,15 @@ async function encryptionSettings(native, gameRoot) {
       hash: crypto.createHash('sha256').update(data).digest('hex'), sourceIdentity };
   } catch (_) { return { images: false, audio: false, key: null }; }
 }
+// Browsers sniff images, so games encrypt WebP, JPEG and AVIF under .png too (Exorcism Goddess,
+// Corrupted Seas). They are decrypted once here and decoded at run time.
+function imageHeader(bytes) {
+  return bytes.subarray(0, 8).equals(PNG) || (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) ||
+    (bytes.subarray(0, 4).toString() === 'RIFF' && bytes.subarray(8, 12).toString() === 'WEBP') ||
+    (bytes.subarray(4, 8).toString() === 'ftyp' && /^avi[fs]$/.test(bytes.subarray(8, 12).toString()));
+}
 function mediaHeader(bytes, extension) {
-  if (extension === '.png') return bytes.subarray(0, 8).equals(PNG);
+  if (extension === '.png') return imageHeader(bytes);
   if (extension === '.ogg') return bytes.subarray(0, 4).toString() === 'OggS' ||
     (bytes.subarray(0, 4).toString() === 'RIFF' && bytes.subarray(8, 12).toString() === 'WAVE');
   return extension === '.m4a' && bytes.subarray(4, 8).toString() === 'ftyp';
