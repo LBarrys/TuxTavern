@@ -718,10 +718,16 @@ void Renderer::renderScene() {
       std::optional<SpriteImageRegion>{};
     // TuxTavern: prepared images take palettes per page above; a whole-image palette would
     // bypass their uniform, block, region and frame-cache paths.
-    const auto palette = !derived && paletteEligible && !images_.hasPreparedBacking(command.image) ?
+    auto palette = !derived && paletteEligible && !images_.hasPreparedBacking(command.image) ?
       images_.resolvePaletteImage(command.image,
       command.atlasTilingSampling || (command.pixiSpritePacking && !command.premultipliedSpriteTexture)) :
       std::optional<PaletteImageRegion>{};
+    if (!command.nearest && frameEligible && (palette || (derived && derived->paletteTable))) {
+      auto filtered = images_.resolvePreparedFrameRegion(command.image,
+        command.source[0], command.source[1], command.source[2], command.source[3],
+        command.pixiSpritePacking && !command.premultipliedSpriteTexture, true);
+      if (filtered) { derived = std::move(filtered); palette.reset(); }
+    }
     const auto block = !palette && !derived && frameEligible ? images_.resolveBlockRegion(command.image,
       command.pixiSpritePacking && !command.premultipliedSpriteTexture) :
       std::optional<BlockImageRegion>{};
