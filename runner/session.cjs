@@ -1,6 +1,11 @@
 'use strict';
 
 const sessionProcess = process;
+// Without its supervisor nothing would reload, stop or wait for this game (upstream PMJS eedfd6b).
+sessionProcess.once('disconnect', () => {
+  try { require('node:fs').writeSync(2, '[pmjs] Supervisor connection lost; stopping session\n'); } catch (_) {}
+  sessionProcess.exit(1);
+});
 const { run } = require('./index.cjs');
 sessionProcess.once('message', async options => {
   try {
