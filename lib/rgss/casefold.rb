@@ -30,8 +30,11 @@ module RpgmCasefold
       last = i == parts.size - 1
       here = File.join(dir, part)
       unless last ? File.exist_without_casefold?(here) : File.directory_without_casefold?(here)
+        # A broken link of the same name can be listed before the real entry, in any order.
         match = children(dir).find do |name|
-          name.casecmp?(part) && (last || File.directory_without_casefold?(File.join(dir, name)))
+          other = File.join(dir, name)
+          name.casecmp?(part) &&
+            (last ? File.exist_without_casefold?(other) : File.directory_without_casefold?(other))
         end
         part = match if match
         here = File.join(dir, part)

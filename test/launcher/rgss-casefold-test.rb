@@ -21,6 +21,10 @@ Dir.mktmpdir do |dir|
     is('and opened', File.open('data/hcgframes/grab_eventext1_grab.rb', 'rb', &:read), 'grab')
     is('and found', [File.exist?('DATA/HCGFRAMES/GRAB_EVENTEXT1_GRAB.RB'), FileTest.exist?('data/HCGframes/Grab_EventExt1_Grab.rb'), File.size('data/hcgframes/grab_eventext1_grab.rb')], [true, true, 4])
     is('a folder too', Dir.exist?('data/RACE/moot'), true)
+    listed = RpgmCasefold.method(:children)
+    RpgmCasefold.define_singleton_method(:children) { |dir| listed.call(dir).sort.reverse }
+    is('even when the broken link is listed first', Dir.exist?('data/RACE/moot'), true)
+    RpgmCasefold.define_singleton_method(:children) { |dir| listed.call(dir) }
     is('past a name that is not a folder (a broken link)', File.read('Data/race/moot/eyes.act'), 'eyes')
     is('a missing file stays missing', [File.exist?('Data/none.rb'), File.file?('data/none.rb')], [false, false])
     File.binwrite('data/hcgframes/new.rb', 'new')
