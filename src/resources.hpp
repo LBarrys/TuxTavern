@@ -531,7 +531,7 @@ class ImageStore {
   const ImageStorageDecision* storageDecision(const std::string& key) const;
   std::shared_ptr<PaletteBacking> makePalette(const ImagePixels& pixels,
       const ImageStorageDecision* decision = nullptr);
-  std::optional<ImagePixels> readPalettePixels(const Slot& slot) const;
+  std::optional<ImagePixels> readPalettePixels(const Slot& slot, std::optional<std::array<int, 4>> region = std::nullopt) const;
   bool materializePalette(Slot& slot);
   void clearRetiredTextures(Slot& slot);
   std::size_t paletteGpuBytes(const Slot& slot) const;

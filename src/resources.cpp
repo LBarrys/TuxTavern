@@ -381,10 +381,13 @@ std::optional<ImagePixels> decodeMemory(const void* data, std::size_t size,
   return std::nullopt;
 }
 
-std::optional<ImagePixels> readTexturePixels(const ImageInfo& image, ImageChannelStorage storage = {}) {
-  const auto extent = checkedImageExtent(image.width, image.height);
-  if (!extent) return std::nullopt;
-  ImagePixels pixels{image.width, image.height,
+std::optional<ImagePixels> readTexturePixels(const ImageInfo& image, ImageChannelStorage storage = {},
+    std::optional<std::array<int, 4>> region = std::nullopt) {
+  const auto rect = region.value_or(std::array<int, 4>{0, 0, image.width, image.height});
+  const auto extent = checkedImageExtent(rect[2], rect[3]);
+  if (!extent || rect[0] < 0 || rect[1] < 0 || rect[0] > image.width - rect[2] ||
+      rect[1] > image.height - rect[3]) return std::nullopt;
+  ImagePixels pixels{rect[2], rect[3],
                      std::vector<std::uint8_t>(extent->rgbaBytes)};
   GLint previousRead = 0, previousBuffer = 0;
   glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &previousRead);
@@ -411,7 +414,7 @@ std::optional<ImagePixels> readTexturePixels(const ImageInfo& image, ImageChanne
   // Texture row zero is the decoded first row; no screen-space flip is needed.
   if (complete) {
     while (glGetError() != GL_NO_ERROR) {}
-    glReadPixels(0, 0, image.width, image.height, GL_RGBA,
+    glReadPixels(rect[0], rect[1], rect[2], rect[3], GL_RGBA,
                  GL_UNSIGNED_BYTE, pixels.rgba.data());
     // Texture swizzles do not apply to framebuffer reads.
     if (storage.channels != 4) for (std::size_t i = 0; i < pixels.rgba.size(); i += 4) {
@@ -1197,8 +1200,8 @@ std::uint32_t ImageStore::paletteTable(PaletteBacking& palette, bool premultipli
   return table;
 }
 
-std::optional<ImagePixels> ImageStore::readPalettePixels(const Slot& slot) const {
-  auto pixels = readTexturePixels({0, slot.width, slot.height, slot.palette->indices});
+std::optional<ImagePixels> ImageStore::readPalettePixels(const Slot& slot, std::optional<std::array<int, 4>> region) const {
+  auto pixels = readTexturePixels({0, slot.width, slot.height, slot.palette->indices}, {}, region);
   if (!pixels) return std::nullopt;
   for (std::size_t i = 0; i < pixels->rgba.size(); i += 4) {
     const auto index = unsigned(pixels->rgba[i]) | (unsigned(pixels->rgba[i + 1]) << 8);
@@ -2281,23 +2284,14 @@ std::optional<ImagePixels> ImageStore::readPixelsRegion(ImageHandle handle,
   if (!info || !extent || x < 0 || y < 0 || x > info->width - width ||
       y > info->height - height) return std::nullopt;
   const auto& slot = slots_[(handle & indexMask) - 1U];
-  if (slot.palette) {
-    auto full = readPalettePixels(slot);
-    if (!full) return std::nullopt;
-    ImagePixels result{width, height, std::vector<std::uint8_t>(extent->rgbaBytes)};
-    for (int row = 0; row < height; ++row)
-      std::copy_n(full->rgba.data() + (std::size_t(y + row) * info->width + x) * 4,
-        std::size_t(width) * 4, result.rgba.data() + std::size_t(row) * width * 4);
-    return result;
-  }
+  if (slot.palette) return readPalettePixels(slot, std::array<int, 4>{x, y, width, height});
   if (slot.tiles) return readTileRegion(slot, x, y, width, height);
   if (!slot.prepared) {
     // Mutable GPU surfaces are read on demand; never retain a stale CPU copy.
-    std::optional<ImagePixels> gpuPixels;
-    if (slot.gpuOnly || slot.renderTarget) gpuPixels = readTexturePixels(*info, slot.storage);
-    auto* full = (slot.gpuOnly || slot.renderTarget) ?
-      (gpuPixels ? &*gpuPixels : nullptr) : readPixels(handle);
-    if (!full && !slot.gpuOnly && !slot.renderTarget) {
+    if (slot.gpuOnly || slot.renderTarget)
+      return readTexturePixels(*info, slot.storage, std::array<int, 4>{x, y, width, height});
+    auto* full = readPixels(handle);
+    if (!full) {
       slot.cachedPixels = readTexturePixels(*info, slot.storage);
       full = slot.cachedPixels ? &*slot.cachedPixels : nullptr;
     }
