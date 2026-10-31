@@ -37,6 +37,12 @@ SPDX-FileCopyrightText = "2013-2018 Wei Zijun, Matt Karl"
 SPDX-License-Identifier = "MIT"
 
 [[annotations]]
+path = ["test/assets/pixi4-transforms.cjs"]
+precedence = "override"
+SPDX-FileCopyrightText = "2013-2017 Mathew Groves, Chad Engler"
+SPDX-License-Identifier = "MIT"
+
+[[annotations]]
 path = ["test/assets/pixi5/LICENSE", "test/assets/pixi5/sprite-vertices-5.3.12.cjs"]
 precedence = "override"
 SPDX-FileCopyrightText = "2013-2017 Mathew Groves, Chad Engler"

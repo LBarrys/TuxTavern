@@ -320,6 +320,13 @@
       "license": "MIT",
       "notice": "third_party/pixi4.LICENSE"
     },
+    "test/assets/pixi4-transforms.cjs": {
+      "origin": "permissive",
+      "source": "https://github.com/pixijs/pixi.js/tree/v4.5.4",
+      "revision": "v4.5.4; Container and DisplayObject updateTransform",
+      "license": "MIT",
+      "notice": "third_party/pixi4.LICENSE"
+    },
     "test/helpers/color-matrix-shaders.cjs": {
       "origin": "permissive",
       "source": "https://github.com/pixijs/pixi.js/tree/v4.5.4",
