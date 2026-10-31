@@ -378,6 +378,10 @@ if(BUILD_TESTING)
   add_test(NAME node-linear-tiling-palette-off COMMAND ${XVFB_RUN} -a ${NODE_EXECUTABLE}
     "${CMAKE_CURRENT_SOURCE_DIR}/test/node-linear-tiling-palette.cjs" $<TARGET_FILE:pmjs_native> --palettes-off)
   set_tests_properties(node-linear-tiling-palette-off PROPERTIES ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;SDL_AUDIODRIVER=dummy;PMJS_PALETTE_IMAGES=0")
+  # Unset, palette images are off on software GL.
+  add_test(NAME node-linear-tiling-palette-software COMMAND ${XVFB_RUN} -a ${NODE_EXECUTABLE}
+    "${CMAKE_CURRENT_SOURCE_DIR}/test/node-linear-tiling-palette.cjs" $<TARGET_FILE:pmjs_native> --palettes-off)
+  set_tests_properties(node-linear-tiling-palette-software PROPERTIES ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;SDL_AUDIODRIVER=dummy;PMJS_PALETTE_IMAGES=")
   add_test(NAME node-prepared-frame-effects COMMAND ${XVFB_RUN} -a ${NODE_EXECUTABLE}
     "${CMAKE_CURRENT_SOURCE_DIR}/test/node-prepared-frame-effects.cjs" $<TARGET_FILE:pmjs_native>)
   set_tests_properties(node-prepared-frame-effects
@@ -527,6 +531,11 @@ if(BUILD_TESTING)
   foreach(pmjs_test IN LISTS pmjs_tests)
     if(pmjs_test STREQUAL "test-fixtures")
       continue()
+    endif()
+    # Tests run on software GL, where palette images are off unless asked for.
+    get_test_property(${pmjs_test} ENVIRONMENT pmjs_test_environment)
+    if(pmjs_test_environment MATCHES "LIBGL_ALWAYS_SOFTWARE=1" AND NOT pmjs_test_environment MATCHES "PMJS_PALETTE_IMAGES")
+      set_property(TEST ${pmjs_test} APPEND PROPERTY ENVIRONMENT "PMJS_PALETTE_IMAGES=1")
     endif()
     if(pmjs_test MATCHES "^build-")
       set_tests_properties(${pmjs_test} PROPERTIES LABELS build)

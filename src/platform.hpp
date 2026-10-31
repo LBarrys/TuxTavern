@@ -13,6 +13,8 @@ using SDL_GLContext = void*;
 namespace pmjs {
 
 int standardGamepadButton(int sdlButton);
+// llvmpipe, softpipe or SwiftShader, from GL_RENDERER.
+bool softwareRenderer(const char* renderer);
 
 class Platform {
  public:

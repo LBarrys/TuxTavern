@@ -20,6 +20,15 @@
 
 namespace pmjs {
 
+bool softwareRenderer(const char* renderer) {
+  std::string value = renderer ? renderer : "";
+  std::transform(value.begin(), value.end(), value.begin(),
+    [](unsigned char character) { return static_cast<char>(std::tolower(character)); });
+  return value.find("llvmpipe") != std::string::npos ||
+         value.find("softpipe") != std::string::npos ||
+         value.find("swiftshader") != std::string::npos;
+}
+
 namespace {
 
 constexpr std::uint16_t leftBit = 1U << 0U;
@@ -65,15 +74,6 @@ int swapIntervalFromEnvironment(int refreshRate) {
     throw std::runtime_error("PMJS_SWAP_INTERVAL must be -1, 0, 1, or auto");
   }
   return static_cast<int>(parsed);
-}
-
-bool softwareRenderer(const char* renderer) {
-  std::string value = renderer ? renderer : "";
-  std::transform(value.begin(), value.end(), value.begin(),
-    [](unsigned char character) { return static_cast<char>(std::tolower(character)); });
-  return value.find("llvmpipe") != std::string::npos ||
-         value.find("softpipe") != std::string::npos ||
-         value.find("swiftshader") != std::string::npos;
 }
 
 std::uint16_t actionBit(const std::string& action) {

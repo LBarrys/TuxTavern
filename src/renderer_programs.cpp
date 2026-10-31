@@ -1,4 +1,5 @@
 #include "renderer.hpp"
+#include "platform.hpp"
 #include "renderer_shaders.hpp"
 #include "renderer_identity_shader.hpp"
 #include "scene_packet.hpp"
@@ -118,11 +119,13 @@ Renderer::Renderer(int width, int height, ImageStore& images)
   nearestTileShader_ = !(nearestTile && std::string(nearestTile) == "0");
   const char* diagnostics = std::getenv("PMJS_GRAPHICS_DIAGNOSTICS");
   diagnostics_ = diagnostics && std::string(diagnostics) == "1";
-  // Palette images save GPU memory but cost frame time under software GL (1.7x); =0 turns them off.
+  // Palette images save GPU memory but cost frame time under software GL (1.7x), so there they
+  // are off unless PMJS_PALETTE_IMAGES=1; =0 turns them off everywhere.
   const char* paletteImages = std::getenv("PMJS_PALETTE_IMAGES");
   if (paletteImages && *paletteImages && std::string(paletteImages) != "0" && std::string(paletteImages) != "1")
     throw std::runtime_error("PMJS_PALETTE_IMAGES must be 0 or 1");
-  paletteImages_ = !(paletteImages && std::string(paletteImages) == "0");
+  paletteImages_ = paletteImages && *paletteImages ? std::string(paletteImages) == "1" :
+    !softwareRenderer(graphicsRenderer);
   const char* filterBounds = std::getenv("PMJS_FILTER_BOUNDS");
   filterBoundsEnabled_ = !(filterBounds && std::string(filterBounds) == "0");
   presentation_.scaleMode = presentScaleModeFromEnvironment();
