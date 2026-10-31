@@ -123,6 +123,12 @@ require('fs').writeFileSync(process.argv[1], evb({ name: '%DEFAULT FOLDER%', chi
 	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" PMJS_RENDER_HZ=60 sh ./tuxtavern "$fx/mvenv" 2>&1)
 	check 'what the environment sets wins over tuxtavern.env' 'driver=wayland hz=60'
 	out=$(PATH="$fx/bin:$PATH" sh ./tuxtavern -i "$fx/mvenv" 2>&1); check '--info names tuxtavern.env' "settings: $fx/mvenv/TuxTavern.env"
+	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" HOME="$fx/home" TUXTAVERN_SCREENSHOTS=1 sh ./tuxtavern "$fx/mv" 2>&1)
+	check 'TUXTAVERN_SCREENSHOTS=1 adds F12 screenshots to ~/Pictures, named after the game' "shots.install(globalThis, \"$fx/home/Pictures\", \"mv\")"
+	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" TUXTAVERN_SCREENSHOTS="$fx/shots" sh ./tuxtavern -C "$fx/mv" 2>&1)
+	check 'or to the folder it names, also without the cheat menu' "shots.install(globalThis, \"$fx/shots\", \"mv\")"
+	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" sh ./tuxtavern "$fx/mv" 2>&1)
+	case $out in *tuxtavern.screenshots*) fail=$((fail + 1)); echo "FAIL screenshots are on without TUXTAVERN_SCREENSHOTS" ;; *) pass=$((pass + 1)); echo "  ok screenshots are off unless asked for" ;; esac
 	out=$(PATH="$fx/bin:$PATH" sh ./tuxtavern -i "$fx/mz" 2>&1); check '--info names pmjs' "runtime: $fx/bin/pmjs"
 	out=$(PATH="$fx/bin:$PATH" WAYLAND_DISPLAY='' sh ./tuxtavern "$fx/packed" 2>&1); check 'without a Wayland session nothing runs' 'Wayland only'
 
