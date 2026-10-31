@@ -74,7 +74,7 @@ if command -v node >/dev/null 2>&1; then
 require('fs').writeFileSync(process.argv[1], evb({ name: '%DEFAULT FOLDER%', children: [f('package.json', '{}'),
   { name: 'www', children: [f('index.html', ''), { name: 'js', children: [f('rpg_core.js', '')] }] }] }))" "$fx/packed/Game.exe"
 	# shellcheck disable=SC2016
-	printf '#!/bin/sh\necho "pmjs $* driver=${SDL_VIDEODRIVER:-}"\nfor a; do case $a in *.js) cat "$a" ;; esac; done\n' >"$fx/bin/pmjs" && chmod +x "$fx/bin/pmjs"
+	printf '#!/bin/sh\necho "pmjs $* driver=${SDL_VIDEODRIVER:-} hz=${PMJS_RENDER_HZ:-}"\nfor a; do case $a in *.js) cat "$a" ;; esac; done\n' >"$fx/bin/pmjs" && chmod +x "$fx/bin/pmjs"
 	# shellcheck disable=SC2016
 	# As mkxp-z, it reads mkxp.json in SRCDIR.
 	printf '#!/bin/sh\necho "mkxp-z rgss=$TUXTAVERN_RGSS_VERSION driver=$SDL_VIDEODRIVER cheat=$TUXTAVERN_CHEAT pwd=$PWD srcdir=$SRCDIR args=$*"; cd "${SRCDIR:-.}" && cat mkxp.json\n' >"$fx/bin/mkxp-z" && chmod +x "$fx/bin/mkxp-z"
@@ -97,6 +97,16 @@ require('fs').writeFileSync(process.argv[1], evb({ name: '%DEFAULT FOLDER%', chi
 	check 'saying so' 'tuxtavern: TUXTAVERN_SKIP leaves out'
 	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" sh ./tuxtavern "$fx/mz" 2>&1); check 'an MZ game runs from its own folder' "pmjs run --game $fx/mz --save-root $fx/mz/save driver=wayland"
 	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" sh ./tuxtavern -T "$fx/mz" 2>&1); check '-T says it is XP/VX/VX Ace only' '-T works for XP/VX/VX Ace games only'
+	mkdir -p "$fx/mvenv/www/js"; : >"$fx/mvenv/www/js/rpg_core.js"
+	printf '# PMJS_RENDER_HZ=120\r\nPMJS_RENDER_HZ=30\r\n\r\nTUXTAVERN_SKIP=Foo,Bar\r\nPATH=/nowhere\r\nPMJS_NOVALUE\r\n' >"$fx/mvenv/TuxTavern.env"
+	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" sh ./tuxtavern "$fx/mvenv" 2>&1)
+	check "a game's tuxtavern.env sets PMJS_* variables" 'driver=wayland hz=30'
+	check 'and TUXTAVERN_* ones' 'var skip = ["Foo", "Bar"];'
+	check 'but no others' "only PMJS_*, TUXTAVERN_* and SDL_* are read, not: PATH=/nowhere"
+	check 'a line without = is pointed out' "no '=' in: PMJS_NOVALUE"
+	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" PMJS_RENDER_HZ=60 sh ./tuxtavern "$fx/mvenv" 2>&1)
+	check 'what the environment sets wins over tuxtavern.env' 'driver=wayland hz=60'
+	out=$(PATH="$fx/bin:$PATH" sh ./tuxtavern -i "$fx/mvenv" 2>&1); check '--info names tuxtavern.env' "settings: $fx/mvenv/TuxTavern.env"
 	out=$(PATH="$fx/bin:$PATH" sh ./tuxtavern -i "$fx/mz" 2>&1); check '--info names pmjs' "runtime: $fx/bin/pmjs"
 	out=$(PATH="$fx/bin:$PATH" WAYLAND_DISPLAY='' sh ./tuxtavern "$fx/packed" 2>&1); check 'without a Wayland session nothing runs' 'Wayland only'
 
@@ -117,6 +127,8 @@ require('fs').writeFileSync(process.argv[1], evb({ name: '%DEFAULT FOLDER%', chi
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" TUXTAVERN_MKXPZ_PRELOAD="$fx/lib/mkxp-z/scripts/preload" sh ./tuxtavern "$fx/xp" 2>&1)
 	check "mkxp-z's Ruby library is passed along" "\"rubyLoadpath\": [\"$fx/lib/mkxp-z/stdlib\"]"
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" TUXTAVERN_YJIT=1 sh ./tuxtavern "$fx/xp" 2>&1); check 'TUXTAVERN_YJIT=1 turns on Ruby JIT' '"YJITEnable": true'
+	mkdir -p "$fx/xpenv/Data"; : >"$fx/xpenv/Data/Scripts.rxdata"; echo 'TUXTAVERN_YJIT=1' >"$fx/xpenv/tuxtavern.env"
+	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./tuxtavern "$fx/xpenv" 2>&1); check 'and so does tuxtavern.env, for XP/VX/VX Ace' '"YJITEnable": true'
 	out=$(ls "$fx/xp"); check 'the game folder is left untouched' 'Data'; case $out in *mkxp.json*) fail=$((fail + 1)); echo "FAIL TuxTavern wrote into the game folder" ;; esac
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./tuxtavern "$fx/vx" 2>&1); check 'VX Ace runs as RGSS3' 'rgss=3'
 	check "which keeps the game's settings" '"windowTitle": "VX"'; check 'and adds the shims' 'rgss/all.rb"]'

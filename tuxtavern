@@ -53,7 +53,8 @@ Games run on Wayland only. RTPs go in ~/.local/share/tuxtavern/rtp/ (XP: Standar
 VX: RPGVX; VX Ace: RPGVXAce). Environment: TUXTAVERN_SKIP (MV/MZ plugins to leave out,
 e.g. ones that build HTML), TUXTAVERN_RGSS_SKIP (shims to leave out),
 TUXTAVERN_MKXPZ_PRELOAD (mkxp-z's scripts/preload, if not found), TUXTAVERN_YJIT=1
-(XP/VX/VX Ace: try Ruby's JIT compiler; experimental, x86-64 only).
+(XP/VX/VX Ace: try Ruby's JIT compiler; experimental, x86-64 only). Settings for one
+game go in its folder's tuxtavern.env, one NAME=value per line.
 EOF
 }
 
@@ -95,6 +96,28 @@ if [ "$mode" = edit-save ]; then
 fi
 [ -d "$target" ] || target=$(dirname "$target")
 game=$(cd "$target" && pwd -P)
+# The game folder's tuxtavern.env: NAME=value lines, read as data, not run. Only PMJS_*,
+# TUXTAVERN_* and SDL_* names; what the environment already sets wins.
+settings=$(find_ci tuxtavern.env)
+if [ -n "$settings" ] && [ -f "$game/$settings" ]; then
+	settings=$game/$settings
+	while IFS= read -r line || [ -n "$line" ]; do
+		line=$(printf %s "$line" | tr -d '\r')
+		case $line in '' | '#'*) continue ;; esac
+		name=${line%%=*}
+		case $name in
+		*[!A-Za-z0-9_]* | '') ;;
+		PMJS_* | TUXTAVERN_* | SDL_*)
+			[ "$name" != "$line" ] || { echo "tuxtavern: $settings: no '=' in: $line" >&2; continue; }
+			eval "given=\${$name+x}"
+			[ -n "$given" ] || export "$name=${line#*=}"
+			continue ;;
+		esac
+		echo "tuxtavern: $settings: only PMJS_*, TUXTAVERN_* and SDL_* are read, not: $line" >&2
+	done <"$settings"
+else
+	settings=
+fi
 nw=$(find_ci package.nw)
 [ -z "$nw" ] || [ ! -d "$game/$nw" ] || game=$(cd "$game/$nw" && pwd -P)
 data="${XDG_DATA_HOME:-$HOME/.local/share}/tuxtavern"
@@ -130,6 +153,7 @@ info)
 	echo "tuxtavern: $VERSION"
 	echo "game:    $game"
 	echo "engine:  ${engine:-not recognized}"
+	[ -z "$settings" ] || echo "settings: $settings"
 	core=$(find_ci www/js/rpg_core.js)
 	[ -n "$core" ] || core=$(find_ci js/rpg_core.js)
 	[ -n "$core" ] || core=$(find_ci js/rmmz_core.js)
