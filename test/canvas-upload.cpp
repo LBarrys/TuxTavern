@@ -128,6 +128,19 @@ int main() {
   assert(canvases.clear(canvas->handle));
   assert(canvases.prepareImage(canvas->handle));
   assert(std::all_of(texture.begin(), texture.end(), [](uint8_t v) { return v == 0; }));
+  // A clear uploads only what it erased, yet the image is known empty, so it is not drawn.
+  assert(canvases.fillRect(canvas->handle, 1, 1, 1, 1, 0xff0000ff));
+  assert(canvases.prepareImage(canvas->handle));
+  assert(canvases.clear(canvas->handle));
+  assert(canvases.prepareImage(canvas->handle));
+  assert(images.lookup(*image)->knownAllZero);
+  // Not when the texture changed outside the canvas between the clear and its upload.
+  assert(canvases.fillRect(canvas->handle, 1, 1, 1, 1, 0xff0000ff));
+  assert(canvases.prepareImage(canvas->handle));
+  assert(canvases.clear(canvas->handle));
+  assert(images.updateRgba(*image, externalPixels.data()));
+  assert(canvases.prepareImage(canvas->handle));
+  assert(!images.lookup(*image)->knownAllZero);
   const int recoveryUploads=regionUploads;
   failUpload=true;
   assert(!images.updateRgbaRegion(*image,0,0,1,1,redPixel.data(),1));

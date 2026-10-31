@@ -341,8 +341,9 @@ class ImageStore {
   bool ensureMipmaps(ImageHandle handle, bool premultiplied);
   const ImagePixels* readPixels(ImageHandle handle) const;
   bool updateRgba(ImageHandle handle, const void* pixels);
+  // wholeImageZero: the caller knows every pixel outside the region is also zero.
   bool updateRgbaRegion(ImageHandle handle, int x, int y, int width, int height,
-                        const void* pixels, int sourceRowPixels);
+                        const void* pixels, int sourceRowPixels, bool wholeImageZero = false);
   std::shared_ptr<ImagePixelSnapshot> deferPixelRead(ImageHandle handle,
       int x, int y, int width, int height);
   bool preservePixelReads(ImageHandle handle);

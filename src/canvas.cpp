@@ -1952,7 +1952,10 @@ bool CanvasStore::uploadSurface(Surface& target) {
     const auto image = images_.createRgba(surface.width, surface.height, pixels.data(), true);
     if (!image) return false;
     target.image = image->handle;
-  } else if (!images_.updateRgbaRegion(target.image, x, y, width, height, pixels.data(), width)) {
+  } else if (!images_.updateRgbaRegion(target.image, x, y, width, height, pixels.data(), width,
+      // A clear now uploads only the pixels it erased; the canvas still knows it is empty,
+      // unless the texture was changed outside it since its last upload.
+      surface.knownAllZero && target.imageRevision && images_.contentRevision(target.image) == target.imageRevision)) {
     return false;
   }
   target.imageRevision = images_.contentRevision(target.image);
