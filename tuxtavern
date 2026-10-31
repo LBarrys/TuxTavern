@@ -46,7 +46,7 @@ Runs a Windows RPG Maker XP/VX/VX Ace/MV/MZ game natively (default: the current 
   -C, --no-cheat  turn off the F8 cheat menu (on by default)
   -i, --info      show what was detected
   -d, --desktop   add the game to the app launcher
-  -e, --edit-save MV/MZ: open a save as JSON in \$EDITOR, write it back on exit
+  -e, --edit-save open a save as JSON in \$EDITOR, write it back on exit
   -h, --help      show this help
   -V, --version   show the version
 
@@ -81,7 +81,7 @@ target=${1:-.}
 [ -e "$target" ] || die "no such file or directory: $target"
 
 if [ "$mode" = edit-save ]; then
-	[ -f "$target" ] || die "--edit-save takes a save file, e.g. www/save/file1.rpgsave"
+	[ -f "$target" ] || die "--edit-save takes a save file, e.g. www/save/file1.rpgsave or Save01.rvdata2"
 	have node || die "--edit-save needs node (apk add nodejs)"
 	tmp=$(mktemp -d)
 	trap 'rm -rf "$tmp"' EXIT INT TERM

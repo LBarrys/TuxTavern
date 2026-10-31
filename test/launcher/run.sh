@@ -197,6 +197,13 @@ a"
 	done
 	out=$(TUXTAVERN_RGSS_VERSION=3 ruby -e 'load "lib/rgss/ruby18.rb"; puts({ a: 9 }.index(9))' 2>&1)
 	check 'VX Ace gets Hash#index back, as Ruby 1.9 had it' 'a'
+	if command -v node >/dev/null 2>&1; then
+		mkdir -p "$fx/ace" && ruby test/launcher/rgss-save.rb make "$fx/ace"
+		out=$(EDITOR="sed -i -e s/1234567/7654321/ -e s/ラルフ/Ralf/" sh ./tuxtavern -e "$fx/ace/Save01.rvdata2" 2>&1); check '--edit-save edits a VX Ace save' 'Wrote'
+		out=$(ruby test/launcher/rgss-save.rb read "$fx/ace/Save01.rvdata2" 2>&1)
+		check 'which Ruby reads back, edited, with shared objects still shared' 'gold=7654321 hp=450 name=Ralf shared=true'
+		out=$(EDITOR=true sh ./tuxtavern -e "$fx/ace/Save1.rxdata" 2>&1); check 'and an XP save, unchanged' 'Unchanged'
+	fi
 	mkdir -p "$fx/rgss"
 	# shellcheck disable=SC2016
 	printf '$order << "B"\n' >"$fx/rgss/B.tuxtavern.rb"
