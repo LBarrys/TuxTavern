@@ -31,7 +31,7 @@
   var classNames = Object.keys(knownClasses);
 
   var baselineMethods = {};
-  // Reviewed Pixi 4.8.9 / MV 1.6.1 transforms; LF and CRLF are pinned separately.
+  // Reviewed transforms as MV 1.6.1 ships them (its Pixi is 4.5.4); LF and CRLF are pinned separately.
   var reviewedTransforms = {
     '1a091756d85883232da57aa53141f43968c21abfc58b6b231a46c0faa9014861': 'container',
     'c44d52cfc99a419e1167eab4728e62535865ba7b08fbf7007256347c54279a05': 'container',

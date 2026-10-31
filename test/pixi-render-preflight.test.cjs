@@ -225,6 +225,7 @@ test('Pixi baseline loads before plugin setup, with scan after adapters', () => 
 });
 
 
+// The LF forms were pinned before; upstream b9e97df added the CRLF ones.
 test('reviewed Pixi transforms admit both line endings and reject changed bodies', () => {
   const reference = require('./assets/pixi4-transforms.cjs');
   for (const newline of ['\n', '\r\n']) {
