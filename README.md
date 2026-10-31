@@ -25,6 +25,7 @@ tuxtavern --no-cheat GAME         # turn off the F8 cheat menu (god mode, no cli
 tuxtavern --test GAME             # XP/VX/VX Ace: playtest
 tuxtavern --edit-save SAVE        # MV/MZ: edit a save as JSON in $EDITOR
 tuxtavern --info GAME             # show what was detected
+tuxtavern --desktop GAME          # add it to the app launcher
 ```
 
 - **Missing graphics or sounds:** extract the game's [RTP](https://www.rpgmakerweb.com/run-time-package)

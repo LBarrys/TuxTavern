@@ -52,6 +52,22 @@ run --info "$fx/vxa"; check 'an archive-only game is detected' 'engine:  rgss'
 run --info "$fx/nwdir"; check 'a package.nw folder is the game' "game:    $fx/nwdir/Package.nw"; check 'and what is in it is detected' 'engine:  mz'
 run --info "$fx/nwdir/Secretary.exe"; check 'also when started from the exe next to it' 'engine:  mz'
 run --info "$fx/none"; check 'an empty folder is not a game' 'engine:  not recognized'
+game="$fx/my game\$%"; mkdir -p "$game/www/js" "$game/www/data" "$game/www/icon"; : >"$game/www/js/rpg_core.js"; : >"$game/www/icon/icon.png"
+echo '{"currencyUnit":"G","gameTitle":"Tux Quest","locale":"en_US"}' >"$game/www/data/System.json"
+out=$(XDG_DATA_HOME="$fx/apps" sh ./tuxtavern --desktop "$game" 2>&1); check '--desktop adds an MV game to the app launcher' 'Added Tux Quest to the app launcher'
+out=$(cat "$fx"/apps/applications/tuxtavern-*.desktop); check 'named after its title' 'Name=Tux Quest'
+check 'running it from its folder, quoted for a .desktop file' "Exec=\"$(readlink -f ./tuxtavern)\" \"$fx/my game\\\\\$%%\""
+check 'with its icon' "Icon=$game/www/icon/icon.png"
+if command -v desktop-file-validate >/dev/null 2>&1; then
+	out=$(desktop-file-validate "$fx"/apps/applications/tuxtavern-*.desktop 2>&1 && echo valid); check 'which is a valid desktop entry' 'valid'
+fi
+rm -rf "$fx/apps"
+printf '[Game]\r\nTitle=Ruby Days\r\n' >"$fx/xp/Game.ini.new"; cp "$fx/xp/Game.ini" "$fx/xp/Game.ini.old"; cat "$fx/xp/Game.ini.new" >>"$fx/xp/Game.ini"
+out=$(XDG_DATA_HOME="$fx/apps" sh ./tuxtavern -d "$fx/xp" 2>&1); check "an XP game is named from Game.ini" 'Added Ruby Days'
+printf '[Game]\r\nTitle=\203\211\203C\r\n' >"$fx/xp/Game.ini"
+out=$(XDG_DATA_HOME="$fx/apps" sh ./tuxtavern -d "$fx/xp" 2>&1); check 'a Shift-JIS title falls back to the folder name' 'Added xp to'
+mv "$fx/xp/Game.ini.old" "$fx/xp/Game.ini"; rm -f "$fx/xp/Game.ini.new"
+run --desktop "$fx/none"; check '--desktop needs a game' 'no RPG Maker XP/VX/VX Ace/MV/MZ game found'
 run --info "$fx/evb"; check 'an Enigma-packed exe is detected' 'engine:  evb'; check 'and named' 'GAME.EXE (Enigma'
 run --info "$fx/exe"; check 'a plain exe is not taken for Enigma' 'engine:  not recognized'
 run --info "$fx/2k"; check 'RPG Maker 2000/2003 is not supported' 'engine:  not recognized'

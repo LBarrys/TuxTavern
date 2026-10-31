@@ -37,7 +37,7 @@ evb_exe() {
 
 usage() {
 	cat <<EOF
-Usage: tuxtavern [-T | -C | -t FILE | -i] [GAME_DIR | GAME.exe]
+Usage: tuxtavern [-T | -C | -i | -d] [GAME_DIR | GAME.exe]
        tuxtavern -e SAVE_FILE
 
 Runs a Windows RPG Maker XP/VX/VX Ace/MV/MZ game natively (default: the current directory).
@@ -45,6 +45,7 @@ Runs a Windows RPG Maker XP/VX/VX Ace/MV/MZ game natively (default: the current 
   -T, --test      XP/VX/VX Ace: playtest mode (F9 debug menu)
   -C, --no-cheat  turn off the F8 cheat menu (on by default)
   -i, --info      show what was detected
+  -d, --desktop   add the game to the app launcher
   -e, --edit-save MV/MZ: open a save as JSON in \$EDITOR, write it back on exit
   -h, --help      show this help
   -V, --version   show the version
@@ -64,6 +65,7 @@ while [ $# -gt 0 ]; do
 	-T | --test) test=1 ;;
 	-C | --no-cheat) cheat='' ;;
 	-i | --info) mode=info ;;
+	-d | --desktop) mode=desktop ;;
 	-e | --edit-save) mode=edit-save ;;
 	-h | --help) usage; exit 0 ;;
 	-V | --version) echo "tuxtavern $VERSION"; exit 0 ;;
@@ -147,6 +149,8 @@ rtp_names() {
 	[ -z "$ini" ] || tr -d '\r' <"$game/$ini" | sed -n 's/^RTP[1-3]\{0,1\} *= *\(..*\)$/\1/p'
 }
 json() { printf '"%s"' "$(printf %s "$1" | sed 's/[\\"]/\\&/g')"; }
+# One Exec argument of a .desktop file: quoted, its \ " ` $ escaped, then escaped again as a string.
+desktop_arg() { printf '"%s"' "$(printf %s "$1" | sed -e 's/\\/\\\\\\\\/g' -e 's/["`$]/\\\\&/g' -e 's/%/%%/g')"; }
 
 case $mode in
 info)
@@ -176,6 +180,32 @@ info)
 		else echo "runtime: pmjs not installed (doas sh tools/apk.sh in a TuxTavern checkout)"
 		fi ;;
 	esac
+	exit 0 ;;
+desktop)
+	[ -n "$engine" ] || die "no RPG Maker XP/VX/VX Ace/MV/MZ game found in $game"
+	name=
+	case $engine in
+	mv | mz)
+		system=$(find_ci www/data/System.json)
+		[ -n "$system" ] || system=$(find_ci data/System.json)
+		[ -z "$system" ] || name=$(sed -n 's/.*"gameTitle" *: *"\([^"\\]*\)".*/\1/p' "$game/$system" | head -n 1)
+		icon=$(find_ci www/icon/icon.png)
+		[ -n "$icon" ] || icon=$(find_ci icon/icon.png) ;;
+	rgss)
+		ini=$(find_ci game.ini)
+		# Game.ini is often Shift-JIS; a .desktop file must be UTF-8, so only a plain ASCII title.
+		[ -z "$ini" ] || name=$(tr -d '\r' <"$game/$ini" | sed -n 's/^Title *= *//p' | head -n 1 | LC_ALL=C grep -v '[^ -~]' || :) ;;
+	esac
+	[ -n "$name" ] || name=$(basename "$game")
+	apps="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+	mkdir -p "$apps" || die "cannot create $apps"
+	{
+		printf '[Desktop Entry]\nType=Application\nName=%s\nExec=%s %s\n' "$(printf %s "$name" | sed 's/\\/\\\\/g')" \
+			"$(desktop_arg "$self")" "$(desktop_arg "$game")"
+		[ -z "${icon:-}" ] || printf 'Icon=%s\n' "$game/$icon"
+		printf 'Categories=Game;\nTerminal=false\n'
+	} >"$apps/tuxtavern-$id.desktop" || die "cannot write $apps/tuxtavern-$id.desktop"
+	echo "Added $name to the app launcher: $apps/tuxtavern-$id.desktop (delete it to remove)"
 	exit 0 ;;
 esac
 
