@@ -409,15 +409,25 @@ int main() {
       }
       const auto memory = images.memoryEntries();
       const auto controlOwner = std::find_if(memory.begin(), memory.end(), [&](const auto& entry) { return entry.handle == control->handle; });
-      require(controlOwner != memory.end() && images.gpuBytes() - controlOwner->gpuBytes == expectedBytes,
+      // Linear draws use hardware-filtered RGBA pages (upstream c1e1817) and prepared frames
+      // (d36f259), both in bounded caches; the palettes themselves are stored once.
+      const auto pageTextures = images.preparedPageTextureBytes(), frames = images.preparedFrameCacheBytes();
+      require(pageTextures <= 32U * 1024U * 1024U && frames <= images.preparedFrameCacheBudget(),
+        "prepared page caches exceeded their budgets");
+      require(controlOwner != memory.end() &&
+        images.gpuBytes() - controlOwner->gpuBytes - pageTextures - frames == expectedBytes,
         "prepared page palettes allocated RGBA or duplicated storage");
       require(std::count_if(memory.begin(), memory.end(), [&](const auto& entry) {
-        return (entry.handle == image->handle || entry.handle == alias->handle) && entry.gpuBytes == expectedBytes && entry.palette && entry.paletteIndexBits == (wide ? 16 : 8);
+        return (entry.handle == image->handle || entry.handle == alias->handle) &&
+          entry.gpuBytes >= expectedBytes && entry.gpuBytes - expectedBytes <= pageTextures &&
+          entry.palette && entry.paletteIndexBits == (wide ? 16 : 8);
       }) == 2, "prepared page palette ownership accounting differs");
       const auto view = images.resolveSpriteRegion(alias->handle, 0, 0, frameWidth, frameHeight, false, true);
       images.setWarmBudgetBytes(64 * 1024 * 1024);
       images.release(image->handle); images.update();
-      require(images.warmCount() == 1 && images.warmBytes() == 0, "warm palette charged storage retained by an active owner");
+      // Only the page and frame caches it alone references may be charged, not the shared palette.
+      require(images.warmCount() == 1 && images.warmBytes() <= pageTextures + frames,
+        "warm palette charged storage retained by an active owner");
       images.setWarmBudgetBytes(0); images.update();
       require(glIsTexture(view->image.texture), "released owner deleted a shared palette page");
       const auto read = images.readPixelsRegion(alias->handle, 513, 7, 9, 3);
@@ -555,7 +565,10 @@ int main() {
         require(prepared && images.resolvePaletteImage(prepared->handle, false),
           "prepared image did not realize a full palette");
         require(images.storageDecisionHits() == preparedHits + 1, "prepared image ignored storage metadata");
-        require(images.gpuBytes() == paletteBytes, "prepared palette retained an extra RGBA texture");
+        // Loading stages pages as RGBA within the 32 MiB page budget (upstream 6568940).
+        const auto staged = images.preparedPageTextureBytes();
+        require(staged <= 32U * 1024U * 1024U && images.gpuBytes() - staged == paletteBytes,
+          "prepared palette retained an extra RGBA texture");
         require(images.cpuBytes() < 512 * 1024, "resident palette retained decoded preparation pages");
         const auto preparedPixels = images.readPixelsRegion(prepared->handle, 0, 0, width, height);
         require(preparedPixels && preparedPixels->rgba == pixels.rgba,
