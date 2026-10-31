@@ -6,6 +6,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 
 const HASH = /^[a-f0-9]{64}$/;
+const FUSE_SUPER_MAGIC = 0x65735546;
 const digest = value => crypto.createHash('sha256').update(value).digest('hex');
 
 async function writeJson(file, value, flush = true) {
@@ -25,10 +26,25 @@ async function preparationFiles(directory, verifyHashes = false) {
       previous = saved.files; previousHash = saved.hash;
     }
   } catch (_) { /* Missing or interrupted receipts require full verification. */ }
-  const files = {}, known = new Map(), jsonValues = new Map();
+  const files = {}, known = new Map(), jsonValues = new Map(), filesystemTypes = new Map();
   const stats = { hashedFiles: 0, hashedBytes: 0, reusedFiles: 0, jsonReads: 0, jsonReuses: 0 };
   function identity(stat) {
     return [stat.dev, stat.ino, stat.size, stat.mtimeNs, stat.ctimeNs, stat.birthtimeNs].join(':');
+  }
+  // FUSE file systems (sshfs, rclone) may number inodes afresh on each mount; there a receipt
+  // still holds when everything but the inode matches.
+  function matchesReceipt(receipt, signature, file, stat) {
+    if (!receipt || !HASH.test(receipt.hash)) return false;
+    if (receipt.identity === signature) return true;
+    if (!/^\d+(?::\d+){5}$/.test(receipt.identity || '')) return false;
+    const before = receipt.identity.split(':'), after = signature.split(':');
+    if (before.some((value, i) => i !== 1 && value !== after[i])) return false;
+    if (!filesystemTypes.has(stat.dev)) {
+      let type;
+      try { type = fs.statfsSync(file).type; } catch (_) { type = null; }
+      filesystemTypes.set(stat.dev, type);
+    }
+    return filesystemTypes.get(stat.dev) === FUSE_SUPER_MAGIC;
   }
   async function inspect(file) {
     file = path.resolve(file);
@@ -38,8 +54,8 @@ async function preparationFiles(directory, verifyHashes = false) {
     const cached = previous[file];
     const retained = known.get(signature);
     let header = retained?.header;
-    let checksum = !verifyHashes && (retained?.hash ||
-      cached && cached.identity === signature && HASH.test(cached.hash) && cached.hash);
+    const receipt = !verifyHashes && matchesReceipt(cached, signature, file, before) ? cached : null;
+    let checksum = !verifyHashes && (retained?.hash || receipt?.hash);
     const reused = !!checksum;
     if (reused) ++stats.reusedFiles;
     else {
@@ -54,7 +70,7 @@ async function preparationFiles(directory, verifyHashes = false) {
       const after = await fsp.lstat(file, { bigint: true });
       if (!after.isFile() || identity(after) !== signature) throw new Error('preparation input changed while verifying');
     }
-    files[file] = { identity: signature, hash: checksum };
+    files[file] = { identity: receipt?.identity || signature, hash: checksum };
     known.set(signature, { hash: checksum, header });
     return { hash: checksum, reused, size: Number(before.size), header };
   }
