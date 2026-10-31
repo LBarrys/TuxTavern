@@ -197,5 +197,25 @@ frame('cancel');
 to("Karryn's Prison >");
 frame('ok');
 is('a stat the game no longer has is left out', texts().includes('Butt desire (max 100)'), false);
+f8();
+
+// Karryn's Prison on the title screen: Karryn exists, but RemtairyWillpower.js's maxWill throws.
+const logged = [];
+const log = console.log;
+console.log = text => (String(text).startsWith('tuxtavern:') ? logged.push(text) : log(text));
+Object.defineProperty(karryn, 'maxwill', { configurable: true, get() { throw new TypeError("Cannot read properties of undefined (reading '5')"); } });
+f8();
+is('before a game is loaded the menu still opens, without the Karryn\'s Prison page',
+  [menu.open, texts().includes("Karryn's Prison >"), logged.length], [true, false, 0]);
+f8();
+// Whatever fails in the menu, MV must not stop the game over it.
+const updates = w.SceneManager._scene.updates;
+const gold = w.$gameParty.gold;
+w.$gameParty.gold = () => { throw new Error('broken'); };
+f8();
+is('a failing menu closes, and the game goes on', [menu.open, w.SceneManager._scene.updates], [false, updates + 1]);
+is('saying why', /^tuxtavern: the F8 menu closed after an error: Error: broken/.test(logged[0]), true);
+w.$gameParty.gold = gold;
+console.log = log;
 
 process.exit(failed ? 1 : 0);
