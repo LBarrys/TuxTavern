@@ -246,6 +246,90 @@ to('Bar reputation');
 frame('right');
 is('and set them through it', w.$gameParty._barReputation, 13);
 frame('cancel');
+
+// Liquids, titles, passives, edicts and battle, with the methods the game has for them.
+Object.assign(karryn, {
+  _liquidSwallow: 5, increaseLiquidSwallow(n) { this._liquidSwallow += n; }, setCacheChanged() { this.redrawn = true; },
+  titles: new Set([2]), hasThisTitle(id) { return this.titles.has(id); },
+  gainTitle(id) { this.titles.add(id); }, removeTitle(id) { this.titles.delete(id); },
+  passives: new Set(), hasPassive(id) { return this.passives.has(id); },
+  learnNewPassive(id) { this.passives.add(id); }, forgetPassive(id) { this.passives.delete(id); },
+  learned: new Set([600]), points: 0,
+  getTreeTypes() { return [61]; },
+  getTreeDatas() { return [{ id: 600 }, { id: 601 }, { id: 602 }]; },
+  getPreskillId(id) { return id === 602 ? [601] : []; },
+  isStsLearnedSkill(id) { return this.learned.has(id); },
+  isPayCostOk() { return this.points > 0; },
+  stsLearnSkill(id) { this.learned.add(id); this.points--; },
+  setWillToMax() { this._will = this.maxWill(); },
+});
+Object.assign(scope, { TITLE_LIST_START_ID: 30, TITLE_LIST_END_ID: 31, PASSIVES_LIST_ONE_START_ID: 400, PASSIVES_LIST_ONE_END_ID: 401 });
+w.$dataArmors = [];
+Object.assign(w.$dataArmors, { 2: { name: 'Warden' }, 30: { name: 'Iron Will' }, 31: { name: 'Equipped One' } });
+w.$dataSkills = [];
+Object.assign(w.$dataSkills, { 400: { name: 'Kissing Lover' }, 401: { name: '' }, 600: { name: 'Office' }, 601: { name: 'Guards' }, 602: { name: 'Riot Gear' } });
+w.$dataWeapons = [];
+w.$dataWeapons[61] = { name: 'Prison' };
+w.$gameParty.isAnyMemberEquipped = armor => armor === w.$dataArmors[31];
+karryn.titles.add(31);
+f8();
+f8();
+open('Liquids');
+to('Swallow');
+frame('right');
+is('a liquid is raised through the game, and Karryn is redrawn', [karryn._liquidSwallow, karryn.redrawn], [15, true]);
+is('only the liquids the game can change are listed, named as in the game', rowsOf(), ['Swallow']);
+frame('cancel');
+open('Titles');
+is('titles list the game\'s title armors that have names', rowsOf(), ['Warden', 'Iron Will', 'Equipped One']);
+to('Iron Will');
+frame('ok');
+is('a title is gained', karryn.titles.has(30), true);
+to('Equipped One');
+frame('ok');
+is('an equipped title is not removed', karryn.titles.has(31), true);
+is('and that is said', texts().includes('Unequip that title first.'), true);
+frame('cancel');
+open('Passives');
+is('passives list the earnable ones that have names', rowsOf(), ['Kissing Lover']);
+to('Kissing Lover');
+frame('ok');
+is('a passive is learned through the game', karryn.passives.has(400), true);
+frame('ok');
+is('and forgotten', karryn.passives.has(400), false);
+frame('cancel');
+open('Edicts');
+is('edicts show which are learned, can be bought or are locked',
+  texts().filter(t => /^> (learned|buy|locked)$/.test(t)), ['> learned', '> buy', '> locked']);
+to('Prison: Guards');
+frame('ok');
+is('one is not bought without the points', [karryn.learned.has(601), texts().includes('Not enough edict points or gold.')], [false, true]);
+karryn.points = 1;
+frame('ok');
+is('with them the game sells it', [karryn.learned.has(601), karryn.points, texts().includes('Bought.')], [true, 0, true]);
+frame('cancel');
+is('the battle page only shows in a battle', texts().includes('Battle >'), false);
+const enemy = { _hp: 300, isDead: () => false, setHp(n) { this._hp = n; }, horny: false, addHornyState() { this.horny = true; } };
+const dead = { _hp: 0, isDead: () => true, setHp(n) { this._hp = n; }, addHornyState() { this.horny = true; } };
+w.$gameTroop = { members: () => [enemy, dead] };
+w.$gameParty.inBattle = () => true;
+frame('cancel');
+f8();
+open('Battle');
+to('Enemies: stamina 0');
+frame('ok');
+to('Enemies: horny');
+frame('ok');
+is('enemies are knocked down and made horny, but not the ones already down', [enemy._hp, enemy.horny, dead.horny], [0, true, undefined]);
+to('Karryn: full willpower');
+karryn._will = 1;
+frame('ok');
+is('Karryn\'s willpower is filled', karryn._will, 120);
+w.$gameParty.inBattle = () => false;
+frame('cancel');
+f8();
+f8();
+
 karryn.setFatigue = undefined;
 open('Karryn');
 is('a stat the game does not have is left out', rowsOf().includes('Fatigue % (max 100)'), false);
