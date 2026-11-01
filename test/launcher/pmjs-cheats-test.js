@@ -147,13 +147,18 @@ is('changing scene closes the menu', menu.open, false);
 f8();
 f8();
 is('F8 closes it again', [menu.open, w.SceneManager._scene.children.length], [false, 0]);
-is('other games have no Karryn\'s Prison page', texts().includes("Karryn's Prison >"), false);
+is('other games have no Karryn\'s Prison pages', texts().includes('Karryn >'), false);
 
-// Karryn's Prison: its constants are top-level consts, so only the global scope (eval) sees them.
+// Karryn's Prison, with the methods its scripts have. Its constants are top-level consts, so only
+// the global scope (eval) sees them.
 class Karryn extends Actor {
   constructor() {
     super(1, 'Karryn');
-    Object.assign(this, { will: 30, maxwill: 120, _storedEdictPoints: 2 });
+    Object.assign(this, {
+      _hp: 50, mhp: 900, _mp: 5, mmp: 80, _will: 30, _tp: 0, _fatigue: 70, _sleepQuality: 40, cockiness: 10,
+      _clothingDurability: 30, _clothingStage: 3, _clothingMaxStage: 5, panties: false,
+      _level: 4, _paramLvl: [1, 2, 3, 4, 5, 6, 7, 8], _storedEdictPoints: 2,
+    });
     for (const d of ['cock', 'mouth', 'boobs', 'pussy', 'butt']) {
       this[d + 'Desire'] = 5;
       const D = d[0].toUpperCase() + d.slice(1);
@@ -161,52 +166,105 @@ class Karryn extends Actor {
       this['set' + D + 'Desire'] = (v, fromWillpowerSkill) => { this[d + 'Desire'] = v; this.fromWill = fromWillpowerSkill; };
     }
   }
-  gainWill(n) { this.will += n; }
+  setHp(n) { this._hp = n; }
+  setMp(n) { this._mp = n; }
+  setWill(n) { this._will = n; }
+  maxWill() { return 120; }
+  setTp(n) { this._tp = n; }
+  orgasmPoint() { return 100; }
+  setFatigue(n) { this._fatigue = n; }
+  addCockiness(n) { this.cockiness += n; }
+  getClothingMaxDurability() { return 200; }
+  minimumClothingDurabilityForStage(stage) { return [0, 150, 100, 50, 20, 0][stage]; }
+  changeClothingToStage(n) { this._clothingStage = n; }
+  isWearingPanties() { return this.panties; }
+  putOnPanties() { this.panties = true; }
+  takeOffPanties() { this.panties = false; }
+  getWardenLevelLimit() { return 30; }
+  stsSp() { return 0; }
+  setAsp(n) { this.asp = n; }
 }
 const karryn = new Karryn();
 const scope = { ACTOR_KARRYN_ID: 1, PRISON_ORDER_MAX: 100 };
 w.eval = code => new Function(...Object.keys(scope), 'return ' + code)(...Object.values(scope));
 w.$gameActors = { actor: id => (id === 1 ? karryn : null) };
-Object.assign(w.$gameParty, { order: 50, setOrder(n) { this.order = n; } });
+w.TextManager = { param: i => ['Max stamina', 'Max energy', 'Strength', 'Endurance', 'Dexterity', 'Mind', 'Agility', 'Charm'][i] };
+Object.assign(w.$gameParty, {
+  order: 50, setOrder(n) { this.order = n; }, _corruption: 3, setCorruption(n) { this._corruption = n; },
+  guardAggression: 7, setGuardAggression(n) { this.guardAggression = n; }, _prisonLevelTwoRiotBuildup: 40,
+  _barReputation: 12, setBarReputation(n) { this._barReputation = n; },
+});
+// Tall enough to show every row of a page at once.
+w.Graphics.height = 1300;
+const rowsOf = () => texts().filter(t => t && !/^> |^Search/.test(t)).slice(1);
+const open = name => { to(name + ' >'); frame('ok'); };
+const shifted = (key, times) => { held = new Set(['shift']); for (let i = 0; i < times; i++) frame(key); held = new Set(); };
 f8();
-to("Karryn's Prison >");
-is('Karryn\'s Prison gets a page of its own', current(), "Karryn's Prison >");
-frame('ok');
-is('with willpower, the five desires, order and edict points', texts().filter(t => t && !/^> |^Search/.test(t)).slice(1),
-  ['Willpower (max 120)', 'Cock desire (max 100)', 'Mouth desire (max 100)', 'Boobs desire (max 100)',
-   'Pussy desire (max 100)', 'Butt desire (max 100)', 'Order', 'Edict points']);
+is('Karryn\'s Prison gets Karryn, Prison and Side jobs pages', ['Karryn >', 'Prison >', 'Side jobs >'].every(p => texts().includes(p)), true);
+open('Karryn');
+is('Karryn\'s page has her vitals, condition, desires, clothing, levels and edict points', rowsOf(), [
+  'Stamina (max 900)', 'Energy (max 80)', 'Willpower (max 120)', 'Pleasure (max 100)', 'Fatigue % (max 100)',
+  'Sleep quality % (max 100)', 'Cockiness % (max 100)', 'Cock desire (max 100)', 'Mouth desire (max 100)',
+  'Boobs desire (max 100)', 'Pussy desire (max 100)', 'Butt desire (max 100)', 'Clothing durability (max 200)',
+  'Clothing stage (max 5)', 'Panties', 'Warden level (max 30)', 'Max stamina level', 'Max energy level',
+  'Strength level', 'Endurance level', 'Dexterity level', 'Mind level', 'Agility level', 'Charm level', 'Edict points']);
+to('Fatigue % (max 100)');
+shifted('left', 10);
+is('fatigue is set through the game, not below 0', karryn._fatigue, 0);
 to('Willpower (max 120)');
-held = new Set(['shift']);
-for (let i = 0; i < 10; i++) frame('right');
-held = new Set();
-is('willpower rises through the game, up to its maximum', karryn.will, 120);
+shifted('right', 10);
+is('willpower rises up to its maximum', karryn._will, 120);
 to('Pussy desire (max 100)');
 frame('left');
-frame('left');
-is('a desire is set through the game, not below 0', [karryn.pussyDesire, karryn.fromWill], [0, false]);
-to('Order');
-held = new Set(['shift']);
-for (let i = 0; i < 6; i++) frame('right');
-held = new Set();
-is('order stops at the prison\'s maximum', w.$gameParty.order, 100);
+is('a desire is set through the game, as not from a willpower skill', [karryn.pussyDesire, karryn.fromWill], [0, false]);
+to('Clothing durability (max 200)');
+shifted('right', 20);
+is('mended clothing is whole again: durability at its maximum, stage 1', [karryn._clothingDurability, karryn._clothingStage], [200, 1]);
+to('Panties');
+frame('ok');
+is('panties are put on', karryn.panties, true);
+to('Strength level');
+frame('right');
+is('a stat level is raised', karryn._paramLvl[2], 4);
 to('Edict points');
 frame('right');
-is('edict points are stored for the next day', karryn._storedEdictPoints, 3);
-delete karryn.setButtDesire;
+is('edict points are stored and set as the game does', [karryn._storedEdictPoints, karryn.asp], [3, 3]);
 frame('cancel');
-to("Karryn's Prison >");
-frame('ok');
-is('a stat the game no longer has is left out', texts().includes('Butt desire (max 100)'), false);
+open('Prison');
+is('the prison page has order, corruption, guard aggression and riot build-up where the game has it',
+  rowsOf(), ['Order (max 100)', 'Corruption', 'Guard aggression', 'Level 2 riot build-up (max 100)']);
+to('Order (max 100)');
+shifted('right', 6);
+is('order stops at the prison\'s maximum', w.$gameParty.order, 100);
+to('Level 2 riot build-up (max 100)');
+shifted('left', 5);
+is('riot build-up goes down to 0', w.$gameParty._prisonLevelTwoRiotBuildup, 0);
+frame('cancel');
+open('Side jobs');
+is('side jobs show the reputations the game has', rowsOf(), ['Bar reputation']);
+to('Bar reputation');
+frame('right');
+is('and set them through it', w.$gameParty._barReputation, 13);
+frame('cancel');
+karryn.setFatigue = undefined;
+open('Karryn');
+is('a stat the game does not have is left out', rowsOf().includes('Fatigue % (max 100)'), false);
 f8();
 
-// Karryn's Prison on the title screen: Karryn exists, but RemtairyWillpower.js's maxWill throws.
+// On the title screen Karryn exists, but the game is not loaded (map 0) and her stats throw.
 const logged = [];
 const log = console.log;
 console.log = text => (String(text).startsWith('tuxtavern:') ? logged.push(text) : log(text));
-Object.defineProperty(karryn, 'maxwill', { configurable: true, get() { throw new TypeError("Cannot read properties of undefined (reading '5')"); } });
+karryn.maxWill = () => { throw new TypeError("Cannot read properties of undefined (reading '5')"); };
+w.$gameMap.mapId = () => 0;
 f8();
-is('before a game is loaded the menu still opens, without the Karryn\'s Prison page',
-  [menu.open, texts().includes("Karryn's Prison >"), logged.length], [true, false, 0]);
+is('before a game is loaded the menu opens, without the Karryn\'s Prison pages',
+  [menu.open, texts().includes('Karryn >'), logged.length], [true, false, 0]);
+f8();
+w.$gameMap.mapId = () => 1;
+f8();
+open('Karryn');
+is('a stat that throws leaves out only its own row', [rowsOf().includes('Stamina (max 900)'), rowsOf().some(t => t.startsWith('Willpower'))], [true, false]);
 f8();
 // Whatever fails in the menu, MV must not stop the game over it.
 const updates = w.SceneManager._scene.updates;
