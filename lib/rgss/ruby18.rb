@@ -23,6 +23,21 @@ if ENV['TUXTAVERN_RGSS_VERSION'].to_i.between?(1, 2)
     def type
       self.class
     end
+
+    alias_method :id, :object_id unless method_defined?(:id)
+  end
+
+  # Ruby 1.8's ids for these, which Ruby 2 changed.
+  class NilClass
+    def id
+      4
+    end
+  end
+
+  class TrueClass
+    def id
+      2
+    end
   end
   RpgmRuby18.wrap_lists(Object, %i[methods singleton_methods public_methods private_methods])
   RpgmRuby18.wrap_lists(Module, %i[instance_methods public_instance_methods private_instance_methods protected_instance_methods])
@@ -42,4 +57,11 @@ class Hash
   def index(value)
     key(value)
   end unless method_defined?(:index)
+end
+
+# Ruby 1.8 and 1.9 had these; Ruby 3.2 removed them.
+class Object
+  TRUE = true unless const_defined?(:TRUE)
+  FALSE = false unless const_defined?(:FALSE)
+  NIL = nil unless const_defined?(:NIL)
 end

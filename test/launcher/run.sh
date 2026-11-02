@@ -185,6 +185,16 @@ puts 1.type, Hero.new.type, Hero.instance_methods.include?("act"), Hero.new.meth
 a"
 	out=$(TUXTAVERN_RGSS_VERSION=3 ruby -e 'load "lib/rgss/ruby18.rb"; puts 1.respond_to?(:type)' 2>&1)
 	check 'VX Ace is left on modern Ruby' 'false'
+	out=$(TUXTAVERN_RGSS_VERSION=1 ruby -e 'load "lib/rgss/ruby18.rb"
+o = Object.new
+puts [o.id == o.object_id, nil.id, true.id].join(","), [TRUE, FALSE, NIL].inspect' 2>&1)
+	check 'Ruby 1.8: obj.id, and nil and true keep their ids' 'true,4,2'
+	check 'TRUE, FALSE and NIL are back' '[true, false, nil]'
+	out=$(TUXTAVERN_RGSS_VERSION=3 ruby -e 'load "lib/rgss/ruby18.rb"; puts [TRUE, 1.respond_to?(:id)].join(",")' 2>&1)
+	check 'VX Ace gets TRUE (Ruby 1.9 had it), but not Ruby 1.8 obj.id' 'true,false'
+	mkdir -p "$fx/preload" && printf 'module MKXP; def self.marker; "mkxp_wrap"; end; end\n' >"$fx/preload/mkxp_wrap.rb" && : >"$fx/preload/win32_wrap.rb"
+	out=$(TUXTAVERN_MKXPZ_PRELOAD="$fx/preload" TUXTAVERN_SHIM_DIR="$PWD/lib/rgss" TUXTAVERN_RGSS_SKIP=casefold,cheats,lenient,patches,raw_bitmap,input_poll,ini_wrap,user32_wrap,dl_wrap,textmode,msgbox_echo ruby -e 'load "lib/rgss/all.rb"; puts MKXP.marker' 2>&1)
+	check "mkxp-z's mkxp_wrap.rb is loaded, for mkxp's old MKXP names" 'mkxp_wrap'
 	for t in test/launcher/*-test.rb; do
 		out=$(ruby "$t" 2>&1) || true
 		pass=$((pass + $(printf '%s\n' "$out" | grep -c '^ok '))); fail=$((fail + $(printf '%s\n' "$out" | grep -vc '^ok ')))

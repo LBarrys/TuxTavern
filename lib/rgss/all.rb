@@ -46,6 +46,8 @@ RpgmShims.load_one(here, 'msgbox_echo')
 
 RpgmShims.load_one(mkxpz, 'win32_wrap')
 RpgmShims.load_one(mkxpz, 'kgl2_wrap')
+# mkxp's old MKXP.* names (some Pokemon Essentials games), from mkxp-z itself.
+RpgmShims.load_one(mkxpz, 'mkxp_wrap')
 
 RpgmShims.load_one(here, 'dl_wrap')
 RpgmShims.load_one(here, 'textmode')
