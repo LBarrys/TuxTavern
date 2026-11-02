@@ -229,7 +229,12 @@ run_pmjs() {
 	for name in $(printf '%s' "${TUXTAVERN_SKIP:-}" | tr ',' ' '); do skip="$skip${skip:+, }$(json "$name")"; done
 	shots=${TUXTAVERN_SCREENSHOTS:-}
 	[ "$shots" != 1 ] || shots=$HOME/Pictures
-	if [ -n "$cheat$skip$shots" ]; then
+	# The game folder's *.tuxtavern.js: for a packed game, the folder it was unpacked from.
+	user=
+	for f in "${TUXTAVERN_GAME_DIR:-$game}"/$(ci_glob '*.tuxtavern.js'); do
+		[ -f "$f" ] && user="$user${user:+, }$(json "$f")"
+	done
+	if [ -n "$cheat$skip$shots$user" ]; then
 		pmjs_adapter "$skip" >"$cache/tuxtavern.js" || die "cannot write $cache/tuxtavern.js"
 		set -- "$@" --adapter "$cache/tuxtavern.js"
 	fi
@@ -243,6 +248,10 @@ run_pmjs() {
 pmjs_adapter() {
 	# shellcheck disable=SC2016
 	[ -z "$1" ] || printf 'PMJS.phases.on("beforePlugins", "tuxtavern.skip", function () {\n\tvar skip = [%s];\n\t$plugins.forEach(function (p) {\n\t\tif (p.status && (skip.indexOf(p.name) >= 0 || skip.indexOf(p.name.split("/").pop()) >= 0)) {\n\t\t\tp.status = false;\n\t\t\tconsole.log("tuxtavern: TUXTAVERN_SKIP leaves out " + p.name);\n\t\t}\n\t});\n});\n' "$1"
+	# User scripts run once the game's plugins have loaded, as plugin scripts do (global scope), and
+	# before the cheat menu hooks in, so they cannot undo it.
+	# shellcheck disable=SC2016
+	[ -z "$user" ] || printf 'PMJS.phases.on("afterGuestPlugins", "tuxtavern.user", function () {\n\t[%s].forEach(function (f) {\n\t\ttry {\n\t\t\t(0, eval)(require("fs").readFileSync(f, "utf8") + "\\n//# sourceURL=" + f);\n\t\t\tconsole.log("tuxtavern: " + f + " ran");\n\t\t} catch (e) {\n\t\t\tconsole.log("tuxtavern: " + f + " failed: " + (e && e.stack || e));\n\t\t}\n\t});\n});\n' "$user"
 	[ -z "$cheat" ] || pmjs_cheats
 	[ -z "$shots" ] || pmjs_screenshots
 }
@@ -278,6 +287,7 @@ nwjs-zip | evb)
 		touch "$unpacked/.tuxtavern-unpacked"
 	fi
 	[ -n "$cheat" ] || nocheat=1
+	export TUXTAVERN_GAME_DIR="$game"
 	exec sh "$self" ${test:+--test} ${nocheat:+--no-cheat} "$unpacked" ;;
 rgss)
 	have mkxp-z || die "XP/VX/VX Ace games need mkxp-z (./build-mkxp-z.sh builds it)"

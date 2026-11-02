@@ -34,7 +34,8 @@ tuxtavern --desktop GAME          # add it to the app launcher
 - **A plugin or script stops a game** (e.g. one that builds HTML): `TUXTAVERN_SKIP=name,...` leaves it out.
 - **Screenshots (MV/MZ):** `TUXTAVERN_SCREENSHOTS=1` makes F12 save one to `~/Pictures` (or give a folder).
 - **Settings for one game:** put them in `tuxtavern.env` in its folder, one per line (`PMJS_RENDER_HZ=60`).
-- **Your own fixes:** `*.tuxtavern.rb` (XP/VX/VX Ace) in the game folder run before the game's `Main`;
+- **Your own fixes:** in the game folder, `*.tuxtavern.js` (MV/MZ) run after the game's plugins and
+  `*.tuxtavern.rb` (XP/VX/VX Ace) before its `Main`;
   `TUXTAVERN_DUMP_SCRIPTS=DIR` writes the game's scripts there, as written and as run.
 - **A shim breaks a game:** `TUXTAVERN_RGSS_SKIP=name,...` skips files in `lib/rgss/`.
 - **Faster XP/VX/VX Ace (experimental, x86-64):** `TUXTAVERN_YJIT=1 tuxtavern GAME`.

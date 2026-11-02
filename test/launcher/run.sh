@@ -120,6 +120,22 @@ require('fs').writeFileSync(process.argv[1], evb({ name: '%DEFAULT FOLDER%', chi
 	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" PMJS_RENDER_HZ=60 sh ./tuxtavern "$fx/mvenv" 2>&1)
 	check 'what the environment sets wins over tuxtavern.env' 'driver=wayland hz=60'
 	out=$(PATH="$fx/bin:$PATH" sh ./tuxtavern -i "$fx/mvenv" 2>&1); check '--info names tuxtavern.env' "settings: $fx/mvenv/TuxTavern.env"
+	mkdir -p "$fx/mvuser/www/js" && : >"$fx/mvuser/www/js/rpg_core.js"
+	printf 'var tuxUser = (globalThis.tuxUser || "") + "a";\n' >"$fx/mvuser/a.tuxtavern.js"
+	printf 'throw new Error("broken fix");\n' >"$fx/mvuser/B.TuxTavern.js"
+	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" sh ./tuxtavern -C "$fx/mvuser" 2>&1)
+	check "a game folder's *.tuxtavern.js are found, any case, in name order" "[\"$fx/mvuser/B.TuxTavern.js\", \"$fx/mvuser/a.tuxtavern.js\"]"
+	adapter=$(ls "$fx"/cache/tuxtavern/pmjs/*/tuxtavern.js | while read -r f; do grep -l mvuser "$f"; done | head -n 1)
+	out=$(node -e '
+const vm = require("vm"), hooks = {}, logged = [];
+const ctx = vm.createContext({ require, console: { log: t => logged.push(t) }, PMJS: { phases: { on: (p, id, f) => { hooks[id] = [p, f]; } } } });
+vm.runInContext(require("fs").readFileSync(process.argv[1], "utf8"), ctx);
+const [phase, run] = hooks["tuxtavern.user"]; run();
+console.log(phase, vm.runInContext("typeof tuxUser === \"string\" ? tuxUser : \"none\"", ctx), logged.join(" | "));' "$adapter" 2>&1)
+	check 'they run once the game plugins have loaded, in the global scope as plugin scripts do' 'afterGuestPlugins a '
+	check 'one that fails is logged, and the others still run' 'B.TuxTavern.js failed: Error: broken fix'
+	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" sh ./tuxtavern -C "$fx/mz" 2>&1)
+	case $out in *tuxtavern.user*) fail=$((fail + 1)); echo "FAIL user scripts are added without any *.tuxtavern.js" ;; *) pass=$((pass + 1)); echo "  ok without them there is nothing to run" ;; esac
 	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" HOME="$fx/home" TUXTAVERN_SCREENSHOTS=1 sh ./tuxtavern "$fx/mv" 2>&1)
 	check 'TUXTAVERN_SCREENSHOTS=1 adds F12 screenshots to ~/Pictures, named after the game' "shots.install(globalThis, \"$fx/home/Pictures\", \"mv\")"
 	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" TUXTAVERN_SCREENSHOTS="$fx/shots" sh ./tuxtavern -C "$fx/mv" 2>&1)
@@ -129,11 +145,13 @@ require('fs').writeFileSync(process.argv[1], evb({ name: '%DEFAULT FOLDER%', chi
 	out=$(PATH="$fx/bin:$PATH" sh ./tuxtavern -i "$fx/mz" 2>&1); check '--info names pmjs' "runtime: $fx/bin/pmjs"
 	out=$(PATH="$fx/bin:$PATH" WAYLAND_DISPLAY='' sh ./tuxtavern "$fx/packed" 2>&1); check 'without a Wayland session nothing runs' 'Wayland only'
 
+	: >"$fx/packed/fix.tuxtavern.js"
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" XDG_CACHE_HOME="$fx/cache" sh ./tuxtavern "$fx/packed" 2>&1)
 	check 'an Enigma-packed game is unpacked and run on PMJS' "pmjs run --game $fx/data/tuxtavern/unpacked/"
+	check "and a *.tuxtavern.js beside the packed exe is used" "[\"$fx/packed/fix.tuxtavern.js\"]"
 	out=$(cd "$fx/data" && find . -type f | sort); check 'its files are unpacked' 'www/js/rpg_core.js'
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" XDG_CACHE_HOME="$fx/cache" sh ./tuxtavern -C "$fx/packed" 2>&1)
-	case $out in *--adapter*) fail=$((fail + 1)); echo "FAIL --no-cheat did not reach the unpacked game" ;; *) pass=$((pass + 1)); echo "  ok --no-cheat reaches a packed game after unpacking" ;; esac
+	case $out in *tuxtavern.cheats*) fail=$((fail + 1)); echo "FAIL --no-cheat did not reach the unpacked game" ;; *) pass=$((pass + 1)); echo "  ok --no-cheat reaches a packed game after unpacking" ;; esac
 	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" sh ./tuxtavern "$fx/nwdir" 2>&1); check 'a package.nw folder runs without unpacking' "pmjs run --game $fx/nwdir/Package.nw "
 
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./tuxtavern "$fx/xp" 2>&1); check 'XP runs as RGSS1' 'rgss=1'; check 'mkxp-z is told to use Wayland' 'driver=wayland'
