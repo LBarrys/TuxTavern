@@ -73,7 +73,10 @@ test('desktop identity, manifest, arguments and CommonJS packages agree before p
   assert.equal(c.require('nw.gui'), c.nw);
   assert.equal(c.nw.App.manifest.name, 'test-game');
   assert.deepEqual(Array.from(c.nw.App.argv), ['test', 'flag']);
-  assert.equal(c.process.mainModule, c.require.main);
+  // NW.js: the page's require has no main (Text2Frame relies on it); Node modules and process keep it.
+  assert.equal(c.require.main, undefined);
+  assert.equal(c.process.mainModule.filename, '/game/index.html');
+  assert.doesNotThrow(() => vm.runInContext("if (typeof require.main !== 'undefined' && require.main === module) throw 0;", c));
   assert.equal(c.process.versions.nw, c.process.versions['node-webkit']);
   assert.equal(c.process.versions['nw-flavor'], 'sdk');
   assert.equal(c.process.env.APPDATA, '/save/');

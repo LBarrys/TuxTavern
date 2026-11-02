@@ -350,6 +350,9 @@ function requireModule(request, parentDirectory, parent) {
 }
 
 globalThis.require = createGuestRequire('/game', guestMainModule);
+// NW.js's page require has no main, unlike Node modules' (and process.mainModule): Text2Frame ends
+// with `typeof require.main !== 'undefined' && require.main === module`, and a page has no module.
+delete globalThis.require.main;
 guestMainModule.require = globalThis.require;
 guestMainModule.paths = ['/game/node_modules'];
 globalThis.nw = nativeNwGui;
