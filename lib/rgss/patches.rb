@@ -51,6 +51,33 @@ module RpgmPatches
     end
   end
 
+  # TUXTAVERN_SKIP: game scripts left out by name, as for MV/MZ plugins.
+  def self.skip(scripts, names)
+    wanted = names.to_s.b.split(','.b).map { |n| n.strip.downcase }.reject(&:empty?)
+    return if wanted.empty?
+    scripts.each do |script|
+      next unless script.is_a?(Array) && script[3].is_a?(String)
+      next unless wanted.include?(script[1].to_s.b.strip.downcase)
+      script[3] = ''
+      say "TUXTAVERN_SKIP leaves out #{script[1]}"
+    end
+  end
+
+  # TUXTAVERN_DUMP_SCRIPTS=DIR: the game's scripts as written (DIR/before) and as they run (DIR/after).
+  def self.dump(scripts, dir, stage)
+    return if dir.to_s.empty?
+    out = File.join(dir, stage)
+    [dir, out].each { |d| Dir.mkdir(d) unless File.directory?(d) }
+    scripts.each_with_index do |script, i|
+      next unless script.is_a?(Array) && script[3].is_a?(String)
+      name = script[1].to_s.b.strip.gsub(%r{[/\\\x00-\x1f]}n, '_')
+      File.binwrite(File.join(out, format('%03d %s.rb', i, name.empty? ? 'untitled' : name)), script[3])
+    end
+    say "scripts #{stage} patching are in #{out}"
+  rescue SystemCallError => e
+    say "could not dump the scripts: #{e.message}"
+  end
+
   def self.user_scripts(dir)
     Dir.children(dir).select { |n| n =~ /\.tuxtavern\.rb\z/i }.sort.map { |n| File.join(dir, n) }
   rescue SystemCallError
@@ -70,6 +97,9 @@ module RpgmPatches
 end
 
 if $RGSS_SCRIPTS.is_a?(Array)
+  RpgmPatches.dump($RGSS_SCRIPTS, ENV['TUXTAVERN_DUMP_SCRIPTS'], 'before')
+  RpgmPatches.skip($RGSS_SCRIPTS, ENV['TUXTAVERN_SKIP'])
   RpgmPatches.patch($RGSS_SCRIPTS)
   RpgmPatches.add_user_scripts($RGSS_SCRIPTS, Dir.pwd)
+  RpgmPatches.dump($RGSS_SCRIPTS, ENV['TUXTAVERN_DUMP_SCRIPTS'], 'after')
 end

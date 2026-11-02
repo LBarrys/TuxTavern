@@ -31,10 +31,11 @@ tuxtavern --desktop GAME          # add it to the app launcher
 - **Missing graphics or sounds:** extract the game's [RTP](https://www.rpgmakerweb.com/run-time-package)
   to `~/.local/share/tuxtavern/rtp/` as `Standard`, `RPGVX` or `RPGVXAce`. `--info` names the one needed.
 - **MV/MZ uses too much power:** `PMJS_RENDER_HZ=60 tuxtavern GAME` (draws at 60 frames a second, not as fast as it can).
-- **A plugin stops an MV/MZ game** (e.g. one that builds HTML): `TUXTAVERN_SKIP=name,...` leaves it out.
+- **A plugin or script stops a game** (e.g. one that builds HTML): `TUXTAVERN_SKIP=name,...` leaves it out.
 - **Screenshots (MV/MZ):** `TUXTAVERN_SCREENSHOTS=1` makes F12 save one to `~/Pictures` (or give a folder).
 - **Settings for one game:** put them in `tuxtavern.env` in its folder, one per line (`PMJS_RENDER_HZ=60`).
-- **Your own fixes:** `*.tuxtavern.rb` (XP/VX/VX Ace) in the game folder run before the game's `Main`.
+- **Your own fixes:** `*.tuxtavern.rb` (XP/VX/VX Ace) in the game folder run before the game's `Main`;
+  `TUXTAVERN_DUMP_SCRIPTS=DIR` writes the game's scripts there, as written and as run.
 - **A shim breaks a game:** `TUXTAVERN_RGSS_SKIP=name,...` skips files in `lib/rgss/`.
 - **Faster XP/VX/VX Ace (experimental, x86-64):** `TUXTAVERN_YJIT=1 tuxtavern GAME`.
 - **Garbled Japanese file names:** `apk add icu-data-full`.

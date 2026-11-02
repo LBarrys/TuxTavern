@@ -237,6 +237,23 @@ puts "order: " + $order.join(",")' 2>&1)
 	check 'and each is announced' 'B.tuxtavern.rb runs before Main'
 	check 'a script with invalid UTF-8 is left alone' 'broken kept'
 	# shellcheck disable=SC2016
+	mkdir -p "$fx/skip"
+	out=$(cd "$fx/skip" && TUXTAVERN_SKIP='mouse, Steam API' TUXTAVERN_DUMP_SCRIPTS="$fx/dump" PATCHES="$OLDPWD/lib/rgss/patches.rb" ruby -e '$RGSS_SCRIPTS = [
+  [1, "Fonts", "", "# ** Auto Font Install\nraise \"font\"\n"],
+  [2, " Mouse ", "", "raise \"mouse\"\n"],
+  [3, "Steam API", "", "raise \"steam\"\n"],
+  [4, "Battle/Core", "", "$ran = true\n"],
+]
+load ENV["PATCHES"]
+$RGSS_SCRIPTS.each { |s| eval(s[3], binding, s[1]) }
+puts "ran" if $ran' 2>&1)
+	check 'TUXTAVERN_SKIP leaves out XP/VX/VX Ace scripts by name' 'TUXTAVERN_SKIP leaves out  Mouse'
+	check 'any case, and the rest runs' 'ran'
+	out=$(cat "$fx/dump/before/001 Mouse.rb" 2>&1; ls "$fx/dump/after")
+	check 'TUXTAVERN_DUMP_SCRIPTS keeps the scripts as written' 'raise "mouse"'
+	check 'and as they run, one file each, / made _' 'Battle_Core.rb'
+	case $(cat "$fx/dump/after/000 Fonts.rb" 2>/dev/null || echo missing) in *font* | missing) fail=$((fail + 1)); echo "FAIL the dumped scripts after patching are not the patched ones" ;; *) pass=$((pass + 1)); echo "  ok the scripts after patching are the patched ones" ;; esac
+	# shellcheck disable=SC2016
 	out=$(ruby -e '$RGSS_SCRIPTS = [[1, "Input", "", "module Input; def self.update; $u = \"updated\"; end; def self.raw_key_states; $u.to_s + \" keys\"; end; end\n"],
   [2, "Essentials", "", "module Input; end\ndef pbSameThread(w); end\nputs Input.raw_key_states\n"]]
 load "lib/rgss/patches.rb"
