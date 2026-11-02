@@ -3,12 +3,14 @@ set -eu
 
 die() { printf 'build-mkxp-z: %s\n' "$*" >&2; exit 1; }
 
-prefix=${PREFIX:-/usr/local}
-case ${1:-} in
---user) prefix=$HOME/.local ;;
-'') ;;
-*) die "usage: $0 [--user]" ;;
-esac
+prefix=${PREFIX:-/usr/local} system=''
+for arg; do
+	case $arg in
+	-u | --user) prefix=$HOME/.local ;;
+	-s | --system-libs) system=1 ;;
+	*) die "usage: $0 [-u | --user] [-s | --system-libs]" ;;
+	esac
+done
 ref=${MKXPZ_REF:-dev}
 
 as_root='' virtual='' src=''
@@ -20,16 +22,21 @@ trap cleanup EXIT
 trap 'exit 1' INT TERM
 
 deps='build-base linux-headers cmake meson pkgconf python3 git bison ruby perl bash'
+# --system-libs: Alpine's libraries instead of building mkxp-z's bundled copies (SDL_sound and Ruby 3.1,
+# which Alpine lacks, are still built). Much faster; the libraries it links to are kept installed.
+[ -z "$system" ] || deps="$deps pc:sdl2 sdl2_image-dev sdl2_ttf-dev openal-soft-dev physfs-dev libogg-dev libvorbis-dev
+  libtheora-dev freetype-dev pixman-dev zlib-dev openssl-dev yaml-dev libffi-dev uchardet-dev"
+if [ "$(id -u)" != 0 ]; then
+	if command -v doas >/dev/null 2>&1; then as_root=doas
+	elif command -v sudo >/dev/null 2>&1; then as_root=sudo
+	else as_root=none
+	fi
+fi
 missing=
 for p in $deps; do apk info -e "$p" >/dev/null 2>&1 || missing="$missing $p"; done
 if [ -n "$missing" ]; then
-	if [ "$(id -u)" != 0 ]; then
-		if command -v doas >/dev/null 2>&1; then as_root=doas
-		elif command -v sudo >/dev/null 2>&1; then as_root=sudo
-		else die "install the build dependencies first, as root:
+	[ "$as_root" != none ] || die "install the build dependencies first, as root:
   apk add$missing"
-		fi
-	fi
 	echo "==> installing build dependencies, removed again when this script ends:$missing"
 	virtual=.tuxtavern-mkxp-z-build
 	# shellcheck disable=SC2086
@@ -49,13 +56,27 @@ if ! grep -q "'use_video_x11': 'disabled'" src/meson.build || ! grep -q "'use_vi
 	die "mkxp-z's src/meson.build changed; cannot build SDL for Wayland only"
 fi
 
-echo "==> building mkxp-z and its bundled libraries; this takes a long while"
-meson setup --prefix "$src/stage" --buildtype release -Dstrip=true -Db_lto=true -Dangle=disabled build
+if [ -n "$system" ]; then
+	echo "==> building mkxp-z with Alpine's libraries"
+	set -- -Ddefault_system=auto -Druby_system=disabled
+else
+	echo "==> building mkxp-z and its bundled libraries; this takes a long while"
+	set --
+fi
+meson setup --prefix "$src/stage" --buildtype release -Dstrip=true -Db_lto=true -Dangle=disabled "$@" build
 meson compile -C build
 meson install -C build --no-rebuild --tags mkxp-z >/dev/null
 exe=
 for f in "$src/stage"/mkxp-z.*; do [ -f "$f" ] && exe=${f##*/}; done
 [ -n "$exe" ] || die "the build finished but installed no mkxp-z executable"
+if [ -n "$system" ]; then
+	# The build dependencies go when this script ends; what mkxp-z links to must stay.
+	libs=$(ldd "$src/stage/$exe" | awk '$1 ~ /^lib/ && $3 ~ /^\/(usr\/)?lib\// { print "so:" $1 }' | sort -u | tr '\n' ' ')
+	echo "==> keeping the libraries mkxp-z uses installed: $libs"
+	[ "$as_root" != none ] || die "as root, run: apk add $libs"
+	# shellcheck disable=SC2086
+	[ -z "$libs" ] || $as_root apk add -q $libs
+fi
 
 mkdir -p "$prefix/lib" "$prefix/bin"
 old=$prefix/lib/mkxp-z/scripts/preload

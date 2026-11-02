@@ -74,6 +74,44 @@ run "$fx/none"; check 'running a non-game fails' 'no RPG Maker XP/VX/VX Ace/MV/M
 run --bogus; check 'unknown options are refused' 'unknown option'
 run --wasd "$fx/mv"; check 'the Electron-only --wasd is gone' 'unknown option'
 
+echo "== build-mkxp-z"
+# Stand-ins that log what the script asks of them: apk, git, meson, ldd and id.
+mkdir -p "$fx/bm/bin"
+log="$fx/bm/log"
+cat >"$fx/bm/bin/apk" <<'EOS'
+#!/bin/sh
+echo "apk $*" >>"$BM_LOG"
+[ "$1 $2" != "info -e" ] || case $3 in pc:*|*-dev) exit 1 ;; esac
+EOS
+cat >"$fx/bm/bin/git" <<'EOS'
+#!/bin/sh
+case $1 in
+clone) for d; do :; done; mkdir -p "$d/src"; printf "'use_video_x11': is_unix ? 'enabled' : 'disabled'\n'use_video_kmsdrm': is_unix ? 'enabled' : 'disabled'\n" >"$d/src/meson.build" ;;
+-C) echo "dev 1a2b3c4 2026-11-02" ;;
+esac
+EOS
+cat >"$fx/bm/bin/meson" <<'EOS'
+#!/bin/sh
+echo "meson $*" >>"$BM_LOG"
+case $1 in setup) for a; do case $a in --prefix) next=1 ;; *) [ -z "${next:-}" ] || { echo "$a" >"$BM_LOG.stage"; next=; } ;; esac; done ;;
+install) st=$(cat "$BM_LOG.stage"); mkdir -p "$st/scripts/preload"; : >"$st/mkxp-z.x86_64" ;; esac
+EOS
+printf '#!/bin/sh\necho "\tlibSDL2-2.0.so.0 => /usr/lib/libSDL2-2.0.so.0 (0x1)"\necho "\tlibruby.so.3.1 => /tmp/stage/lib/libruby.so.3.1 (0x2)"\necho "\tlibc.musl-x86_64.so.1 => /lib/ld-musl-x86_64.so.1 (0x3)"\necho "\t/lib/ld-musl-x86_64.so.1 (0x4)"\n' >"$fx/bm/bin/ldd"
+printf '#!/bin/sh\necho 0\n' >"$fx/bm/bin/id"
+chmod +x "$fx/bm/bin/"*
+bm() { : >"$log"; out=$(BM_LOG="$log" PATH="$fx/bm/bin:$PATH" PREFIX="$fx/bm/prefix" XDG_CACHE_HOME="$fx/bm/cache" sh ./build-mkxp-z.sh "$@" 2>&1; cat "$log"); }
+bm
+check 'build-mkxp-z builds the bundled libraries by default' 'meson setup --prefix'
+case $out in *default_system*|*sdl2_image-dev*|*"apk add -q so:"*) fail=$((fail + 1)); echo "FAIL the default build changed" ;; *) pass=$((pass + 1)); echo "  ok and the default build is as it was" ;; esac
+out=$(cat "$fx/bm/prefix/lib/mkxp-z/VERSION" 2>&1); check 'it records what it built, for --info' 'dev 1a2b3c4 2026-11-02'
+bm -s
+check '--system-libs uses Alpine'"'"'s libraries but mkxp-z'"'"'s own Ruby 3.1' '-Ddefault_system=auto -Druby_system=disabled build'
+check 'installing their development files to build with' 'sdl2_image-dev'
+check 'and keeps installed the system libraries mkxp-z links to' 'apk add -q so:libSDL2-2.0.so.0 so:libc.musl-x86_64.so.1'
+case $out in *so:libruby*) fail=$((fail + 1)); echo "FAIL a library from the build folder was asked of apk" ;; *) pass=$((pass + 1)); echo "  ok but not the ones it built itself" ;; esac
+bm --system-libs --user; check 'the long forms work too' '-Ddefault_system=auto'
+bm --bogus; check 'an unknown option is refused' 'usage: ./build-mkxp-z.sh [-u | --user] [-s | --system-libs]'
+
 echo "== lib"
 if command -v node >/dev/null 2>&1; then
 	for t in test/launcher/*-test.js; do

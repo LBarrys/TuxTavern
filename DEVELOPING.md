@@ -31,6 +31,9 @@ sudo apt-get install build-essential cmake ninja-build pkg-config git \
 ## Tests
 
 The `dev` preset builds with tests and turns compiler warnings into errors. Native tests need Xvfb.
+Where GitHub archive downloads are blocked (some proxies), give CMake the Effekseer source itself:
+clone it at the commit in `tools/effekseer.lock.json`, apply `third_party/effekseer-mz.patch`, and
+configure with `-DFETCHCONTENT_SOURCE_DIR_PMJS_EFFEKSEER=DIR` (or `-DPMJS_EFFEKSEER_ARCHIVE=FILE` for the tarball).
 
 ```sh
 cmake --preset dev

@@ -14,7 +14,7 @@ No Wine, no browser.
 ```sh
 git clone https://github.com/LBarrys/TuxTavern && cd TuxTavern
 doas sh tools/apk.sh     # builds and installs the tuxtavern package; again after each git pull
-./build-mkxp-z.sh        # XP/VX/VX Ace; removes its build files after
+./build-mkxp-z.sh        # XP/VX/VX Ace; removes its build files after (-s: with Alpine's libraries, faster; new)
 ```
 
 ## Use
