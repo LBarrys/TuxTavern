@@ -142,7 +142,14 @@ console.log(phase, vm.runInContext("typeof tuxUser === \"string\" ? tuxUser : \"
 	check 'or to the folder it names, also without the cheat menu' "shots.install(globalThis, \"$fx/shots\", \"mv\")"
 	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" sh ./tuxtavern "$fx/mv" 2>&1)
 	case $out in *tuxtavern.screenshots*) fail=$((fail + 1)); echo "FAIL screenshots are on without TUXTAVERN_SCREENSHOTS" ;; *) pass=$((pass + 1)); echo "  ok screenshots are off unless asked for" ;; esac
-	out=$(PATH="$fx/bin:$PATH" sh ./tuxtavern -i "$fx/mz" 2>&1); check '--info names pmjs' "runtime: $fx/bin/pmjs"
+	out=$(PATH="$fx/bin:$PATH" sh ./tuxtavern -i "$fx/mz" 2>&1); check '--info names pmjs, and its version' "runtime: $fx/bin/pmjs (pmjs --version"
+	mkdir -p "$fx/mvinfo/www/js/libs" "$fx/mzinfo/js/libs" && : >"$fx/mvinfo/www/js/rpg_core.js" && : >"$fx/mzinfo/js/rmmz_core.js"
+	printf '/*!\n * pixi.js - v4.5.4\n */\n' >"$fx/mvinfo/www/js/libs/pixi.js"
+	printf 'var $plugins =\n[\n{"name":"A","status":true,"parameters":{}},\n{"name":"B","status": false,"parameters":{}},\n{"name":"C","status":true,"parameters":{}}\n];\n' >"$fx/mvinfo/www/js/plugins.js"
+	printf 'var PIXI = {};\nPIXI.VERSION = "5.3.12";\n' >"$fx/mzinfo/js/libs/pixi.js"
+	out=$(PATH="$fx/bin:$PATH" sh ./tuxtavern -i "$fx/mvinfo" 2>&1)
+	check "--info shows the game's Pixi version" 'pixi:    4.5.4'; check 'and how many plugins are on' 'plugins: 2 of 3 on'
+	out=$(PATH="$fx/bin:$PATH" sh ./tuxtavern -i "$fx/mzinfo" 2>&1); check 'also from a Pixi without the header' 'pixi:    5.3.12'
 	out=$(PATH="$fx/bin:$PATH" WAYLAND_DISPLAY='' sh ./tuxtavern "$fx/packed" 2>&1); check 'without a Wayland session nothing runs' 'Wayland only'
 
 	: >"$fx/packed/fix.tuxtavern.js"
@@ -167,6 +174,9 @@ console.log(phase, vm.runInContext("typeof tuxUser === \"string\" ? tuxUser : \"
 	check 'loads the shims' 'rgss/all.rb"]'; check 'turns F12 reset off' '"enableReset": false'
 	check 'adds the installed RTP the game names' "\"RTP\": [\"$fx/data/tuxtavern/rtp/Standard\"]"
 	check 'the cheat menu is on by default' 'cheat=1'
+	echo 'dev 1a2b3c4 2026-10-31' >"$fx/lib/mkxp-z/VERSION"
+	out=$(PATH="$fx/bin:$PATH" TUXTAVERN_MKXPZ_PRELOAD="$fx/lib/mkxp-z/scripts/preload" sh ./tuxtavern -i "$fx/xp" 2>&1)
+	check '--info shows which mkxp-z build-mkxp-z.sh built' "runtime: $fx/bin/mkxp-z (dev 1a2b3c4 2026-10-31)"
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" TUXTAVERN_MKXPZ_PRELOAD="$fx/lib/mkxp-z/scripts/preload" sh ./tuxtavern "$fx/xp" 2>&1)
 	check "mkxp-z's Ruby library is passed along" "\"rubyLoadpath\": [\"$fx/lib/mkxp-z/stdlib\"]"
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" TUXTAVERN_YJIT=1 sh ./tuxtavern "$fx/xp" 2>&1); check 'TUXTAVERN_YJIT=1 turns on Ruby JIT' '"YJITEnable": true'

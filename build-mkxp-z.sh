@@ -68,6 +68,7 @@ if [ -d "$old" ]; then
 		kept=$((kept + 1))
 	done
 fi
+git -C "$src/mkxp-z" log -1 --format="$ref %h %cd" --date=short >"$src/stage/VERSION"
 rm -rf "$prefix/lib/mkxp-z"
 cp -R "$src/stage" "$prefix/lib/mkxp-z"
 [ "$kept" = 0 ] || echo "==> kept $kept extra file(s) already in scripts/preload"

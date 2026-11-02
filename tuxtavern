@@ -186,16 +186,30 @@ info)
 	evb) echo "packed:  $(basename "$packed") ($(packed_exe >/dev/null; echo "$packing")), unpacked on first run to $unpacked" ;;
 	nwjs-zip) echo "packed:  $(find_ci package.nw), unpacked on first run to $unpacked" ;;
 	rgss)
-		if have mkxp-z; then echo "runtime: $(command -v mkxp-z)"; else echo "runtime: mkxp-z not installed (./build-mkxp-z.sh)"; fi
+		if have mkxp-z; then
+			# build-mkxp-z.sh records what it built beside the preload scripts.
+			built=$(cat "$(mkxp_preload_dir || echo /nonexistent)/../../VERSION" 2>/dev/null || true)
+			echo "runtime: $(command -v mkxp-z)${built:+ ($built)}"
+		else echo "runtime: mkxp-z not installed (./build-mkxp-z.sh)"
+		fi
 		echo "config:  written by tuxtavern to $data/mkxp/$id"
 		[ -z "$(game_mkxp)" ] || echo "         merged with the game's $(game_mkxp)"
 		rtp_names | while read -r name; do
 			if [ -d "$rtp/$name" ]; then echo "rtp:     $name, installed"; else echo "rtp:     $name, not installed in $rtp/$name"; fi
 		done ;;
 	mv | mz)
-		if [ -n "$pmjs" ]; then echo "runtime: $pmjs"
+		if [ -n "$pmjs" ]; then echo "runtime: $pmjs ($("$pmjs" --version 2>/dev/null || echo 'version unknown'))"
 		else echo "runtime: pmjs not installed (doas sh tools/apk.sh in a TuxTavern checkout)"
-		fi ;;
+		fi
+		www=$(find_ci www)
+		pixi=$(find_ci "${www:+$www/}js/libs/pixi.js")
+		if [ -n "$pixi" ]; then
+			v=$(head -c 4096 "$game/$pixi" | sed -n 's/.*pixi\.js - v\([0-9][0-9.]*\).*/\1/p' | head -n 1)
+			[ -n "$v" ] || v=$(grep -o "VERSION *= *[\"'][0-9][0-9.]*" "$game/$pixi" | head -n 1 | sed "s/.*[\"']//")
+			echo "pixi:    ${v:-unknown}"
+		fi
+		plugins=$(find_ci "${www:+$www/}js/plugins.js")
+		[ -z "$plugins" ] || echo "plugins: $(grep -o '"status" *: *true' "$game/$plugins" | wc -l | tr -d ' ') of $(grep -oE '"status" *: *(true|false)' "$game/$plugins" | wc -l | tr -d ' ') on" ;;
 	esac
 	exit 0 ;;
 desktop)
