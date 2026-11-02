@@ -140,8 +140,12 @@ console.log(phase, vm.runInContext("typeof tuxUser === \"string\" ? tuxUser : \"
 	check 'TUXTAVERN_SCREENSHOTS=1 adds F12 screenshots to ~/Pictures, named after the game' "shots.install(globalThis, \"$fx/home/Pictures\", \"mv\")"
 	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" TUXTAVERN_SCREENSHOTS="$fx/shots" sh ./tuxtavern -C "$fx/mv" 2>&1)
 	check 'or to the folder it names, also without the cheat menu' "shots.install(globalThis, \"$fx/shots\", \"mv\")"
+	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" TUXTAVERN_KEYS='wasd,e=ok' sh ./tuxtavern -C "$fx/mv" 2>&1)
+	check 'TUXTAVERN_KEYS adds its key mappings to the game' 'keys.install(globalThis, "wasd,e=ok")'
+	case $out in *tuxtavern.keys*) ;; *) fail=$((fail + 1)); echo "FAIL the key mappings are not installed once the plugins have loaded" ;; esac
 	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" sh ./tuxtavern "$fx/mv" 2>&1)
 	case $out in *tuxtavern.screenshots*) fail=$((fail + 1)); echo "FAIL screenshots are on without TUXTAVERN_SCREENSHOTS" ;; *) pass=$((pass + 1)); echo "  ok screenshots are off unless asked for" ;; esac
+	case $out in *tuxtavern.keys*) fail=$((fail + 1)); echo "FAIL keys are remapped without TUXTAVERN_KEYS" ;; *) pass=$((pass + 1)); echo "  ok keys stay as the game has them unless asked" ;; esac
 	out=$(PATH="$fx/bin:$PATH" sh ./tuxtavern -i "$fx/mz" 2>&1); check '--info names pmjs, and its version' "runtime: $fx/bin/pmjs (pmjs --version"
 	mkdir -p "$fx/mvinfo/www/js/libs" "$fx/mzinfo/js/libs" && : >"$fx/mvinfo/www/js/rpg_core.js" && : >"$fx/mzinfo/js/rmmz_core.js"
 	printf '/*!\n * pixi.js - v4.5.4\n */\n' >"$fx/mvinfo/www/js/libs/pixi.js"

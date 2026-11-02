@@ -57,7 +57,8 @@ e.g. ones that build HTML), TUXTAVERN_DUMP_SCRIPTS=DIR (XP/VX/VX Ace: write the 
 scripts there), TUXTAVERN_RGSS_SKIP (shims to leave out),
 TUXTAVERN_MKXPZ_PRELOAD (mkxp-z's scripts/preload, if not found), TUXTAVERN_YJIT=1
 (XP/VX/VX Ace: try Ruby's JIT compiler; experimental, x86-64 only), TUXTAVERN_SCREENSHOTS
-(MV/MZ: F12 saves a screenshot; 1 for ~/Pictures, or a folder). Settings for one
+(MV/MZ: F12 saves a screenshot; 1 for ~/Pictures, or a folder), TUXTAVERN_KEYS (MV/MZ:
+extra keys, e.g. wasd or w=up,e=ok,q=cancel; XP/VX/VX Ace: mkxp-z's F1). Settings for one
 game go in its folder's tuxtavern.env, one NAME=value per line.
 EOF
 }
@@ -254,7 +255,8 @@ run_pmjs() {
 	for f in "${TUXTAVERN_GAME_DIR:-$game}"/$(ci_glob '*.tuxtavern.js'); do
 		[ -f "$f" ] && user="$user${user:+, }$(json "$f")"
 	done
-	if [ -n "$cheat$skip$shots$user" ]; then
+	keys=${TUXTAVERN_KEYS:-}
+	if [ -n "$cheat$skip$shots$user$keys" ]; then
 		pmjs_adapter "$skip" >"$cache/tuxtavern.js" || die "cannot write $cache/tuxtavern.js"
 		set -- "$@" --adapter "$cache/tuxtavern.js"
 	fi
@@ -274,6 +276,7 @@ pmjs_adapter() {
 	[ -z "$user" ] || printf 'PMJS.phases.on("afterGuestPlugins", "tuxtavern.user", function () {\n\t[%s].forEach(function (f) {\n\t\ttry {\n\t\t\t(0, eval)(require("fs").readFileSync(f, "utf8") + "\\n//# sourceURL=" + f);\n\t\t\tconsole.log("tuxtavern: " + f + " ran");\n\t\t} catch (e) {\n\t\t\tconsole.log("tuxtavern: " + f + " failed: " + (e && e.stack || e));\n\t\t}\n\t});\n});\n' "$user"
 	[ -z "$cheat" ] || pmjs_cheats
 	[ -z "$shots" ] || pmjs_screenshots
+	[ -z "$keys" ] || pmjs_keys
 }
 
 # The cheat menu: editor.js's model, the on-screen menu, and the hook that installs them
@@ -285,6 +288,14 @@ pmjs_cheats() {
 	cat "$lib/pmjs-cheats.js"
 	printf '\nreturn module.exports; })();\n'
 	printf "PMJS.phases.on('afterGuestPlugins', 'tuxtavern.cheats', function () { cheats.install(globalThis, editor); });\n})();\n"
+}
+
+# TUXTAVERN_KEYS: extra key mappings.
+pmjs_keys() {
+	printf '(function () {\nvar keys = (function () { var module = { exports: {} };\n'
+	cat "$lib/pmjs-keys.js"
+	printf '\nreturn module.exports; })();\n'
+	printf "PMJS.phases.on('afterGuestPlugins', 'tuxtavern.keys', function () { keys.install(globalThis, %s); });\n})();\n" "$(json "$keys")"
 }
 
 # F12 saves a screenshot, named after the game, to $shots.

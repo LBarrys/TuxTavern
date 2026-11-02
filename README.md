@@ -33,6 +33,7 @@ tuxtavern --desktop GAME          # add it to the app launcher
 - **MV/MZ uses too much power:** `PMJS_RENDER_HZ=60 tuxtavern GAME` (draws at 60 frames a second, not as fast as it can).
 - **A plugin or script stops a game** (e.g. one that builds HTML): `TUXTAVERN_SKIP=name,...` leaves it out.
 - **Screenshots (MV/MZ):** `TUXTAVERN_SCREENSHOTS=1` makes F12 save one to `~/Pictures` (or give a folder).
+- **Other keys (MV/MZ):** `TUXTAVERN_KEYS=wasd` (or `w=up,e=ok,q=cancel,...`); XP/VX/VX Ace: mkxp-z's F1 menu.
 - **Settings for one game:** put them in `tuxtavern.env` in its folder, one per line (`PMJS_RENDER_HZ=60`).
 - **Your own fixes:** in the game folder, `*.tuxtavern.js` (MV/MZ) run after the game's plugins and
   `*.tuxtavern.rb` (XP/VX/VX Ace) before its `Main`;
