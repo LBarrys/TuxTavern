@@ -42,10 +42,6 @@ tuxtavern --desktop GAME          # add it to the app launcher
 
 Saves stay in the game folder; everything else is in `~/.local/share/tuxtavern/` and `~/.cache/tuxtavern/`.
 
-## Tests
-
-`sh test/launcher/run.sh` (launcher, cheats, shims); `npm test` and `ctest` (PMJS, see [DEVELOPING](DEVELOPING.md)).
-
 ## Credits
 
 MV/MZ run on [PMJS](https://github.com/bbbreaddd/pmjs) (bread), here with rpgm's changes; XP/VX/VX Ace on
