@@ -23,9 +23,15 @@ find_ci() {
 }
 game_mkxp() { find_ci mkxp.json; }
 has() { [ -n "$(find_ci "$1")" ]; }
-evb_exe() {
+# A packed game's exe: Enigma Virtual Box, or NW.js with the game zipped onto its end.
+packed_exe() {
 	for f in "$game"/*.[eE][xX][eE]; do
-		[ -f "$f" ] && head -c 4096 "$f" | tr '\000' '\n' | grep -qF .enigma1 && { echo "$f"; return 0; }
+		[ -f "$f" ] || continue
+		if head -c 4096 "$f" | tr '\000' '\n' | grep -qF .enigma1; then packing='Enigma Virtual Box'
+		elif have node && [ "$(node "$lib/evb.js" --nwjs "$f" 2>/dev/null)" = yes ]; then packing='NW.js package'
+		else continue
+		fi
+		echo "$f"; return 0
 	done
 	return 1
 }
@@ -128,7 +134,7 @@ if has www/js/rpg_core.js || has js/rpg_core.js; then engine='mv'
 elif has js/rmmz_core.js; then engine='mz'
 elif has package.nw; then engine='nwjs-zip'
 elif has 'data/*.r?data*' || { has game.ini && has 'game.rgss*'; }; then engine='rgss'
-elif packed=$(evb_exe); then engine='evb'
+elif packed=$(packed_exe); then engine='evb'
 else engine=
 fi
 
@@ -177,7 +183,7 @@ info)
 	[ -z "$core" ] || sed -n "s/^Utils\.RPGMAKER_VERSION *= *.\([0-9.]*\).*/version: \1/p" "$game/$core"
 	case $engine in
 	'') ;;
-	evb) echo "packed:  $(basename "$packed") (Enigma Virtual Box), unpacked on first run to $unpacked" ;;
+	evb) echo "packed:  $(basename "$packed") ($(packed_exe >/dev/null; echo "$packing")), unpacked on first run to $unpacked" ;;
 	nwjs-zip) echo "packed:  $(find_ci package.nw), unpacked on first run to $unpacked" ;;
 	rgss)
 		if have mkxp-z; then echo "runtime: $(command -v mkxp-z)"; else echo "runtime: mkxp-z not installed (./build-mkxp-z.sh)"; fi

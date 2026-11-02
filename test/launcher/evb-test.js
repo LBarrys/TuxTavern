@@ -3,7 +3,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const zlib = require('zlib');
-const { aplib, unpack, unzip } = require('../../lib/evb.js');
+const { aplib, unpack, unzip, isNwPackage } = require('../../lib/evb.js');
 
 function pack(data) {
   const out = [data[0]];
@@ -172,10 +172,13 @@ if (require.main === module) (async () => {
     { name: 'www/img/セーブ.png', data: 'png', utf8: true },
     { name: Buffer.from('8c8892e82e6f6767', 'hex'), data: 'ogg' },
   ];
-  for (const zip64 of [false, true]) {
-    const label = zip64 ? 'ZIP64: ' : 'zip: ';
-    const out = path.join(tmp, `nw${zip64}`);
-    fs.writeFileSync(out + '.nw', zip(nw, zip64));
+  // NW.js's own packing: the zip appended to nw.exe, its offsets counted from the zip's start.
+  const exe = Buffer.concat([Buffer.from('MZ'), Buffer.alloc(70000)]);
+  for (const [zip64, appended] of [[false, false], [true, false], [false, true], [true, true]]) {
+    const label = (zip64 ? 'ZIP64: ' : 'zip: ') + (appended ? 'appended to Game.exe: ' : '');
+    const out = path.join(tmp, `nw${zip64}${appended}`);
+    fs.writeFileSync(out + '.nw', appended ? Buffer.concat([exe, zip(nw, zip64)]) : zip(nw, zip64));
+    if (appended) is(label + 'it is taken for an NW.js app', isNwPackage(out + '.nw'), true);
     try { await unzip(out + '.nw', out); } catch (e) { console.log('FAIL unzip threw: ' + e.message); failed++; }
     const get = p => { try { return fs.readFileSync(path.join(out, p), 'utf8'); } catch { return null; } };
     is(label + 'a deflated file is extracted', get('package.json'), '{"main":"www/index.html"}');
@@ -194,6 +197,9 @@ if (require.main === module) (async () => {
   await refused('zip: a damaged file is reported', [{ name: 'a.txt', data: 'abc', usize: 5 }], /damaged/);
   await refused('zip: a corrupted file is reported', [{ name: 'a.txt', data: 'abc', crc: 1 }], /damaged/);
   is('zip: nothing escaped the folder', fs.existsSync(path.join(tmp, 'escape.txt')), false);
+  fs.writeFileSync(path.join(tmp, 'setup.exe'), Buffer.concat([exe, zip([{ name: 'readme.txt', data: 'x' }])]));
+  is('an exe with a zip but no package.json is not an NW.js app', isNwPackage(path.join(tmp, 'setup.exe')), false);
+  is('nor is a plain exe', isNwPackage(path.join(tmp, 'nw' + 'falsefalse', 'package.json')), false);
 
   fs.rmSync(tmp, { recursive: true, force: true });
   process.exit(failed ? 1 : 0);

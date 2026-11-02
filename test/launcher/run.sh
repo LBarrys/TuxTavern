@@ -150,6 +150,12 @@ console.log(phase, vm.runInContext("typeof tuxUser === \"string\" ? tuxUser : \"
 	check 'an Enigma-packed game is unpacked and run on PMJS' "pmjs run --game $fx/data/tuxtavern/unpacked/"
 	check "and a *.tuxtavern.js beside the packed exe is used" "[\"$fx/packed/fix.tuxtavern.js\"]"
 	out=$(cd "$fx/data" && find . -type f | sort); check 'its files are unpacked' 'www/js/rpg_core.js'
+	mkdir -p "$fx/nwexe"
+	node -e "const { zip } = require('./test/launcher/evb-test.js'); require('fs').writeFileSync(process.argv[1], Buffer.concat([Buffer.from('MZ'),
+  Buffer.alloc(5000), zip([{ name: 'package.json', data: '{}' }, { name: 'js/rmmz_core.js', data: '' }])]))" "$fx/nwexe/Game.exe"
+	out=$(PATH="$fx/bin:$PATH" sh ./tuxtavern -i "$fx/nwexe" 2>&1); check 'a game zipped onto the NW.js Game.exe is detected' 'Game.exe (NW.js package)'
+	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" XDG_CACHE_HOME="$fx/cache" sh ./tuxtavern "$fx/nwexe" 2>&1)
+	check 'and unpacked and run as an MZ game' "pmjs run --game $fx/data/tuxtavern/unpacked/"
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" XDG_CACHE_HOME="$fx/cache" sh ./tuxtavern -C "$fx/packed" 2>&1)
 	case $out in *tuxtavern.cheats*) fail=$((fail + 1)); echo "FAIL --no-cheat did not reach the unpacked game" ;; *) pass=$((pass + 1)); echo "  ok --no-cheat reaches a packed game after unpacking" ;; esac
 	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" sh ./tuxtavern "$fx/nwdir" 2>&1); check 'a package.nw folder runs without unpacking' "pmjs run --game $fx/nwdir/Package.nw "

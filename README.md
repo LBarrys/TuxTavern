@@ -7,7 +7,7 @@ No Wine, no browser.
 |---|---|
 | MV (Pixi 4 or 7), MZ, `package.nw` | PMJS (this repository) |
 | XP, VX, VX Ace | mkxp-z |
-| Enigma Virtual Box `.exe` | unpacked, then as above |
+| Enigma Virtual Box `.exe`, or NW.js `.exe` with the game inside | unpacked, then as above |
 
 ## Install
 
