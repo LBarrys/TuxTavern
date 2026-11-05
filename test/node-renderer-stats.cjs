@@ -153,3 +153,8 @@ const afterMaskReuse = native.render.stats();
 assert.equal(afterMaskReuse.filterTargetReuses - beforeMaskReuse.filterTargetReuses, 1);
 assert.equal(afterMaskReuse.rendererTargetCreates, beforeMaskReuse.rendererTargetCreates);
 assert.equal(afterMaskReuse.rendererTargetDestroys, beforeMaskReuse.rendererTargetDestroys);
+
+// Frames refresh the external memory total at most once a second (upstream PMJS 99b7c16).
+const scansBefore = native.render.stats().frameCosts.memoryScans;
+for (let frame = 0; frame < 3; frame++) { native.beginFrame(); native.renderFrame(); }
+assert.ok(native.render.stats().frameCosts.memoryScans - scansBefore <= 1, 'frames rescan memory every time');

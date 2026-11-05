@@ -46,6 +46,8 @@ struct State {
   std::unique_ptr<pmjs::Vfs> assets;
   std::unordered_map<std::string, AudioView> audioViews;
   std::int64_t reportedExternalBytes = 0;
+  std::chrono::steady_clock::time_point externalMemorySyncedAt{};
+  std::uint64_t externalMemoryScans = 0;
   double frameUploadMs = 0;
   double frameDrawMs = 0;
   double frameMemoryMs = 0;
@@ -81,6 +83,7 @@ napi_value property(napi_env env, napi_value object, const char* name);
 bool hasProperty(napi_env env, napi_value object, const char* name);
 State& host(napi_env env);
 void syncExternalMemory(napi_env env);
+void syncFrameExternalMemory(napi_env env);
 napi_value imageInfo(napi_env env, std::uint32_t handle, int width, int height);
 std::optional<pmjs::ImageHandle> resolveImage(State& value, std::uint32_t handle);
 napi_value rendererStats(napi_env env, napi_callback_info info);

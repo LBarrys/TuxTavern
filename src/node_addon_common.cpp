@@ -140,6 +140,8 @@ State& host(napi_env env) {
 // into private buffers, so their totals can be reported without locking.
 void syncExternalMemory(napi_env env) {
   State& value = host(env);
+  value.externalMemorySyncedAt = std::chrono::steady_clock::now();
+  ++value.externalMemoryScans;
   std::size_t videoColorBytes = 0;
   for (const auto& [handle, video] : value.videos) {
     (void)handle;
@@ -163,6 +165,14 @@ void syncExternalMemory(napi_env env) {
   std::int64_t adjusted = 0;
   if (napi_adjust_external_memory(env, delta, &adjusted) != napi_ok) return;
   value.reportedExternalBytes = current;
+}
+
+// The total walks every image slot and canvas command list (1.4-2.4 ms a frame on a Cortex-A53 with
+// a few thousand images) and only feeds V8's GC heuristics. Allocation and release paths sync
+// directly, so frames refresh it at most once a second.
+void syncFrameExternalMemory(napi_env env) {
+  if (std::chrono::steady_clock::now() - host(env).externalMemorySyncedAt >= std::chrono::seconds(1))
+    syncExternalMemory(env);
 }
 
 napi_value imageInfo(napi_env env, std::uint32_t handle, int width, int height) {

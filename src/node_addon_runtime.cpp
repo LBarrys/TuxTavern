@@ -302,7 +302,7 @@ napi_value renderFrame(napi_env env, napi_callback_info) try {
   value.core.syncDrawableSize();
   value.renderer.render();
   const auto drawn = std::chrono::steady_clock::now();
-  syncExternalMemory(env);
+  syncFrameExternalMemory(env);
   const auto accounted = std::chrono::steady_clock::now();
   value.frameUploadMs = std::chrono::duration<double, std::milli>(uploaded - start).count();
   value.frameDrawMs = std::chrono::duration<double, std::milli>(drawn - uploaded).count();
@@ -321,7 +321,7 @@ napi_value renderScene(napi_env env, napi_callback_info) try {
   State& value = host(env);
   value.canvases.uploadDirty();
   value.renderer.renderScene();
-  syncExternalMemory(env);
+  syncFrameExternalMemory(env);
   return undefined(env);
 } catch (const std::exception& error) {
   napi_throw_error(env, nullptr, error.what());
@@ -355,6 +355,8 @@ napi_value rendererStats(napi_env env, napi_callback_info) try {
     number(env, host(env).frameDrawMs)), "cannot set frame draw time");
   check(env, napi_set_named_property(env, frameCosts, "memoryMs",
     number(env, host(env).frameMemoryMs)), "cannot set frame memory time");
+  check(env, napi_set_named_property(env, frameCosts, "memoryScans",
+    number(env, static_cast<double>(host(env).externalMemoryScans))), "cannot set memory scans");
   check(env, napi_set_named_property(env, result, "frameCosts", frameCosts), "cannot set frame costs");
   check(env, napi_set_named_property(env, result, "diagnostics",
     boolean(env, host(env).renderer.diagnosticsEnabled())), "cannot set renderer diagnostics state");
