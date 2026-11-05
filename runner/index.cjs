@@ -549,14 +549,17 @@ async function run(input) {
     console.log(`[pmjs] map preparation=${options.assetPreparation.maps ? "on" : "off"}`);
     native.runtime.now = () => performance.now();
     native.runtime.platform = () => ({ platform: process.platform, arch: process.arch });
+    function executeScript(source, filename) {
+      const evaluate = () => vm.runInThisContext(source, { filename });
+      const tasks = globalThis.PMJS && globalThis.PMJS.tasks;
+      return tasks ? tasks.runGuest('browser', evaluate) : evaluate();
+    }
     native.runtime.loadScript = relative => {
       const source = native.fs.readText(relative);
       if (source === null) throw new Error(`cannot load script: ${relative}`);
-      return vm.runInThisContext(source, { filename: path.join(options.gameRoot, relative) });
+      return executeScript(source, path.join(options.gameRoot, relative));
     };
-    native.runtime.runScript = source => vm.runInThisContext(String(source), {
-      filename: 'inline-script.js'
-    });
+    native.runtime.runScript = source => executeScript(String(source), 'inline-script.js');
     const gamePackageInfo = gamePackage(options.gameRoot);
     native.runtime.manifest = gamePackageInfo.manifest;
     if (gamePackageInfo.subdirectory) native.runtime.gameSubdirectory = gamePackageInfo.subdirectory;
@@ -593,10 +596,24 @@ async function run(input) {
     const physicalDisplay = (native.runtime && typeof native.runtime.displaySize === 'function')
       ? native.runtime.displaySize()
       : { width: 640, height: 480 };
+    function hostFilesystem(service) {
+      const methods = new Map();
+      return new Proxy(service, {
+        get(target, name) {
+          const value = Reflect.get(target, name);
+          if (typeof value !== 'function') return value;
+          if (!methods.has(value)) methods.set(value, function(...args) {
+            const tasks = globalThis.PMJS && globalThis.PMJS.tasks;
+            return tasks ? tasks.runHost(value, target, args) : value.apply(target, args);
+          });
+          return methods.get(value);
+        }
+      });
+    }
     globalThis.NativeHost = { runtime: native.runtime, render: native.render,
       plugins: native.plugins, mv: native.mv,
-      scene: native.scene, images: native.images, assets: native.assets, fs: native.fs,
-      storage: native.storage, input: native.input, canvas: native.canvas,
+      scene: native.scene, images: native.images, assets: native.assets, fs: hostFilesystem(native.fs),
+      storage: hostFilesystem(native.storage), input: native.input, canvas: native.canvas,
       media: native.media, dialog: native.dialog, effects: native.effects,
       greenworks };
     globalThis.__pmjsBuiltinRequire = require;
