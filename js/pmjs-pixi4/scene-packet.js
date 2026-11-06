@@ -344,6 +344,9 @@ function writeNativeSceneNode(node, parentIndex, forcedClip, forcedMask,
     return;
   }
   if (nativeSceneNodeRejected(node, particleContext)) return;
+  if (!particleContext && node._cacheAsBitmap && PMJS.mv && PMJS.mv.pictureLayerCache) {
+    PMJS.mv.pictureLayerCache.validate(node, nativeSceneRenderer);
+  }
   if (!particleContext && node._cacheAsBitmap &&
       !node.__pmjsBuildingBitmapCache) {
     var cacheProducer = node.constructor && node.constructor.name || 'node';
@@ -370,6 +373,12 @@ function writeNativeSceneNode(node, parentIndex, forcedClip, forcedMask,
           nativeSceneRootUsesWorldTransform ? node.worldAlpha : node.alpha,
         null, 0, null);
       writeNativeSceneNode(cachedSprite, cacheParent, null, null, null, 1);
+      if (PMJS.mv && PMJS.mv.pictureLayerCache) {
+        var livePictures = PMJS.mv.pictureLayerCache.tail(node);
+        for (var pictureIndex = 0; pictureIndex < livePictures.length; pictureIndex++) {
+          writeNativeSceneNode(livePictures[pictureIndex], cacheParent);
+        }
+      }
       return;
     }
     PMJS.compat.hit('render.cacheAsBitmap',
@@ -1053,6 +1062,9 @@ function renderNativeStage(stage, rootTransform, filterResolution, roundPixels,
       if (parentReplaced) {
         stage.parent = parent;
         parentReplaced = false;
+      }
+      if (PMJS.mv && PMJS.mv.pictureLayerCache) {
+        PMJS.mv.pictureLayerCache.prepare(stage, nativeSceneRenderer);
       }
       if (bindTarget) bindTarget();
       submitNativeScene(stage, backgroundColor);
