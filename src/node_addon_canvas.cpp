@@ -635,6 +635,24 @@ napi_value measureTextMetrics(napi_env env, napi_callback_info info) try {
   napi_throw_type_error(env, nullptr, error.what()); return nullptr;
 }
 
+napi_value adjustToneCanvas(napi_env env, napi_callback_info info) try {
+  auto a = arguments(env, info, 4);
+  if (!host(env).canvases.adjustTone(asUint32(env, a.at(0)), asNumber(env, a.at(1)),
+      asNumber(env, a.at(2)), asNumber(env, a.at(3)))) throw std::runtime_error("invalid canvas");
+  return undefined(env);
+} catch (const std::exception& error) {
+  napi_throw_range_error(env, nullptr, error.what()); return nullptr;
+}
+
+napi_value rotateHueCanvas(napi_env env, napi_callback_info info) try {
+  auto a = arguments(env, info, 2);
+  if (!host(env).canvases.rotateHue(asUint32(env, a.at(0)), asNumber(env, a.at(1))))
+    throw std::runtime_error("invalid canvas");
+  return undefined(env);
+} catch (const std::exception& error) {
+  napi_throw_range_error(env, nullptr, error.what()); return nullptr;
+}
+
 napi_value blurCanvas(napi_env env, napi_callback_info info) try {
   auto a=arguments(env,info,1); if(!host(env).canvases.blur(asUint32(env,a.at(0)))) throw std::runtime_error("invalid canvas"); return undefined(env);
 } catch(const std::exception& error){napi_throw_range_error(env,nullptr,error.what());return nullptr;}
@@ -681,6 +699,8 @@ void registerCanvasBindings(napi_env env, napi_value exports) {
   method(env, canvas, "encodeWebP", encodeCanvasWebP);
   method(env, canvas, "encodeJpeg", encodeCanvasJpeg);
   method(env, canvas, "writePixels", writeCanvasPixels<PixelEncoding::StraightRGBA8>);
+  method(env, canvas, "adjustTone", adjustToneCanvas);
+  method(env, canvas, "rotateHue", rotateHueCanvas);
   method(env, canvas, "blur", blurCanvas);
   method(env, canvas, "blurMv", blurMvCanvas);
   method(env, canvas, "release", releaseCanvas);
