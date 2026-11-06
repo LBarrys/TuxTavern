@@ -5,8 +5,28 @@ function requestArrayBuffer(bytes) {
   return view.slice().buffer;
 }
 
+function localFetchResponse(target, bytes) {
+  var status = bytes === null ? 404 : 200;
+  var body = bytes === null ? new ArrayBuffer(0) : requestArrayBuffer(bytes);
+  var text = function() { return new TextDecoder().decode(body); };
+  return {
+    ok: status >= 200 && status < 300, status: status,
+    statusText: status === 200 ? 'OK' : 'Not Found', url: target,
+    headers: { get: function() { return null; } },
+    // Some code checks body before reading (Karryn's Prison's ImageReplacer).
+    body: new ReadableStream({ start: function(controller) {
+      if (body.byteLength) controller.enqueue(new Uint8Array(body.slice(0)));
+      controller.close();
+    } }),
+    text: function() { return Promise.resolve(text()); },
+    json: function() { return Promise.resolve().then(function() { return JSON.parse(text()); }); },
+    arrayBuffer: function() { return Promise.resolve(body.slice(0)); },
+    blob: function() { return Promise.resolve(new Blob([body])); }
+  };
+}
+
 globalThis.fetch = function(url) {
-  if (url === '') return Promise.resolve({ ok: true });
+  if (url === '') return Promise.resolve(localFetchResponse('', new Uint8Array(0)));
   return new Promise(function(resolve, reject) {
     var target = String(url);
     // A blob URL is resolved now, as Chromium does: Karryn's Prison's pixi-rpgm revokes the URL of a
@@ -27,23 +47,7 @@ globalThis.fetch = function(url) {
       PMJS.tasks.enqueue(function() {
         if (error) { reject(error); return; }
         try {
-          var status = bytes === null ? 404 : 200;
-          var body = bytes === null ? new ArrayBuffer(0) : requestArrayBuffer(bytes);
-          var text = function() { return new TextDecoder().decode(body); };
-          resolve({
-            ok: status >= 200 && status < 300, status: status,
-            statusText: status === 200 ? 'OK' : 'Not Found', url: target,
-            headers: { get: function() { return null; } },
-            // Some code checks body before reading (Karryn's Prison's ImageReplacer).
-            body: new ReadableStream({ start: function(controller) {
-              if (body.byteLength) controller.enqueue(new Uint8Array(body.slice(0)));
-              controller.close();
-            } }),
-            text: function() { return Promise.resolve(text()); },
-            json: function() { return Promise.resolve().then(function() { return JSON.parse(text()); }); },
-            arrayBuffer: function() { return Promise.resolve(body.slice(0)); },
-            blob: function() { return Promise.resolve(new Blob([body])); }
-          });
+          resolve(localFetchResponse(target, bytes));
         } catch (failure) { reject(failure); }
       }, { errorMode: 'event' });
     }
