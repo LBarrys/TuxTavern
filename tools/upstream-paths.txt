@@ -20,6 +20,7 @@ js/pmjs-plugins/terrax/lighting.js js/pmjs-plugins/terrax-lighting.js
 js/pmjs-plugins/volume-control/menu.js js/pmjs-plugins/volume-control-menu.js
 js/pmjs-plugins/yanfly/common-event-menu.js js/pmjs-plugins/yanfly-common-event-menu.js
 js/pmjs-plugins/yanfly/core-character-presentation.js js/pmjs-plugins/yanfly-core-character-presentation.js
+js/pmjs-plugins/yanfly/core-number-format.js js/pmjs-plugins/yanfly-core-number-format.js
 js/pmjs-plugins/yanfly/core-text.js js/pmjs-plugins/yanfly-core-text.js
 js/pmjs-plugins/yanfly/core-transforms.js js/pmjs-plugins/yanfly-core-transforms.js
 js/pmjs-plugins/yanfly/event-copier.js js/pmjs-plugins/yanfly-event-copier.js
