@@ -39,3 +39,5 @@ bin/pmjs tools/pmjs.sh
 tools/unicode/generate-default-ignorables.mjs tools/generate-default-ignorables.mjs
 tools/unicode/generate-text-test-font.mjs tools/generate-text-test-font.mjs
 js/pmjs-mz/java-hut-audio.js js/pmjs-plugins/java-hut-native-audio.js
+js/pmjs-plugins/olivia/animated-pictures.js js/pmjs-plugins/olivia-animated-pictures.js
+js/pmjs-plugins/yanfly/item-core.js js/pmjs-plugins/yanfly-item-core.js

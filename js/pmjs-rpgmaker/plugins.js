@@ -8,6 +8,7 @@
   var loadSequence = 0;
   var callbacks = Object.create(null);
   var loadingCallbacks = Object.create(null);
+  var interceptors = Object.create(null);
   var finished = false;
   var bootError = null;
   var optimizationRequirements = [];
@@ -187,6 +188,38 @@
       (loadingCallbacks[canonical] || (loadingCallbacks[canonical] = [])).push({
         owner: owner, callback: callback
       });
+    },
+
+    // A reviewed adapter may load a guest plugin's source with a fix applied (upstream PMJS
+    // 616ba4c). Interceptors must call next() for any source they do not recognize; next() is
+    // single-use, and results and exceptions propagate.
+    interceptLoad: function(name, owner, callback) {
+      if (typeof callback !== 'function') throw new TypeError('Plugin load interceptor must be a function');
+      var list = interceptors[key(name)] || (interceptors[key(name)] = []);
+      var listener = { owner: owner, callback: callback };
+      list.push(listener);
+      return function() {
+        var index = list.indexOf(listener);
+        if (index >= 0) list.splice(index, 1);
+      };
+    },
+
+    loadScript: function(name, path, load) {
+      var listeners = (interceptors[key(name)] || []).slice();
+      var context = { name: name, path: path };
+      function next(index) {
+        if (index === listeners.length) return load();
+        var listener = listeners[index], continued = false, active = true;
+        try {
+          return listener.callback(function() {
+            if (!active || continued) throw new Error('Plugin load interceptor ' + listener.owner +
+              ' called next() ' + (continued ? 'twice' : 'after returning') + ' for ' + name);
+            continued = true;
+            return next(index + 1);
+          }, context);
+        } finally { active = false; }
+      }
+      return next(0);
     },
 
     execute: function(name, load) {

@@ -179,7 +179,7 @@ test('MZ loader accepts older Utils without extractFileName and preserves subdir
   const c = vm.createContext({ Utils: {}, PluginManager: { _scripts: [],
     setParameters(name, values) { parameters.push([name, values]); } },
     NativeHost: { runtime: { loadScript(name) { loads.push(name); } } },
-    PMJS: { plugins: { execute(name, load) { load(); } } },
+    PMJS: { plugins: { execute(name, load) { load(); }, loadScript(name, path, load) { return load(); } } },
     pmjsInitializeRpgMakerPlugins(install) { install(); } });
   runModule(c, 'js/pmjs-mz/plugin-loader.js'); c.pmjsMzInitializePlugins();
   const values = { setting: 'on' };

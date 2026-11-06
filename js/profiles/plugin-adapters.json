@@ -198,6 +198,22 @@
       "modules": [
         "js/pmjs-plugins/volume-control-menu.js"
       ]
+    },
+    {
+      "plugins": [
+        "Olivia_AnimatedPictures"
+      ],
+      "modules": [
+        "js/pmjs-plugins/olivia-animated-pictures.js"
+      ]
+    },
+    {
+      "plugins": [
+        "YEP_ItemCore"
+      ],
+      "modules": [
+        "js/pmjs-plugins/yanfly-item-core.js"
+      ]
     }
   ]
 }

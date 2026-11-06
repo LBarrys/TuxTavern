@@ -95,6 +95,20 @@
     sourceOf: sourceOf,
 
     // Exact source strings or SHA-256 digests; callers also guard mutable dependencies.
+    // SHA-256 of source text with CRLF line endings read as LF (upstream PMJS 7427eb9).
+    fingerprint: function(source) {
+      if (typeof source !== 'string' || typeof globalThis.__pmjsBuiltinRequire !== 'function') return null;
+      try {
+        return __pmjsBuiltinRequire('crypto').createHash('sha256')
+          .update(source.replace(/\r\n/g, '\n')).digest('hex');
+      } catch (_) { return null; }
+    },
+
+    matchesText: function(source, expected) {
+      var digest = PMJS.methods.fingerprint(source);
+      return digest !== null && (Array.isArray(expected) ? expected : [expected]).includes(digest);
+    },
+
     matchesSource: function(fn, expected) {
       if (typeof fn !== 'function') return false;
       var source = sourceOf(fn);

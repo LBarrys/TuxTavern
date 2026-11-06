@@ -378,6 +378,18 @@
       "license": "MIT",
       "notice": "LICENSE"
     },
+    "js/pmjs-plugins/olivia-animated-pictures.js": {
+      "origin": "compatibility",
+      "source": "PMJS",
+      "license": "MIT",
+      "notice": "LICENSE"
+    },
+    "js/pmjs-plugins/yanfly-item-core.js": {
+      "origin": "compatibility",
+      "source": "PMJS",
+      "license": "MIT",
+      "notice": "LICENSE"
+    },
     "js/pmjs-plugins/yanfly-save-core.js": {
       "origin": "compatibility",
       "source": "PMJS",
