@@ -57,7 +57,7 @@ documentTarget.getElementById = function(id) {
     }
     return null;
   }
-  return find(this.body) || find(this.head);
+  return find(this.documentElement);
 };
 documentTarget.querySelectorAll = function(selector) {
   return this.documentElement.querySelectorAll(selector);

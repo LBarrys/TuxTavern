@@ -97,9 +97,10 @@ function mediaHeader(bytes, extension) {
 }
 function pageHeaderMatches(header, page, size) {
   if (page.path.endsWith('.pml4')) {
+    if (!header || header.length < 32) return false;
     const version = header.readUInt32LE(4), width = header.readUInt32LE(8), height = header.readUInt32LE(12);
     const decoded = header.readUInt32LE(16), length = header.readUInt32LE(20), count = width * height;
-    return header.length >= 32 && header.toString('ascii', 0, 4) === 'PML4' && [1, 2, 3].includes(version) &&
+    return header.toString('ascii', 0, 4) === 'PML4' && [1, 2, 3].includes(version) &&
       width === page.width && height === page.height &&
       (version === 1 ? decoded === count * 4 :
         version === 2 ? decoded >= 8 && decoded <= count * 4 :

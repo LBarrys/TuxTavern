@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const test = require('node:test');
-const { prepareAssets, validDescriptor, automaticRecipe } = require('../runner/asset-preparation.cjs');
+const { prepareAssets, validDescriptor, automaticRecipe, pageHeaderMatches } = require('../runner/asset-preparation.cjs');
 const { acquireLock } = require('../runner/preparation-lifetime.cjs');
 const { validate } = require('../runner/index.cjs');
 const { parse } = require('../runner/cli.cjs');
@@ -32,6 +32,22 @@ function fixture() {
     logger: { warn(message) { warnings.push(message); } }, warnings,
     get jobs() { return jobs; }, get installs() { return installs; } };
 }
+test('short PNG recipe headers use ordinary decode fallback without dimension read errors', async () => {
+  for (const length of [8, 16, 23]) {
+    const f = fixture();
+    const source = PNG.subarray(0, length);
+    fs.writeFileSync(path.join(f.gameRoot, f.source), source);
+    let calls = 0;
+    f.native.assets.processImage = async () => { calls++; throw new Error('decoder rejected short PNG'); };
+    const recipes = [{ source: f.source, sourceHash: crypto.createHash('sha256').update(source).digest('hex'), grid: [1, 1] }];
+    const result = await prepareAssets({ ...f, recipes });
+    assert.equal(calls, 1);
+    assert.equal(result.fallback, 1);
+    assert.ok(f.warnings.some(message => message.includes('decoder rejected short PNG')));
+    assert.equal(f.warnings.some(message => /out.of.range|bounds|offset/i.test(message)), false);
+  }
+});
+
 function manifests(f) {
   return fs.readdirSync(path.join(f.cacheRoot, 'entries')).filter(n => !n.startsWith('.'))
     .map(n => path.join(f.cacheRoot, 'entries', n, 'manifest.json'));
