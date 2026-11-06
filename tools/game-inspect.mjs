@@ -143,7 +143,7 @@ export function readPluginManifest(gameDir) {
     if (!Array.isArray(entries)) throw new Error('$plugins is not an array');
     const plugins = entries
       .filter(entry => entry && typeof entry.name === 'string')
-      .map(entry => ({ name: entry.name, status: entry.status === true }));
+      .map(entry => ({ name: entry.name, status: !!entry.status }));
     const enabled = plugins.filter(entry => entry.status).map(entry => entry.name);
     return { plugins, enabled };
   } catch (error) {

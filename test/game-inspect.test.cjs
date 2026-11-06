@@ -139,3 +139,18 @@ test('adapter registry rejects duplicates and malformed entries', async () => {
   const good = path.join(__dirname, '..', 'js/profiles', 'plugin-adapters.json');
   assert.ok(loadAdapterRegistry(good).length > 0);
 });
+
+test('game inspection follows loader truthiness for plugin status (upstream PMJS dd23c13)', async () => {
+  const { readPluginManifest } = await loadInspect();
+  const dir = temporaryDirectory('pmjs-game-plugin-records-');
+  writeGame(dir, { pluginsJs: `var $plugins = [
+    null, 7, {"status":true},
+    {"name":"Truthy","status":1}, {"name":"Enabled","status":true}, {"name":"Missing"},
+    {"name":"Zero","status":0}, {"name":"String","status":"false"}
+  ];` });
+  assert.deepEqual(readPluginManifest(dir), {
+    plugins: [{ name: 'Truthy', status: true }, { name: 'Enabled', status: true },
+      { name: 'Missing', status: false }, { name: 'Zero', status: false }, { name: 'String', status: true }],
+    enabled: ['Truthy', 'Enabled', 'String']
+  });
+});

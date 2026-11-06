@@ -41,6 +41,12 @@ test('disabled plugins do not interpret sideview metadata or read battler databa
   assert.equal(frames.size, 0);
 });
 
+test('YED detection accepts truthy status, as the plugin loader does', async () => {
+  const files = metadata({ enabled: 1, actors: [{ note: '<Sideview Battler: custom>\n<Sideview Battler Size: 90, 100>' }] });
+  const frames = await yedSideviewFrames(async name => files.get(name) ?? null);
+  assert.deepEqual(frames.get('img/sv_actors/custom.png'), { width: 90, height: 100 });
+});
+
 test('YED defaults, repeated tags, standard battlers and conflicting frame sizes retain their semantics', async () => {
   const files = metadata({ actors: [
     { note: '<Sideview Battler: shared>\n<Sideview Battler Size: 90, 100>' },
