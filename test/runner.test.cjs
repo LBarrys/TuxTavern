@@ -46,6 +46,46 @@ function writeAddon(root, polls = [true, false]) {
   return addon;
 }
 
+test('filesystem replacements retain identity and restore host-scoped methods', async t => {
+  const previous = globalThis.PMJS;
+  t.after(() => { globalThis.PMJS = previous; });
+  const options = fixture(`
+    const assert = __pmjsBuiltinRequire('node:assert/strict');
+    const hostCalls = [];
+    globalThis.PMJS = { tasks: {
+      runHost(fn, receiver, args) { hostCalls.push(fn); return fn.apply(receiver, args); },
+      runFrame(fn) { return Promise.resolve(fn()); },
+      stop() {}
+    } };
+    NativeHost.storage.writeText('source.txt', 'source');
+    for (const service of [NativeHost.fs, NativeHost.storage]) {
+      hostCalls.length = 0;
+      const original = service.readText;
+      assert.equal(service.readText, original);
+      assert.equal(original('source.txt'), 'source');
+      const patched = function(name) { return original(name) + ' patched'; };
+      service.readText = patched;
+      assert.equal(service.readText, patched);
+      assert.equal(service.readText('source.txt'), 'source patched');
+      if (service.readText === patched) service.readText = original;
+      assert.equal(service.readText, original);
+      assert.equal(service.readText('source.txt'), 'source');
+      assert.equal(hostCalls.length, 3);
+      assert(!hostCalls.includes(patched));
+    }
+    globalThis.__pmjsTick = () => {};
+    globalThis.__pmjsRender = () => {};
+  `);
+  options.assetPreparation = 'off'; options.mapPreparation = 'off';
+  const host = require(options.addon);
+  host.fs.readText = function(name) {
+    assert.equal(this, host.fs);
+    assert.equal(name, 'source.txt');
+    return 'source';
+  };
+  await run(options);
+});
+
 test('preparation logs bounded heartbeats, current work and phase durations with a monotonic clock', () => {
   let clock = 0;
   const lines = [];
