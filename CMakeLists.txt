@@ -395,6 +395,10 @@ if(BUILD_TESTING)
   add_test(NAME node-prepared-frame-cache COMMAND ${XVFB_RUN} -a ${NODE_EXECUTABLE}
     "${CMAKE_CURRENT_SOURCE_DIR}/test/node-prepared-frame-cache.cjs" $<TARGET_FILE:pmjs_native>
     "${CMAKE_CURRENT_BINARY_DIR}/test-assets")
+  add_test(NAME node-preparation-fallback COMMAND ${XVFB_RUN} -a ${NODE_EXECUTABLE}
+    "${CMAKE_CURRENT_SOURCE_DIR}/test/node-preparation-fallback.cjs" $<TARGET_FILE:pmjs_native>)
+  set_tests_properties(node-preparation-fallback PROPERTIES
+    ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;SDL_AUDIODRIVER=dummy")
   add_test(NAME node-prepared-palette-frame-cache COMMAND ${XVFB_RUN} -a ${NODE_EXECUTABLE}
     "${CMAKE_CURRENT_SOURCE_DIR}/test/node-prepared-palette-frame-cache.cjs" $<TARGET_FILE:pmjs_native>)
   set_tests_properties(node-prepared-palette-frame-cache PROPERTIES
