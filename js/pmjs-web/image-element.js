@@ -129,8 +129,7 @@ Object.defineProperty(NativeImage.prototype, 'src', {
   get: function() { return this._src; },
   set: function(url) { loadSource.call(this, url, null); }
 });
-// Element-only test sandboxes load this without pmjs-web/images.js.
-if (PMJS.images) PMJS.images.loadEncrypted = function(image, url, key, logicalPath) {
+PMJS.images.loadEncrypted = function(image, url, key, logicalPath) {
   if (!image || typeof url !== 'string' || !url || Object.getPrototypeOf(image) !== NativeImage.prototype ||
       Object.prototype.hasOwnProperty.call(image, 'src') || typeof NativeHost.images.loadEncryptedAsync !== 'function') return false;
   loadSource.call(image, url, { key: key, logicalPath: logicalPath });
