@@ -178,6 +178,12 @@ if(BUILD_TESTING)
       "-Wl,--wrap=glTexImage2D" "-Wl,--wrap=glBufferData" "-Wl,--wrap=glGetError")
     add_test(NAME native-tile-allocation-failure COMMAND ${XVFB_RUN} -a $<TARGET_FILE:pmjs-tile-allocation-failure-test>)
     set_tests_properties(native-tile-allocation-failure PROPERTIES ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;SDL_AUDIODRIVER=dummy")
+    add_executable(pmjs-renderer-precision-test test/renderer-precision.cpp)
+    target_link_libraries(pmjs-renderer-precision-test PRIVATE pmjs_runtime)
+    target_compile_options(pmjs-renderer-precision-test PRIVATE -UNDEBUG)
+    target_link_options(pmjs-renderer-precision-test PRIVATE "-Wl,--wrap=glLinkProgram")
+    add_test(NAME native-renderer-precision COMMAND ${XVFB_RUN} -a $<TARGET_FILE:pmjs-renderer-precision-test>)
+    set_tests_properties(native-renderer-precision PROPERTIES ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;SDL_AUDIODRIVER=dummy")
   endif()
   add_test(NAME node-writable-filesystem COMMAND ${XVFB_RUN} -a ${CMAKE_COMMAND} -E env
     SDL_AUDIODRIVER=dummy LIBGL_ALWAYS_SOFTWARE=1
