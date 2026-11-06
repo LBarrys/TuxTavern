@@ -34,25 +34,47 @@ GLuint compileShader(GLenum type, const char* source) {
   throw std::runtime_error(std::string("shader compilation failed: ") + log.data());
 }
 
-GLuint linkProgram(const char* vertexSource, const char* fragmentSource) {
-  const GLuint vertex = compileShader(GL_VERTEX_SHADER, vertexSource);
-  GLuint fragment = 0;
-  try {
-    fragment = compileShader(GL_FRAGMENT_SHADER, fragmentSource);
-  } catch (...) {
-    glDeleteShader(vertex);
-    throw;
-  }
+struct ShaderStage {
+  GLuint handle;
+  bool temporary;
+  ShaderStage(GLuint shader, bool owned) : handle(shader), temporary(owned) {}
+  ShaderStage(const ShaderStage&) = delete;
+  ShaderStage(ShaderStage&& other) noexcept
+      : handle(std::exchange(other.handle, 0)), temporary(other.temporary) {}
+  ~ShaderStage() { if (temporary && handle) glDeleteShader(handle); }
+};
+
+constexpr std::uint32_t primitiveSurfaceTag = 0x40000000U;
+constexpr std::uint32_t primitiveSurfaceIndexMask = 0x0000ffffU;
+constexpr std::uint16_t primitiveSurfaceGenerationMask = 0x3fffU;
+
+}  // namespace
+
+std::uint32_t Renderer::linkProgram(const char* vertexSource, const char* fragmentSource) {
+  const auto stage = [this](GLenum type, const char* source) {
+    auto key = std::make_pair(static_cast<std::uint32_t>(type), std::string(source));
+    const auto found = shaderStages_.find(key);
+    if (found != shaderStages_.end()) return ShaderStage(found->second, false);
+    ShaderStage compiled(compileShader(type, source), true);
+    constexpr std::size_t maxStages = 256, maxSourceBytes = 8 * 1024 * 1024;
+    if (shaderStages_.size() < maxStages && key.second.size() <= maxSourceBytes - shaderStageSourceBytes_) {
+      const auto bytes = key.second.size();
+      shaderStages_.emplace(std::move(key), compiled.handle);
+      shaderStageSourceBytes_ += bytes;
+      compiled.temporary = false;
+    }
+    return compiled;
+  };
+  const auto vertex = stage(GL_VERTEX_SHADER, vertexSource);
+  const auto fragment = stage(GL_FRAGMENT_SHADER, fragmentSource);
   const GLuint program = glCreateProgram();
-  glAttachShader(program, vertex);
-  glAttachShader(program, fragment);
+  glAttachShader(program, vertex.handle);
+  glAttachShader(program, fragment.handle);
   glBindAttribLocation(program, 0, "position");
   glBindAttribLocation(program, 1, "uv");
   glBindAttribLocation(program, 0, "aVertexPosition");
   glBindAttribLocation(program, 1, "aTextureCoord");
   glLinkProgram(program);
-  glDeleteShader(vertex);
-  glDeleteShader(fragment);
 
   GLint linked = GL_FALSE;
   glGetProgramiv(program, GL_LINK_STATUS, &linked);
@@ -73,12 +95,6 @@ GLuint linkProgram(const char* vertexSource, const char* fragmentSource) {
   glDeleteProgram(program);
   throw std::runtime_error(std::string("shader program link failed: ") + log.data());
 }
-
-constexpr std::uint32_t primitiveSurfaceTag = 0x40000000U;
-constexpr std::uint32_t primitiveSurfaceIndexMask = 0x0000ffffU;
-constexpr std::uint16_t primitiveSurfaceGenerationMask = 0x3fffU;
-
-}  // namespace
 
 Renderer::Renderer(int width, int height, ImageStore& images)
     : width_(width), height_(height), queueWidth_(width), queueHeight_(height),
@@ -371,7 +387,7 @@ Renderer::TileProgramUniforms Renderer::queryTileProgramUniforms(std::uint32_t p
 void Renderer::createPixiPrograms(const std::string& precision) {
   targetProjectionLocations_.clear();
   using namespace renderer_shaders;
-  const auto linkPixiProgram = [&precision](const char* vertex, const char* fragment) {
+  const auto linkPixiProgram = [this, &precision](const char* vertex, const char* fragment) {
     const auto source = withBlockSpriteSampling(pixiFragmentSourceWithPrecision(fragment, precision));
     return linkProgram(vertex, source.c_str());
   };
@@ -566,7 +582,6 @@ std::uint32_t Renderer::createFilterProgram(const std::string& fragmentSource, c
   if (vertexSource.size() > 65536 || vertexSource.find('\0') != std::string::npos)
     throw std::invalid_argument("invalid filter vertex source");
   const GLuint program = linkProgram(vertexSource.empty() ? vertex : vertexSource.c_str(), source.c_str());
-  GLuint identityProgram = 0;
   try {
     FilterProgram result{program, vertexSource + "\n" + source, !vertexSource.empty(), {}};
     constexpr std::array<const char*, 4> builtInUniformNames{
@@ -636,33 +651,11 @@ std::uint32_t Renderer::createFilterProgram(const std::string& fragmentSource, c
       result.uniforms.push_back({key, type, glGetUniformLocation(program, key.c_str()),
         components, count});
     }
-    if (result.identityColorMatrixContract) {
-      auto identitySource = source;
-      constexpr std::array<float, 20> identity{1, 0, 0, 0, 0, 0, 1, 0, 0, 0,
-                                             0, 0, 1, 0, 0, 0, 0, 0, 1, 0};
-      for (std::size_t index = 0; index < identity.size(); ++index) {
-        const auto coefficient = "m[" + std::to_string(index) + "]";
-        for (auto at = identitySource.find(coefficient); at != std::string::npos;
-             at = identitySource.find(coefficient, at + 3)) {
-          identitySource.replace(at, coefficient.size(), identity[index] == 1 ? "1.0" : "0.0");
-        }
-      }
-      // Keep un-premultiplication, mixing and re-premultiplication, as well as
-      // the original vertex program and sampling. Only exact matrix constants fold.
-      result.identityUniformLocations.reserve(result.uniforms.size());
-      result.identityProgram = identityProgram = linkProgram(vertexSource.c_str(), identitySource.c_str());
-      for (std::size_t index = 0; index < builtInUniformNames.size(); ++index) {
-        result.identityBuiltInUniformLocations[index] =
-          glGetUniformLocation(result.identityProgram, builtInUniformNames[index]);
-      }
-      for (const auto& uniform : result.uniforms)
-        result.identityUniformLocations.push_back(glGetUniformLocation(result.identityProgram, uniform.name.c_str()));
-    }
+    if (result.identityColorMatrixContract) result.identityVertexLength = vertexSource.size();
     filterPrograms_.push_back(std::move(result));
     return filterPrograms_.size();
   } catch (...) {
     glDeleteProgram(program);
-    if (identityProgram) glDeleteProgram(identityProgram);
     throw;
   }
 }
@@ -694,6 +687,43 @@ std::uint32_t Renderer::registerFilterPlan(const std::shared_ptr<CustomFilterPla
   const auto handle = nextFilterPlan_++;
   filterPlans_[handle] = plan;
   return handle;
+}
+
+void Renderer::ensureIdentityFilterProgram(std::uint32_t handle) {
+  auto& result = filterPrograms_.at(handle - 1);
+  if (result.identityProgram) return;
+  const auto vertexSource = result.source.substr(0, result.identityVertexLength);
+  const auto source = result.source.substr(result.identityVertexLength + 1);
+  constexpr std::array<const char*, 4> builtInUniformNames{
+    "projectionMatrix", "filterArea", "filterClamp", "uSampler"};
+  std::array<int, 4> builtInLocations{};
+  auto identitySource = source;
+  constexpr std::array<float, 20> identity{1, 0, 0, 0, 0, 0, 1, 0, 0, 0,
+                                           0, 0, 1, 0, 0, 0, 0, 0, 1, 0};
+  for (std::size_t index = 0; index < identity.size(); ++index) {
+    const auto coefficient = "m[" + std::to_string(index) + "]";
+    for (auto at = identitySource.find(coefficient); at != std::string::npos;
+         at = identitySource.find(coefficient, at + 3)) {
+      identitySource.replace(at, coefficient.size(), identity[index] == 1 ? "1.0" : "0.0");
+    }
+  }
+  // Keep un-premultiplication, mixing and re-premultiplication, as well as
+  // the original vertex program and sampling. Only exact matrix constants fold.
+  std::vector<int> locations;
+  locations.reserve(result.uniforms.size());
+  const auto program = linkProgram(vertexSource.c_str(), identitySource.c_str());
+  try {
+    for (std::size_t index = 0; index < builtInUniformNames.size(); ++index)
+      builtInLocations[index] = glGetUniformLocation(program, builtInUniformNames[index]);
+    for (const auto& uniform : result.uniforms)
+      locations.push_back(glGetUniformLocation(program, uniform.name.c_str()));
+    result.identityUniformLocations = std::move(locations);
+    result.identityBuiltInUniformLocations = builtInLocations;
+    result.identityProgram = program;
+  } catch (...) {
+    glDeleteProgram(program);
+    throw;
+  }
 }
 
 bool Renderer::releaseFilterPlan(std::uint32_t handle) {
@@ -762,6 +792,9 @@ void Renderer::releaseResources(bool constructorFailure) {
   if (canvasTriangleBitmapProgram_) glDeleteProgram(canvasTriangleBitmapProgram_);
   if (clearTriangleProgram_) glDeleteProgram(clearTriangleProgram_);
   if (primitiveSurfaceProgram_) glDeleteProgram(primitiveSurfaceProgram_);
+  for (const auto& [key, shader] : shaderStages_) glDeleteShader(shader);
+  shaderStages_.clear();
+  shaderStageSourceBytes_ = 0;
 }
 
 PrimitiveSurfaceHandle Renderer::makePrimitiveSurfaceHandle(
