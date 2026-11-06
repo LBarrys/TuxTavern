@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { inspectGame, loadAdapterRegistry, resolveAdapters } from './game-inspect.mjs';
+import { inspectGame, loadAdapterRegistry, resolveAdapters, pluginIdentity } from './game-inspect.mjs';
 
 const args = process.argv.slice(2);
 const values = new Map();
@@ -112,17 +112,19 @@ function adapterSelection(option, registry, inspection, manifestPath) {
     throw new Error(`manifest ${manifestPath} adapters must be "auto", "all", "none", an array, or an auto override object`);
   }
   const known = new Set(registry.flatMap(entry => entry.plugins));
+  const identity = name => pluginIdentity(name);
+  const knownIdentities = new Set([...known].map(identity));
   for (const name of [...include, ...exclude]) {
-    if (typeof name !== 'string' || !known.has(name)) {
+    if (typeof name !== 'string' || !knownIdentities.has(identity(name))) {
       throw new Error(`manifest ${manifestPath} adapters unknown plugin: ${name}`);
     }
   }
   let names = mode === 'all' ? [...known]
-    : mode === 'auto' ? inspection.enabledPlugins
+    : mode === 'auto' ? inspection.selectablePlugins
       : mode === 'explicit' ? include : [];
   if (mode === 'auto') names = [...new Set([...names, ...include])];
-  const excluded = new Set(exclude);
-  return resolveAdapters(registry, names.filter(name => !excluded.has(name)));
+  const excluded = new Set(exclude.map(identity));
+  return resolveAdapters(registry, names.filter(name => !excluded.has(identity(name))));
 }
 
 function resolveCapabilityManifest(manifest, manifestPath) {
