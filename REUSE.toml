@@ -89,3 +89,9 @@ path = ["lib/rgss/**"]
 precedence = "override"
 SPDX-FileCopyrightText = "2026 rpgm and TuxTavern contributors"
 SPDX-License-Identifier = "CC0-1.0"
+
+[[annotations]]
+path = ["third_party/lz-string.LICENSE"]
+precedence = "override"
+SPDX-FileCopyrightText = "2013 Pieroxy"
+SPDX-License-Identifier = "MIT"

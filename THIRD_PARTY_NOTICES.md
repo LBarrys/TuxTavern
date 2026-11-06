@@ -8,6 +8,7 @@ PMJS's MIT license covers its own contributions, not third-party material.
 | Terrax lighting compatibility portions and tests | TerraxLighting 1.4.9 | MIT, copyright 2016 Terraxz; `third_party/terrax.LICENSE` |
 | Unicode default-ignorable data | Unicode 16.0.0 | Unicode-3.0; `third_party/unicode.LICENSE` |
 | Effekseer and stb portions | Revision pinned in `tools/effekseer.lock.json` | MIT and embedded stb notice; `third_party/effekseer.LICENSE` |
+| Native LZString codec and compatibility vectors | [LZString](https://github.com/pieroxy/lz-string), legacy word-based Base64 format | MIT, copyright 2013 Pieroxy; `third_party/lz-string.LICENSE` |
 | Effekseer effect fixtures | Revision in `test/assets/effects/LICENSE` | MIT; adjacent `LICENSE` |
 | Color-matrix shader contract and pixel-test reference | PixiJS 4.5.4 | MIT; `third_party/pixi4.LICENSE` |
 | Pixi 5 sprite fixture | PixiJS 5.3.12 | MIT; `test/assets/pixi5/LICENSE` |

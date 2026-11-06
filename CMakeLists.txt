@@ -85,6 +85,7 @@ target_link_libraries(pmjs_runtime PUBLIC ${PMJS_PLATFORM_LIBS} PkgConfig::PNG P
 
 add_library(pmjs_native MODULE
   src/node_addon.cpp
+  src/node_addon_compression.cpp
   src/node_addon_canvas.cpp
   src/node_addon_dialog.cpp
   src/node_addon_common.cpp
@@ -356,6 +357,8 @@ if(BUILD_TESTING)
     $<TARGET_FILE:pmjs_native> "${CMAKE_CURRENT_BINARY_DIR}/test-assets")
   set_tests_properties(node-video-clock PROPERTIES TIMEOUT 10
     ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;SDL_AUDIODRIVER=dummy")
+  add_test(NAME node-compression COMMAND ${NODE_EXECUTABLE}
+    "${CMAKE_CURRENT_SOURCE_DIR}/test/node-compression.cjs" $<TARGET_FILE:pmjs_native>)
   add_executable(pmjs-canvas-pixels-test test/canvas-pixels.cpp)
   target_include_directories(pmjs-canvas-pixels-test PRIVATE src)
   target_compile_options(pmjs-canvas-pixels-test PRIVATE -UNDEBUG)
