@@ -179,7 +179,7 @@ class ImageFileSource {
 class ImageStore {
  public:
   static constexpr std::size_t defaultWarmBudgetBytes = 4U * 1024U * 1024U;
-  static constexpr std::size_t defaultPreparedFrameCacheBytes = 4U * 1024U * 1024U;
+  static constexpr std::size_t defaultPreparedFrameCacheBytes = 32U * 1024U * 1024U;
   static constexpr std::size_t warmEntryLimit = 256;
   static constexpr std::size_t warmFileLimit = 128;
   // Bounds retained successful inode-only content verifications.
