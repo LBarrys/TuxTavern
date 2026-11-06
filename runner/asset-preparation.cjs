@@ -56,8 +56,14 @@ function sourceFile(native, gameRoot, source) {
 }
 async function encryptionSettings(native, gameRoot) {
   try {
-    const file = sourceFile(native, gameRoot, 'data/System.json');
-    if (!fs.existsSync(file)) return { images: false, audio: false, key: null };
+    const file = typeof native.assets.sourcePath === 'function'
+      ? native.assets.sourcePath('data/System.json') : path.join(gameRoot, 'data/System.json');
+    if (!file) return { images: false, audio: false, key: null };
+    try { await fsp.stat(file); }
+    catch (error) {
+      if (error.code === 'ENOENT') return { images: false, audio: false, key: null };
+      throw error;
+    }
     let sourceIdentity = native.assets.sourceIdentity?.('data/System.json');
     const read = () => native.fs?.readBytes ? Buffer.from(native.fs.readBytes('data/System.json')) : fsp.readFile(file);
     const data = await read();
@@ -71,7 +77,10 @@ async function encryptionSettings(native, gameRoot) {
     return { images: system.hasEncryptedImages === true, audio: system.hasEncryptedAudio === true,
       key: /^[a-f0-9]{32}$/i.test(system.encryptionKey) ? Buffer.from(system.encryptionKey, 'hex') : null,
       hash: crypto.createHash('sha256').update(data).digest('hex'), sourceIdentity };
-  } catch (_) { return { images: false, audio: false, key: null }; }
+  } catch (cause) {
+    // Unreadable settings must not prepare encrypted assets as plain ones; ordinary loading stays.
+    return { error: new Error(`cannot read data/System.json encryption settings: ${cause.message}`, { cause }) };
+  }
 }
 // Browsers sniff images, so games encrypt WebP, JPEG and AVIF under .png too (Exorcism Goddess,
 // Corrupted Seas). They are decrypted once here and decoded at run time.
@@ -327,7 +336,7 @@ async function prepareAssets({ gameRoot, cacheRoot, recipes = [], native, onProg
     throw new Error('assetPreparation.workspaceBytes must be an integer from 0 to 268435456');
   const offline = preparationContext === 'offline';
   const audioViewSupport = !offline && typeof native?.media?.installAudioViews === 'function';
-  const audioSettings = audioViewSupport ? await encryptionSettings(native, gameRoot) : null;
+  let audioSettings;
   const started = performance.now();
   const result = { enabled: true, total: 0, completed: 0, generated: 0, hits: 0, negativeHits: 0,
     fallback: 0, failedFiles: 0, installFailures: 0, prepared: 0, installed: 0, decrypted: 0, sourceBytes: 0, cacheBytes: 0,
@@ -355,6 +364,10 @@ async function prepareAssets({ gameRoot, cacheRoot, recipes = [], native, onProg
   try {
     report('discover');
     if (cancelled()) return result;
+    if (audioViewSupport) {
+      audioSettings = await encryptionSettings(native, gameRoot);
+      if (audioSettings.error) throw audioSettings.error;
+    }
     validRecipes(recipes);
     if (pageCodec === 'lz4') {
       if (native.assets?.preparationWorkspaceVersion !== 1 || typeof native.assets?.preparationLz4Version !== 'string')
@@ -399,8 +412,12 @@ async function prepareAssets({ gameRoot, cacheRoot, recipes = [], native, onProg
           await native.assets.installDerivedCatalog(catalog.decryptedEntries);
           if (audioViewSupport && native.media.installAudioViews(catalog.audioViewEntries || []) !== (catalog.audioViewEntries || []).length)
             throw new Error('incomplete audio view installation');
-          if (audioViewSupport && (await encryptionSettings(native, gameRoot)).hash !== audioSettings.hash)
-            throw new Error('audio encryption settings changed during preparation');
+          if (audioViewSupport) {
+            const currentSettings = await encryptionSettings(native, gameRoot);
+            if (currentSettings.error) throw currentSettings.error;
+            if (currentSettings.hash !== audioSettings.hash)
+              throw new Error('audio encryption settings changed during preparation');
+          }
           const installed = await native.assets.installPreparedCatalog(catalog.entries);
           if (installed !== catalog.entries.length) throw new Error('incomplete image catalog installation');
           if (cancelled()) throw new Error('catalog installation cancelled');
@@ -426,6 +443,7 @@ async function prepareAssets({ gameRoot, cacheRoot, recipes = [], native, onProg
     const sources = await discover(gameRoot, cacheRoot);
     const settings = await encryptionSettings(native, gameRoot);
     result.total = sources.length;
+    if (settings.error) throw settings.error;
     report('discover');
     if (cancelled()) return result;
     if (!sources.length) {
@@ -600,7 +618,9 @@ async function prepareAssets({ gameRoot, cacheRoot, recipes = [], native, onProg
         });
       }
       if (audioViewSupport) {
-        if ((await encryptionSettings(native, gameRoot)).hash !== audioSettings.hash)
+        const currentSettings = await encryptionSettings(native, gameRoot);
+        if (currentSettings.error) throw currentSettings.error;
+        if (currentSettings.hash !== audioSettings.hash)
           throw new Error('audio encryption settings changed during preparation');
         result.audioViews = native.media.installAudioViews(result.audioViewEntries);
         result.fallback += result.audioViewEntries.length - result.audioViews;
