@@ -59,6 +59,9 @@ namespace {
 constexpr std::uint32_t indexMask = 0xffffU;
 constexpr std::uint16_t generationMask = 0x7fffU;
 constexpr std::size_t preparedPageCacheBudget = 32U * 1024U * 1024U;
+// Retained CPU copies of prepared images are rebuilt from their pages, so they can go after about
+// a minute unread (upstream PMJS 8f0115a); other retained pixels stay for the texture's life.
+constexpr std::uint16_t retainedCpuIdleFrames = 3600;
 
 bool allZeroRgba(const void* pixels, int width, int height, int rowPixels) {
   const auto* bytes = static_cast<const std::uint8_t*>(pixels);
@@ -923,7 +926,7 @@ bool ImageStore::retainCpuPixels(ImageHandle handle) {
   auto& slot = slots_[index];
   if (slot.cachedPixels) {
     slot.retainCpuPixels = true;
-    slot.cpuPixelFrames = 0;
+    slot.cpuPixelFrames = slot.prepared ? retainedCpuIdleFrames : 0;
     if (slot.prepared) for (auto& page : slot.prepared->pages) page.pixels.reset();
     return true;
   }
@@ -933,7 +936,7 @@ bool ImageStore::retainCpuPixels(ImageHandle handle) {
     readPixelsRegion(handle, 0, 0, info->width, info->height) : readTexturePixels(*info, slot.storage);
   if (!slot.cachedPixels) return false;
   slot.retainCpuPixels = true;
-  slot.cpuPixelFrames = 0;
+  slot.cpuPixelFrames = slot.prepared ? retainedCpuIdleFrames : 0;
   if (slot.prepared) for (auto& page : slot.prepared->pages) page.pixels.reset();
   return true;
 }
@@ -969,14 +972,15 @@ const ImagePixels* ImageStore::readPixels(ImageHandle handle) const {
   if (!info || encodedIndex == 0) return nullptr;
   const auto& slot = slots_[encodedIndex - 1U];
   if (slot.cachedPixels) {
-    if (!slot.retainCpuPixels && !slot.cacheKey.empty()) slot.cpuPixelFrames = cpuPixelLifetime;
+    if (slot.prepared && slot.retainCpuPixels) slot.cpuPixelFrames = retainedCpuIdleFrames;
+    else if (!slot.retainCpuPixels && !slot.cacheKey.empty()) slot.cpuPixelFrames = cpuPixelLifetime;
     return &*slot.cachedPixels;
   }
   if (slot.cacheKey.empty() && !slot.palette && !slot.tiles) return nullptr;
   if (!slot.deferred && !slot.palette && !slot.prepared && !slot.tiles) ++textureReadbacks_;
   slot.cachedPixels = slot.deferred ? decodeDeferred(slot) : (slot.palette || slot.prepared || slot.tiles) ?
     readPixelsRegion(handle, 0, 0, info->width, info->height) : readTexturePixels(*info, slot.storage);
-  if (!slot.retainCpuPixels) slot.cpuPixelFrames = cpuPixelLifetime;
+  slot.cpuPixelFrames = slot.retainCpuPixels && slot.prepared ? retainedCpuIdleFrames : cpuPixelLifetime;
   return slot.cachedPixels ? &*slot.cachedPixels : nullptr;
 }
 
@@ -1962,9 +1966,9 @@ void ImageStore::update() {
   for (std::size_t index = 0; index < slots_.size(); ++index) {
     auto& slot = slots_[index];
     if (!slot.live) continue;
-    // Explicitly retained slots keep CPU pixels for the life of the texture;
-    // on-demand buffers age out here.
-    if (slot.cachedPixels && !slot.retainCpuPixels) {
+    // On-demand buffers age out here; so do idle retained copies of prepared images, which their
+    // pages can rebuild, unless the image is pinned.
+    if (slot.cachedPixels && (!slot.retainCpuPixels || (slot.prepared && !slot.pins))) {
       if (slot.cpuPixelFrames > 0) {
         --slot.cpuPixelFrames;
       } else {
@@ -2248,7 +2252,8 @@ std::optional<ImageInfo> ImageStore::installPreparedLoad(const ImageFileSource& 
     slot.opaque = known->opaque;
     slot.opacityRevision = slot.contentRevision;
   }
-  slot.retainCpuPixels = retainCpu; slot.cachedPixels = std::move(pixels); slot.cpuPixelFrames = 0;
+  slot.retainCpuPixels = retainCpu; slot.cachedPixels = std::move(pixels);
+  slot.cpuPixelFrames = retainCpu ? retainedCpuIdleFrames : 0;
   slot.mipmapsReady = slot.premultipliedMipmapsReady = false;
   slot.mipmapBytes = slot.premultipliedMipmapBytes = 0;
   slot.live = true; markUsed(slot); ++liveCount_; ++preparedHits_;
@@ -2371,6 +2376,15 @@ std::optional<ImagePixels> ImageStore::readPixelsRegion(ImageHandle handle,
   if (!info || !extent || x < 0 || y < 0 || x > info->width - width ||
       y > info->height - height) return std::nullopt;
   const auto& slot = slots_[(handle & indexMask) - 1U];
+  if (slot.prepared && slot.cachedPixels) {
+    slot.cpuPixelFrames = slot.retainCpuPixels ? retainedCpuIdleFrames : cpuPixelLifetime;
+    const auto& full = *slot.cachedPixels;
+    ImagePixels result{width, height, std::vector<std::uint8_t>(extent->rgbaBytes)};
+    for (int row = 0; row < height; ++row)
+      std::copy_n(full.rgba.data() + (static_cast<std::size_t>(y + row) * full.width + x) * 4,
+                  static_cast<std::size_t>(width) * 4, result.rgba.data() + static_cast<std::size_t>(row) * width * 4);
+    return result;
+  }
   // Prepared files remain authoritative when a GPU palette view also exists.
   if (slot.palette && !slot.prepared) return readPalettePixels(slot, std::array<int, 4>{x, y, width, height});
   if (slot.tiles) return readTileRegion(slot, x, y, width, height);

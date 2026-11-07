@@ -94,6 +94,7 @@ MZ 1.10.0/Pixi 5.3.12; MV on Pixi 7.4.2 (pixi-rpgm, as in Karryn's Prison) is ne
 | `PMJS_DEFER_IMAGES` | `1` always decode images later, `0` never; unset: only in load bursts |
 | `PMJS_PREPARED_FRAME_CACHE_BYTES` | Prepared frame cache size (default 4 MiB) |
 | `PMJS_DISABLE_OPT=id,…` | Turn off named optimisations |
+| `PMJS_IMAGE_CACHE_IDLE=SECONDS` | MV: drop cached images unused that long (stock MV keeps them until the cache is full) |
 | `PMJS_OPT_DIAGNOSTICS=1`, `PMJS_BOOT_DIAGNOSTICS=1` | List optimisation decisions; also boot steps |
 | `PMJS_GRAPHICS_DIAGNOSTICS=1`, `PMJS_AUDIO_DIAGNOSTICS=1` | Graphics or audio diagnostics |
 | `PMJS_EVENT_DIAGNOSTICS=1` | MV event-stall timing and reports |

@@ -36,6 +36,7 @@ tuxtavern --desktop GAME          # add it to the app launcher
 - **Other keys (MV/MZ):** `TUXTAVERN_KEYS=wasd` (or `w=up,e=ok,q=cancel,...`); XP/VX/VX Ace: mkxp-z's F1 menu.
 - **Mods (MV/MZ):** `TUXTAVERN_OVERRIDES=data:.json=.pack,...` reads `data/X.pack` instead of `data/X.json` when present.
 - **Saves outside `save/` (MV/MZ):** `TUXTAVERN_SAVE_DIRS=folder,...` keeps them in `save/` with the rest.
+- **High memory use (MV):** `PMJS_IMAGE_CACHE_IDLE=60` drops images unused for 60 seconds (they reload when needed).
 - **Settings for one game:** put them in `tuxtavern.env` in its folder, one per line (`PMJS_RENDER_HZ=60`).
 - **Your own fixes:** in the game folder, `*.tuxtavern.js` (MV/MZ) run after the game's plugins and
   `*.tuxtavern.rb` (XP/VX/VX Ace) before its `Main`;
