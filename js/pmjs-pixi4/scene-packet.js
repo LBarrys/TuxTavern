@@ -508,6 +508,10 @@ function writeNativeSceneNode(node, parentIndex, forcedClip, forcedMask,
       Math.round(node.alpha * 255)]);
   }
   var filterGroups = filterPlan.groups || [];
+  if (kind === 0 && parentIndex !== 0xffffffff &&
+      (pipeType === 'container' || pipeType === 'sprite') &&
+      !nativeSceneEmission.aborted && !filterGroups.length &&
+      !(node.children && node.children.length)) return;
   // MV's WindowLayer draws its windows into their own target, each clearing what the
   // windows behind cover, so overlapping translucent windows do not show through.
   var windowLayer = typeof WindowLayer === 'function' && node instanceof WindowLayer &&

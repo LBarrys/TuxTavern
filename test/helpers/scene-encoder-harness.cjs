@@ -236,4 +236,16 @@ function makeHarness(options = {}) {
   return { sandbox, submitted, compatHits, compatObserved, counts, makeTexture, sprite };
 }
 
-module.exports = { makeHarness, writerSources };
+function packetNode(packet, index) {
+  const m = index * 7, v = index * 41;
+  return {
+    kind: packet.metadata[m], parent: packet.metadata[m + 1],
+    resource: packet.metadata[m + 2], color: packet.metadata[m + 3],
+    flags: packet.metadata[m + 5],
+    a: packet.values[v], b: packet.values[v + 1],
+    c: packet.values[v + 2], d: packet.values[v + 3],
+    x: packet.values[v + 4], y: packet.values[v + 5], alpha: packet.values[v + 6]
+  };
+}
+
+module.exports = { makeHarness, writerSources, packetNode };

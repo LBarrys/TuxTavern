@@ -41,3 +41,4 @@ tools/unicode/generate-text-test-font.mjs tools/generate-text-test-font.mjs
 js/pmjs-mz/java-hut-audio.js js/pmjs-plugins/java-hut-native-audio.js
 js/pmjs-plugins/olivia/animated-pictures.js js/pmjs-plugins/olivia-animated-pictures.js
 js/pmjs-plugins/yanfly/item-core.js js/pmjs-plugins/yanfly-item-core.js
+js/pmjs-plugins/yed/priority-updates.js js/pmjs-plugins/yed-priority-updates.js
