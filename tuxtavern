@@ -10,6 +10,16 @@ lib=$here/lib
 
 die() { printf 'tuxtavern: %s\n' "$*" >&2; exit 1; }
 have() { command -v "$1" >/dev/null 2>&1; }
+# How to install package $1 with this system's package manager (the names asked for are the same
+# on Alpine, Debian, Fedora, Arch and openSUSE).
+pkg_cmd() {
+	for manager in 'apk add' 'apt-get install' 'dnf install' 'pacman -S' 'zypper install'; do
+		have "${manager%% *}" && { printf '%s %s' "$manager" "$1"; return; }
+	done
+	printf 'install %s' "$1"
+}
+# How to install TuxTavern's MV/MZ runtime from a checkout.
+pmjs_hint() { if have apk; then printf 'doas sh tools/apk.sh'; else printf 'sh tools/install.sh'; fi; }
 # An install keeps pmjs beside this script.
 pmjs=$here/pmjs
 [ -x "$pmjs" ] || pmjs=$(command -v pmjs 2>/dev/null || true)
@@ -87,7 +97,7 @@ target=${1:-.}
 
 if [ "$mode" = edit-save ]; then
 	[ -f "$target" ] || die "--edit-save takes a save file, e.g. www/save/file1.rpgsave or Save01.rvdata2"
-	have node || die "--edit-save needs node (apk add nodejs)"
+	have node || die "--edit-save needs node ($(pkg_cmd nodejs))"
 	tmp=$(mktemp -d)
 	trap 'rm -rf "$tmp"' EXIT INT TERM
 	node "$lib/savejson.js" decode "$target" "$tmp/save.json" || exit 1
@@ -202,7 +212,7 @@ info)
 		done ;;
 	mv | mz)
 		if [ -n "$pmjs" ]; then echo "runtime: $pmjs ($("$pmjs" --version 2>/dev/null || echo 'version unknown'))"
-		else echo "runtime: pmjs not installed (doas sh tools/apk.sh in a TuxTavern checkout)"
+		else echo "runtime: pmjs not installed ($(pmjs_hint) in a TuxTavern checkout)"
 		fi
 		www=$(find_ci www)
 		pixi=$(find_ci "${www:+$www/}js/libs/pixi.js")
@@ -239,7 +249,7 @@ ulimit -n "$(ulimit -H -n)" 2>/dev/null || true
 # MV/MZ on PMJS. Saves go to the game's save folder, where NW.js keeps them; PMJS's asset
 # cache to ours.
 run_pmjs() {
-	[ -n "$pmjs" ] || die "MV/MZ games need pmjs (doas sh tools/apk.sh in a TuxTavern checkout)"
+	[ -n "$pmjs" ] || die "MV/MZ games need pmjs ($(pmjs_hint) in a TuxTavern checkout)"
 	[ -z "$test" ] || echo "tuxtavern: -T works for XP/VX/VX Ace games only" >&2
 	dir=$game
 	www=$(find_ci www)
@@ -344,7 +354,7 @@ pmjs_screenshots() {
 case $engine in
 mv | mz) run_pmjs ;;
 nwjs-zip | evb)
-	have node || die "unpacking this game needs node (apk add nodejs)"
+	have node || die "unpacking this game needs node ($(pkg_cmd nodejs))"
 	[ "$engine" = evb ] || packed="$game/$(find_ci package.nw)"
 	if [ ! -f "$unpacked/.tuxtavern-unpacked" ] || [ -n "$(find "$packed" -newer "$unpacked/.tuxtavern-unpacked")" ]; then
 		mkdir -p "$unpacked" || die "cannot create $unpacked"

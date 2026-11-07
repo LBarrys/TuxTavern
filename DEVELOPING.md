@@ -4,6 +4,10 @@ Run the commands from the repository root.
 
 ## Build
 
+Any distribution: `sh tools/install.sh` (`-u` for `~/.local`; CMake options after `--`) builds a
+release and installs it under `PREFIX/lib/tuxtavern` with a `PREFIX/bin/tuxtavern` wrapper. If build
+packages are missing it prints the install command for apk, apt-get, dnf, zypper or pacman.
+
 Alpine, as a package rebuilt and upgraded after each `git pull`: `doas sh tools/apk.sh` (installs
 `tuxtavern@busylinux`, PMJS and the launcher, signed with `/root/keys/local.rsa`, as BusyLinux's `update.sh` does). By hand:
 
@@ -19,13 +23,13 @@ cmake --install build --prefix /usr/lib/pmjs
 `/usr/lib/pmjs/bin/pmjs` finds its files from its own path: put it on `PATH` with a small
 script (`exec /usr/lib/pmjs/bin/pmjs "$@"`), not a symlink. Do not strip the installed files.
 
-Ubuntu 24.04 needs:
+Ubuntu 24.04 (the tests also need `xvfb xauth`; `tools/install.sh` has the Fedora, openSUSE and Arch lists):
 
 ```sh
-sudo apt-get install build-essential cmake ninja-build pkg-config git \
-  libnode-dev libsdl2-dev libegl1-mesa-dev libgles2-mesa-dev libpng-dev \
-  zlib1g-dev libjpeg-dev libfreetype-dev libharfbuzz-dev liblz4-dev \
-  libavformat-dev libavcodec-dev libavutil-dev libswresample-dev libswscale-dev xvfb xauth
+sudo apt-get install build-essential cmake ninja-build pkg-config git nodejs libnode-dev \
+  libsdl2-dev libegl-dev libgles-dev libpng-dev libwebp-dev zlib1g-dev libjpeg-dev libfreetype-dev \
+  libharfbuzz-dev liblz4-dev libavformat-dev libavcodec-dev libavutil-dev libswresample-dev \
+  libswscale-dev xvfb xauth
 ```
 
 ## Tests
@@ -45,7 +49,8 @@ npm run licensing
 npm test
 sh test/launcher/run.sh
 busybox sh test/launcher/run.sh
-shellcheck tuxtavern build-mkxp-z.sh tools/pmjs.sh tools/apk.sh
+dash test/launcher/run.sh
+shellcheck tuxtavern build-mkxp-z.sh tools/pmjs.sh tools/apk.sh tools/install.sh
 ```
 
 `tools/upstream-paths.txt` lists upstream PMJS files that live at another path here; rewrite upstream

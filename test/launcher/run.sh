@@ -74,6 +74,47 @@ run "$fx/none"; check 'running a non-game fails' 'no RPG Maker XP/VX/VX Ace/MV/M
 run --bogus; check 'unknown options are refused' 'unknown option'
 run --wasd "$fx/mv"; check 'the Electron-only --wasd is gone' 'unknown option'
 
+# A PATH without package managers, build tools, node or pmjs; each case adds what it needs.
+mkdir -p "$fx/minbin" "$fx/pm/apk" "$fx/pm/apt" "$fx/pm/pacman" "$fx/pm/dnf" && : >"$fx/pm/file1.rpgsave"
+for f in /bin/* /usr/bin/*; do
+	case ${f##*/} in
+	apk | apt-get | dnf | pacman | zypper | node | nodejs | pmjs | cmake | ninja | samu | make | c++ | pkg-config | git) ;;
+	*) [ -e "$fx/minbin/${f##*/}" ] || ln -s "$f" "$fx/minbin/" ;;
+	esac
+done
+for m in apk apt-get pacman dnf; do d=${m%-get}; printf '#!/bin/sh\nexit 1\n' >"$fx/pm/$d/$m"; chmod +x "$fx/pm/$d/$m"; done
+
+echo "== install.sh"
+# Stand-ins for the build tools; pkg-config lacks the modules named in $PC_MISSING.
+mkdir -p "$fx/is/bin" "$fx/is/include/node" && : >"$fx/is/include/node/node_api.h"
+for t in c++ git node ninja; do printf '#!/bin/sh\n' >"$fx/is/bin/$t"; done
+printf '#!/bin/sh\ncase " $PC_MISSING " in *" $2 "*) exit 1 ;; esac\n' >"$fx/is/bin/pkg-config"
+cat >"$fx/is/bin/cmake" <<'EOF'
+#!/bin/sh
+echo "cmake $*" >>"$IS_LOG"
+[ "$1" != --install ] || { mkdir -p "$4/bin"; : >"$4/bin/tuxtavern"; }
+EOF
+chmod +x "$fx/is/bin/"*
+is() {
+	p=$1; shift; : >"$fx/is/log"
+	out=$(IS_LOG="$fx/is/log" HOME="$fx/is/home" XDG_CACHE_HOME="$fx/is/cache" PATH="$p:$fx/is/bin:$fx/minbin" sh tools/install.sh "$@" 2>&1; cat "$fx/is/log")
+}
+PC_MISSING='libwebp sdl2' is "$fx/pm/apt" -u
+check 'install.sh names what is missing' 'missing: sdl2 libwebp. Install the build packages first, as root:'
+check 'with the command for apt' 'apt-get install build-essential cmake ninja-build pkg-config git nodejs libnode-dev libsdl2-dev'
+PC_MISSING=sdl2 is "$fx/pm/dnf" -u; check 'and for dnf, by pkg-config module' "dnf install gcc-c++ cmake ninja-build pkgconf git nodejs nodejs-devel 'pkgconfig(sdl2)'"
+PC_MISSING=sdl2 is "$fx/pm/apk" -u; check 'and for apk' 'apk add build-base cmake samurai pkgconf git nodejs-dev linux-headers mesa-dev pc:sdl2'
+PC_MISSING=sdl2 is "$fx/pm/pacman" -u; check 'and for pacman' 'pacman -S --needed base-devel cmake ninja pkgconf git nodejs sdl2'
+PC_MISSING=sdl2 is "$fx/pm/none" -u; check 'or what to install without a known package manager' 'Install a C++ compiler, CMake, Ninja, pkg-config, git, Node.js with its'
+PC_MISSING='' is "$fx/pm/none" -u -- -DEXAMPLE=1
+check 'with everything there it builds the native add-on' 'cmake --build'
+check 'passing options after -- to CMake' '-DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DEXAMPLE=1'
+check 'and -u installs into ~/.local' "--prefix $fx/is/home/.local/lib/tuxtavern"
+out=$(cat "$fx/is/home/.local/bin/tuxtavern" 2>&1)
+check 'with a wrapper, as bin/tuxtavern finds its files from its own path' "exec \"$fx/is/home/.local/lib/tuxtavern/bin/tuxtavern\" \"\$@\""
+case $(ls "$fx/is/cache") in *tuxtavern-build*) fail=$((fail + 1)); echo "FAIL the build folder was left behind" ;; *) pass=$((pass + 1)); echo "  ok and removes its build folder" ;; esac
+PC_MISSING='' is "$fx/pm/none" --bogus; check 'an unknown option is refused' 'usage: tools/install.sh [-u | --user] [-- CMAKE_OPTIONS...]'
+
 echo "== build-mkxp-z"
 # Stand-ins that log what the script asks of them: apk, git, meson, ldd and id.
 mkdir -p "$fx/bm/bin"
@@ -133,6 +174,11 @@ require('fs').writeFileSync(process.argv[1], evb({ name: '%DEFAULT FOLDER%', chi
 	: >"$fx/lib/mkxp-z/scripts/preload/win32_wrap.rb"
 
 	out=$(PATH="/usr/bin:/bin" sh ./tuxtavern "$fx/mv" 2>&1); check 'without pmjs it says how to get it' 'MV/MZ games need pmjs'
+	out=$(PATH="$fx/pm/apk:$fx/minbin" sh ./tuxtavern "$fx/mv" 2>&1); check 'on Alpine it names the apk package script' 'MV/MZ games need pmjs (doas sh tools/apk.sh in a TuxTavern checkout)'
+	out=$(PATH="$fx/pm/apt:$fx/minbin" sh ./tuxtavern "$fx/mv" 2>&1); check 'elsewhere the install script' 'MV/MZ games need pmjs (sh tools/install.sh in a TuxTavern checkout)'
+	out=$(PATH="$fx/pm/apt:$fx/minbin" sh ./tuxtavern --edit-save "$fx/pm/file1.rpgsave" 2>&1); check 'and node is named for the package manager there: apt' '--edit-save needs node (apt-get install nodejs)'
+	out=$(PATH="$fx/pm/pacman:$fx/minbin" sh ./tuxtavern --edit-save "$fx/pm/file1.rpgsave" 2>&1); check 'pacman' '--edit-save needs node (pacman -S nodejs)'
+	out=$(PATH="$fx/minbin" sh ./tuxtavern --edit-save "$fx/pm/file1.rpgsave" 2>&1); check 'or just its name without one' '--edit-save needs node (install nodejs)'
 	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" sh ./tuxtavern "$fx/mv" 2>&1)
 	check 'an MV game is prepared from its www folder' "pmjs prepare --game $fx/mv/www --config"
 	check 'then run on Wayland, saving where NW.js does' "pmjs run --game $fx/mv/www --save-root $fx/mv/www/save driver=wayland"

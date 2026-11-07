@@ -1,6 +1,6 @@
 # TuxTavern
 
-Runs Windows RPG Maker XP/VX/VX Ace/MV/MZ games natively on Alpine Linux (musl). Wayland only.
+Runs Windows RPG Maker XP/VX/VX Ace/MV/MZ games natively on Linux (glibc or musl). Wayland only.
 No Wine, no browser.
 
 | Game | Runs on |
@@ -13,9 +13,12 @@ No Wine, no browser.
 
 ```sh
 git clone https://github.com/LBarrys/TuxTavern && cd TuxTavern
-doas sh tools/apk.sh     # builds and installs the tuxtavern package; again after each git pull
-./build-mkxp-z.sh        # XP/VX/VX Ace; removes its build files after (-s: with Alpine's libraries, faster; new)
+sh tools/install.sh      # builds and installs into /usr/local (-u: ~/.local); again after each git pull
+doas sh tools/apk.sh     # Alpine: the same, as an apk package
+./build-mkxp-z.sh        # XP/VX/VX Ace; removes its build files after (-s: with the system's libraries, faster)
 ```
+
+`install.sh` and `build-mkxp-z.sh` name the packages to install first if any are missing.
 
 ## Use
 
@@ -43,8 +46,8 @@ tuxtavern --desktop GAME          # add it to the app launcher
   `TUXTAVERN_DUMP_SCRIPTS=DIR` writes the game's scripts there, as written and as run.
 - **A shim breaks a game:** `TUXTAVERN_RGSS_SKIP=name,...` skips files in `lib/rgss/`.
 - **Faster XP/VX/VX Ace (experimental, x86-64):** `TUXTAVERN_YJIT=1 tuxtavern GAME`.
-- **Garbled Japanese file names:** `apk add icu-data-full`.
-- **Boxes instead of symbols in MV/MZ text:** `apk add font-dejavu` (or any font with them).
+- **Garbled Japanese file names:** Node.js needs full ICU data (Alpine: `apk add icu-data-full`).
+- **Boxes instead of symbols in MV/MZ text:** install DejaVu (`font-dejavu`, `fonts-dejavu`, `dejavu-sans-fonts` or `ttf-dejavu`) or any font with them.
 
 Saves stay in the game folder; everything else is in `~/.local/share/tuxtavern/` and `~/.cache/tuxtavern/`.
 

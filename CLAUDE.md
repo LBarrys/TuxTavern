@@ -1,6 +1,6 @@
 # TuxTavern
 
-Runs Windows RPG Maker XP/VX/VX Ace/MV/MZ games natively on Alpine Linux (musl). One project: the
+Runs Windows RPG Maker XP/VX/VX Ace/MV/MZ games natively on Linux (glibc or musl). One project: the
 `tuxtavern` launcher, PMJS (MV/MZ, from github.com/bbbreaddd/pmjs) and, for now, mkxp-z (XP/VX/VX Ace).
 
 ## Goals
@@ -8,7 +8,8 @@ Runs Windows RPG Maker XP/VX/VX Ace/MV/MZ games natively on Alpine Linux (musl).
 - Small, minimal, simple. Prefer the smallest change that works; don't add dependencies or layers.
 - Wayland only at run time. No X11 code paths. No Wine, no Electron or NW.js, ever.
 - Run games as NW.js (MV/MZ) or RPG Maker (XP/VX/VX Ace) would.
-- Build with what Alpine ships: no pinned compilers, no network at build time beyond sources.
+- Build with what the distribution ships: no pinned compilers, no network at build time beyond sources.
+  Alpine (musl) and glibc distributions are both first-class; name packages for each where it matters.
 - Behaviour that departs from the original, or is costly, is opt-in (a flag or variable), off by default.
 
 ## Workflow
@@ -24,9 +25,10 @@ Runs Windows RPG Maker XP/VX/VX Ace/MV/MZ games natively on Alpine Linux (musl).
 
 - Match the surrounding style; comments only where the why isn't obvious.
 - Every change gets a test that fails without it. All must pass:
-  - `sh test/launcher/run.sh` and `busybox sh test/launcher/run.sh` (launcher, `lib/`)
+  - `sh test/launcher/run.sh`, `busybox sh test/launcher/run.sh` and `dash test/launcher/run.sh` (launcher, `lib/`)
   - `npm test`, `npx eslint js runner tools test`, `ctest` (needs Xvfb)
-- `tuxtavern`, `build-mkxp-z.sh`, `tools/pmjs.sh` and `tools/apk.sh` are POSIX sh: `shellcheck` clean, run under GNU sh and BusyBox sh.
+- `tuxtavern`, `build-mkxp-z.sh`, `tools/pmjs.sh`, `tools/apk.sh` and `tools/install.sh` are POSIX sh: `shellcheck` clean, run under
+  bash, dash and BusyBox sh.
 - MV/MZ: behave like NW.js (e.g. `require`/`process` in the page, no `module`/`exports`).
 - RGSS shims loaded before the game's scripts hook with `alias_method`, never `prepend`
   (a game's later `alias` would recurse forever). `prepend` only after game scripts load.
