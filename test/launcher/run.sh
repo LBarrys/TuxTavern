@@ -127,12 +127,13 @@ EOS
 cat >"$fx/bm/bin/git" <<'EOS'
 #!/bin/sh
 case $1 in
-clone) for d; do :; done; mkdir -p "$d/src"; printf "'use_video_x11': is_unix ? 'enabled' : 'disabled'\n'use_video_kmsdrm': is_unix ? 'enabled' : 'disabled'\n" >"$d/src/meson.build" ;;
+clone) for d; do :; done; mkdir -p "$d/src"; printf "project('mkxp-z', 'c', meson_version: '>=1.4.0')\n" >"$d/meson.build"; printf "'use_video_x11': is_unix ? 'enabled' : 'disabled'\n'use_video_kmsdrm': is_unix ? 'enabled' : 'disabled'\n" >"$d/src/meson.build" ;;
 -C) echo "dev 1a2b3c4 2026-11-02" ;;
 esac
 EOS
 cat >"$fx/bm/bin/meson" <<'EOS'
 #!/bin/sh
+[ "$1" != --version ] || { echo "${MESON_VERSION:-1.4.0}"; exit; }
 echo "meson $*" >>"$BM_LOG"
 case $1 in setup) for a; do case $a in --prefix) next=1 ;; *) [ -z "${next:-}" ] || { echo "$a" >"$BM_LOG.stage"; next=; } ;; esac; done ;;
 install) st=$(cat "$BM_LOG.stage"); mkdir -p "$st/scripts/preload"; : >"$st/mkxp-z.x86_64" ;; esac
@@ -143,6 +144,7 @@ chmod +x "$fx/bm/bin/"*
 bm() { : >"$log"; out=$(BM_LOG="$log" PATH="$fx/bm/bin:$PATH" PREFIX="$fx/bm/prefix" XDG_CACHE_HOME="$fx/bm/cache" sh ./build-mkxp-z.sh "$@" 2>&1; cat "$log"); }
 bm
 check 'build-mkxp-z builds the bundled libraries by default' 'meson setup --prefix'
+check 'on Alpine it also asks for the Wayland development files the bundled SDL needs' 'pc:wayland-client pc:wayland-egl'
 case $out in *default_system*|*sdl2_image-dev*|*"apk add -q so:"*) fail=$((fail + 1)); echo "FAIL the default build changed" ;; *) pass=$((pass + 1)); echo "  ok and the default build is as it was" ;; esac
 out=$(cat "$fx/bm/prefix/lib/mkxp-z/VERSION" 2>&1); check 'it records what it built, for --info' 'dev 1a2b3c4 2026-11-02'
 bm -s
@@ -151,6 +153,31 @@ check 'installing their development files to build with' 'sdl2_image-dev'
 check 'and keeps installed the system libraries mkxp-z links to' 'apk add -q so:libSDL2-2.0.so.0 so:libc.musl-x86_64.so.1'
 case $out in *so:libruby*) fail=$((fail + 1)); echo "FAIL a library from the build folder was asked of apk" ;; *) pass=$((pass + 1)); echo "  ok but not the ones it built itself" ;; esac
 bm --system-libs --user; check 'the long forms work too' '-Ddefault_system=auto'
+# Elsewhere: stand-in build tools, no apk; pkg-config lacks the modules in $PC_MISSING.
+mkdir -p "$fx/bm2/bin"
+cp "$fx/bm/bin/git" "$fx/bm/bin/meson" "$fx/bm2/bin/"
+for t in c++ cmake ninja python3 bison ruby perl bash wayland-scanner; do printf '#!/bin/sh\n' >"$fx/bm2/bin/$t"; done
+printf '#!/bin/sh\necho "ldd $*" >>"$BM_LOG"\n' >"$fx/bm2/bin/ldd"
+printf '#!/bin/sh\ncase " $PC_MISSING " in *" $2 "*) exit 1 ;; esac\n' >"$fx/bm2/bin/pkg-config"
+chmod +x "$fx/bm2/bin/"*
+bm2() {
+	p=$1; shift; : >"$log"; rm -rf "$fx/bm/prefix"
+	out=$(BM_LOG="$log" PATH="$p:$fx/bm2/bin:$fx/minbin" PREFIX="$fx/bm/prefix" XDG_CACHE_HOME="$fx/bm/cache" sh ./build-mkxp-z.sh "$@" 2>&1; cat "$log")
+}
+PC_MISSING='xkbcommon' bm2 "$fx/pm/apt"
+check 'elsewhere it names what is missing' 'missing: xkbcommon. Install the build packages first, as root:'
+check 'with the command for apt' 'apt-get install build-essential cmake meson pkg-config python3 git bison ruby perl libwayland-dev'
+case $out in *'meson setup'*) fail=$((fail + 1)); echo "FAIL it built with packages missing" ;; *) pass=$((pass + 1)); echo "  ok without building" ;; esac
+PC_MISSING='SDL2_ttf' bm2 "$fx/pm/dnf" -s
+check 'and with -s the system libraries, by pkg-config module for dnf' "'pkgconfig(SDL2_ttf)'"
+PC_MISSING='SDL2_ttf' bm2 "$fx/pm/pacman" -s; check 'and by package for pacman' 'pacman -S --needed base-devel cmake meson pkgconf python git bison ruby perl wayland'
+PC_MISSING='' bm2 "$fx/pm/apt" -s
+check 'with everything there it builds with the system libraries' '-Ddefault_system=auto -Druby_system=disabled build'
+case $out in *'apk '*|*'ldd '*) fail=$((fail + 1)); echo "FAIL it tried to keep packages outside Alpine" ;; *) pass=$((pass + 1)); echo "  ok and leaves the packages, which are the user's, alone" ;; esac
+out=$(cat "$fx/bm/prefix/lib/mkxp-z/VERSION" 2>&1); check 'installing it as on Alpine' 'dev 1a2b3c4 2026-11-02'
+MESON_VERSION=1.3.2 PC_MISSING='' bm2 "$fx/pm/apt"
+check 'an older Meson than mkxp-z asks for is named, with how to get a newer one' 'mkxp-z needs Meson 1.4.0 or newer, and this system has 1.3.2'
+MESON_VERSION=1.10.1 PC_MISSING='' bm2 "$fx/pm/apt"; check 'versions compare by number, not as text' 'meson setup --prefix'
 bm --bogus; check 'an unknown option is refused' 'usage: ./build-mkxp-z.sh [-u | --user] [-s | --system-libs]'
 
 echo "== lib"
