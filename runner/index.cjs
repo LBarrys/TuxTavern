@@ -10,6 +10,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const { performance } = require('node:perf_hooks');
 const { createStorage, createGameFilesystem } = require('./storage.cjs');
+const { createMemoryReclaimer, memoryState } = require('./memory-reclamation.cjs');
 const { prepareAssets, validRecipes } = require('./asset-preparation.cjs');
 const hostTimers = require('node:timers');
 
@@ -527,6 +528,8 @@ async function run(input) {
     preparedFrameCacheBytes: options.preparedFrameCacheBytes,
     preparedCompactSampling: options.preparedCompactSampling,
     preparedCropUploads: options.preparedCropUploads });
+  const memoryReclaimer = createMemoryReclaimer({ native, readMemory: () => memoryState(),
+    readRss: () => process.memoryUsage.rss(), now: () => performance.now() });
   console.log(`[pmjs] startup stage=host-initialized elapsed_ms=${(performance.now() - startupStarted).toFixed(1)}`);
   if (swapDefault === 'auto') {
     const refreshRate = native.runtime.windowState ? native.runtime.windowState().refreshRate : 0;
@@ -558,6 +561,7 @@ async function run(input) {
       invalidateMaps = startup.invalidateMaps;
       native.assets.preparationStats = summarizePreparation(startup.preparation);
       if (startup.cancelled || startup.preparation.cancelled) { native.runtime.quit(); return; }
+      memoryReclaimer.atBoundary('startup');
     } else if (native.assets && typeof native.assets.installPrepared === 'function') {
       native.assets.installPrepared([]);
       if (native.assets.installDecrypted) native.assets.installDecrypted([]);
@@ -736,6 +740,12 @@ async function run(input) {
           };
           const complete = dispatcher ? dispatcher.runFrame(frame) : frame();
           complete.then(() => {
+            memoryReclaimer.poll();
+            if (memoryReclaimer.pending) {
+              // Engines without a boundary hook (MZ) still get the critical-pressure trim.
+              memoryReclaimer.atBoundary(typeof globalThis.__pmjsMemoryReclamationBoundary === 'function' ?
+                globalThis.__pmjsMemoryReclamationBoundary() : null);
+            }
             if (!timing.uncapped) {
               deadline = advanceDeadline(deadline, native.runtime.monotonicNow(), period);
             }

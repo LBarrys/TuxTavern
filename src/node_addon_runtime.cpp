@@ -6,8 +6,66 @@
 #include <cmath>
 #include <cctype>
 #include <limits>
+#include <optional>
+
+#include <dlfcn.h>
 
 namespace pmjs::addon {
+namespace {
+// glibc keeps freed memory in its arenas; malloc_trim returns it to the system (upstream PMJS
+// 4888ddb). Both are looked up at run time: musl has neither, and older glibc lacks mallinfo2.
+#if defined(__GLIBC__)
+struct AllocatorInfo {
+  std::size_t arena, ordblks, smblks, hblks, hblkhd, usmblks, fsmblks, uordblks, fordblks, keepcost;
+};
+std::optional<AllocatorInfo> allocatorInfo() {
+  using Query = AllocatorInfo (*)();
+  static const auto query = reinterpret_cast<Query>(dlsym(RTLD_DEFAULT, "mallinfo2"));
+  return query ? std::optional<AllocatorInfo>(query()) : std::nullopt;
+}
+#endif
+std::optional<int> trimAllocatorMemory(std::size_t pad) {
+#if defined(__GLIBC__)
+  using Trim = int (*)(std::size_t);
+  static const auto trim = reinterpret_cast<Trim>(dlsym(RTLD_DEFAULT, "malloc_trim"));
+  if (trim) return trim(pad);
+#else
+  (void)pad;
+#endif
+  return std::nullopt;
+}
+}
+
+// Undefined where the allocator cannot be trimmed.
+napi_value trimAllocator(napi_env env, napi_callback_info) {
+  const auto released = trimAllocatorMemory(0);
+  return released ? boolean(env, *released != 0) : undefined(env);
+}
+
+napi_value allocatorStats(napi_env env, napi_callback_info) try {
+#if defined(__GLIBC__)
+  const auto snapshot = allocatorInfo();
+  if (!snapshot) return undefined(env);
+  const auto& info = *snapshot;
+  const auto result = moduleObject(env);
+  for (const auto& [name, value] : {
+      std::pair{"arenaBytes", info.arena},
+      std::pair{"allocatedArenaBytes", info.uordblks},
+      std::pair{"freeArenaBytes", info.fordblks},
+      std::pair{"mappedBytes", info.hblkhd},
+      std::pair{"mappedChunks", info.hblks},
+      std::pair{"topReleasableBytes", info.keepcost}})
+    check(env, napi_set_named_property(env, result, name, number(env, static_cast<double>(value))),
+      "cannot set allocator statistics");
+  return result;
+#else
+  return undefined(env);
+#endif
+} catch (const std::exception& error) {
+  napi_throw_error(env, nullptr, error.what());
+  return nullptr;
+}
+
 napi_value initialize(napi_env env, napi_callback_info info) try {
   auto args = arguments(env, info, 1);
   if (args.size() != 1) throw std::runtime_error("initialize requires one options object");
@@ -678,6 +736,8 @@ void registerRuntimeBindings(napi_env env, napi_value exports) {
   method(env, exports, "swapFrame", swapFrame);
   napi_value runtime = moduleObject(env);
   method(env, runtime, "quit", quit);
+  method(env, runtime, "allocatorStats", allocatorStats);
+  method(env, runtime, "trimAllocator", trimAllocator);
   method(env, runtime, "preparationProgress", preparationProgress);
   method(env, runtime, "env", environment);
   method(env, runtime, "monotonicNow", monotonicNow);
