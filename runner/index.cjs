@@ -372,6 +372,21 @@ function createPreparationLog(details, { log = message => console.log(message), 
   };
 }
 
+// Diagnostics keep counts and scalars only: retained entry lists and callbacks would hold every
+// prepared image and map record for the whole session (upstream PMJS 4d33e10).
+function summarizePreparation(value) {
+  const summary = {};
+  for (const [key, item] of Object.entries(value || {})) {
+    if (item === null || ['number', 'boolean', 'string'].includes(typeof item)) summary[key] = item;
+    else if (Array.isArray(item)) summary[key + 'Count'] = item.length;
+  }
+  for (const key of ['maps', 'inventory', 'validation', 'activation', 'phaseMs', 'hashCategories']) {
+    const item = value?.[key];
+    if (item && typeof item === 'object' && !Array.isArray(item)) summary[key] = summarizePreparation(item);
+  }
+  return summary;
+}
+
 async function prepareStartupAssets(options, native) {
   const preparationStarted = performance.now();
   console.log(`[pmjs] preparation event=start workspace_bytes=${options.assetPreparation.workspaceBytes} ` +
@@ -539,8 +554,7 @@ async function run(input) {
       const startup = await prepareStartupAssets(options, native);
       invalidateImages = startup.invalidateImages;
       invalidateMaps = startup.invalidateMaps;
-      const { entries, decryptedEntries, releaseCacheLease, invalidateCatalog, ...preparationStats } = startup.preparation;
-      native.assets.preparationStats = preparationStats;
+      native.assets.preparationStats = summarizePreparation(startup.preparation);
       if (startup.cancelled || startup.preparation.cancelled) { native.runtime.quit(); return; }
     } else if (native.assets && typeof native.assets.installPrepared === 'function') {
       native.assets.installPrepared([]);
@@ -746,5 +760,5 @@ async function run(input) {
   }
 }
 
-module.exports = { run, gamePackage, createPreparationLog, validate, resolveDefaults, progressLines, stageProgress, stageKeyOf, parseTimingConfig, resolveSwapDefault, advanceDeadline,
+module.exports = { run, gamePackage, summarizePreparation, createPreparationLog, validate, resolveDefaults, progressLines, stageProgress, stageKeyOf, parseTimingConfig, resolveSwapDefault, advanceDeadline,
   PMJS_MV_LOGIC_HZ, PMJS_SUPPORTED_RENDER_HZ };

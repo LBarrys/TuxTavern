@@ -840,3 +840,21 @@ test('program cache uses the writable preparation root during native initializat
       path.join(options.assetCacheRoot || path.join(options.saveRoot, 'asset-cache'), 'programs'));
   }
 });
+
+test('preparation diagnostics keep counts, not entry lists or callbacks (upstream PMJS 4d33e10)', () => {
+  const { summarizePreparation } = require('../runner/index.cjs');
+  const index = { map: { source: 'map.json' } };
+  const data = { installed: 12, durationMs: 20, cancelled: false, invalidateCatalog() {}, releaseCacheLease() {},
+    entries: [{ descriptor: { cells: [1, 2, 3] } }], audioViewEntries: [{}, {}], records: { retained: true },
+    maps: { durationMs: 10, installed: 3, entries: [index], index, mapInputs: { map: index } },
+    validation: { hashedFiles: 4 } };
+  const summary = summarizePreparation(data);
+  assert.equal(summary.durationMs, 20);
+  assert.equal(summary.cancelled, false);
+  assert.equal(summary.entriesCount, 1);
+  assert.equal(summary.audioViewEntriesCount, 2);
+  assert.equal(summary.maps.installed, 3);
+  assert.equal(summary.validation.hashedFiles, 4);
+  for (const key of ['records', 'invalidateCatalog', 'releaseCacheLease', 'entries']) assert.equal(summary[key], undefined);
+  for (const key of ['mapInputs', 'index', 'entries']) assert.equal(summary.maps[key], undefined);
+});
