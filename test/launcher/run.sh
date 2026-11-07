@@ -140,6 +140,15 @@ require('fs').writeFileSync(process.argv[1], evb({ name: '%DEFAULT FOLDER%', chi
 	check 'the F8 cheat menu is loaded as a PMJS adapter' '/tuxtavern.js driver='
 	check 'and installs itself once the game plugins have loaded' "PMJS.phases.on('afterGuestPlugins', 'tuxtavern.cheats'"
 	out=$(cat "$fx"/cache/tuxtavern/pmjs/*/config.json); check 'the asset cache is in the cache folder' "\"cacheRoot\": \"$fx/cache/tuxtavern/pmjs/"
+	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" TUXTAVERN_OVERRIDES='data:.json=.pack,js/plugins:.js=.mod,data:.png=_en.png' TUXTAVERN_SAVE_DIRS='saves' sh ./tuxtavern "$fx/mv" 2>&1)
+	out=$(node -e 'for (const f of process.argv.slice(1)) { const c = JSON.parse(require("fs").readFileSync(f, "utf8")); if (c.virtualFiles) console.log(JSON.stringify(c.virtualFiles)); }' "$fx"/cache/tuxtavern/pmjs/*/config.json 2>&1)
+	check 'TUXTAVERN_OVERRIDES and TUXTAVERN_SAVE_DIRS reach the PMJS config, grouped by folder' '{"overrides":{"data":{".json":".pack",".png":"_en.png"},"js/plugins":{".js":".mod"}},"saveDirectories":["saves"]}'
+	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" TUXTAVERN_OVERRIDES='data:json=x' sh ./tuxtavern "$fx/mv" 2>&1)
+	check 'and a rule it cannot read stops the game with how to write one' 'TUXTAVERN_OVERRIDES: cannot read data:json=x (use folder:.ext=.new'
+	case $out in *'pmjs prepare'*) fail=$((fail + 1)); echo "FAIL a bad TUXTAVERN_OVERRIDES still ran the game" ;; *) pass=$((pass + 1)); echo "  ok without running it" ;; esac
+	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" sh ./tuxtavern "$fx/mv" 2>&1)
+	out=$(cat "$fx"/cache/tuxtavern/pmjs/*/config.json)
+	case $out in *virtualFiles*) fail=$((fail + 1)); echo "FAIL virtualFiles written without the variables" ;; *) pass=$((pass + 1)); echo "  ok without them the config is unchanged" ;; esac
 	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" sh ./tuxtavern -C "$fx/mv" 2>&1)
 	case $out in *--adapter*) fail=$((fail + 1)); echo "FAIL -C still loaded the cheat menu" ;; *) pass=$((pass + 1)); echo "  ok -C (--no-cheat) leaves the cheat menu out" ;; esac
 	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" TUXTAVERN_SKIP='MOD/DRGN_TranslationUI,Other' sh ./tuxtavern -C "$fx/mv" 2>&1)

@@ -58,7 +58,9 @@ scripts there), TUXTAVERN_RGSS_SKIP (shims to leave out),
 TUXTAVERN_MKXPZ_PRELOAD (mkxp-z's scripts/preload, if not found), TUXTAVERN_YJIT=1
 (XP/VX/VX Ace: try Ruby's JIT compiler; experimental, x86-64 only), TUXTAVERN_SCREENSHOTS
 (MV/MZ: F12 saves a screenshot; 1 for ~/Pictures, or a folder), TUXTAVERN_KEYS (MV/MZ:
-extra keys, e.g. wasd or w=up,e=ok,q=cancel; XP/VX/VX Ace: mkxp-z's F1). Settings for one
+extra keys, e.g. wasd or w=up,e=ok,q=cancel; XP/VX/VX Ace: mkxp-z's F1), TUXTAVERN_OVERRIDES
+(MV/MZ: a mod's files read instead of the game's, e.g. data:.json=.pack), TUXTAVERN_SAVE_DIRS
+(MV/MZ: other folders the game saves in, kept with its saves). Settings for one
 game go in its folder's tuxtavern.env, one NAME=value per line.
 EOF
 }
@@ -244,7 +246,8 @@ run_pmjs() {
 	[ -z "$www" ] || [ ! -d "$game/$www/js" ] || dir="$game/$www"
 	cache="${XDG_CACHE_HOME:-$HOME/.cache}/tuxtavern/pmjs/$id"
 	mkdir -p "$cache" || die "cannot create $cache"
-	printf '{ "assetPreparation": { "cacheRoot": %s } }\n' "$(json "$cache/assets")" >"$cache/config.json"
+	files=$(virtual_files) || exit 1
+	printf '{ "assetPreparation": { "cacheRoot": %s }%s }\n' "$(json "$cache/assets")" "$files" >"$cache/config.json"
 	set -- --game "$dir" --config "$cache/config.json"
 	skip=
 	for name in $(printf '%s' "${TUXTAVERN_SKIP:-}" | tr ',' ' '); do skip="$skip${skip:+, }$(json "$name")"; done
@@ -263,6 +266,37 @@ run_pmjs() {
 	"$pmjs" prepare "$@" >&2 || exit 1
 	export SDL_VIDEODRIVER=wayland
 	exec "$pmjs" run --game "$dir" --save-root "$dir/save"
+}
+
+# PMJS's virtualFiles, as a config member: TUXTAVERN_OVERRIDES (folder:.ext=.new,..., a mod's file
+# read instead of the game's when present) and TUXTAVERN_SAVE_DIRS (folders kept with the saves).
+virtual_files() {
+	[ -n "${TUXTAVERN_OVERRIDES:-}${TUXTAVERN_SAVE_DIRS:-}" ] || return 0
+	printf '%s\n%s\n' "${TUXTAVERN_OVERRIDES:-}" "${TUXTAVERN_SAVE_DIRS:-}" | awk '
+		function str(s) { gsub(/[\\"]/, "\\\\&", s); return "\"" s "\"" }
+		NR == 1 && $0 != "" {
+			n = split($0, rules, ",")
+			for (i = 1; i <= n; i++) {
+				r = rules[i]; c = index(r, ":"); e = index(r, "=")
+				if (!c || e < c + 3 || substr(r, c + 1, 1) != "." || e == length(r)) {
+					print "tuxtavern: TUXTAVERN_OVERRIDES: cannot read " r " (use folder:.ext=.new, e.g. data:.json=.pack)" >"/dev/stderr"; bad = 1; continue
+				}
+				dir = substr(r, 1, c - 1)
+				if (!(dir in seen)) { seen[dir] = 1; dirs[++count] = dir }
+				rule[dir] = rule[dir] (rule[dir] == "" ? "" : ", ") str(substr(r, c + 1, e - c - 1)) ": " str(substr(r, e + 1))
+			}
+		}
+		NR == 2 && $0 != "" {
+			n = split($0, list, ",")
+			for (i = 1; i <= n; i++) saves = saves (saves == "" ? "" : ", ") str(list[i])
+		}
+		END {
+			if (bad) exit 1
+			for (i = 1; i <= count; i++) over = over (i > 1 ? ", " : "") str(dirs[i]) ": { " rule[dirs[i]] " }"
+			out = (over == "" ? "" : "\"overrides\": { " over " }")
+			if (saves != "") out = out (out == "" ? "" : ", ") "\"saveDirectories\": [" saves "]"
+			printf ", \"virtualFiles\": { %s }", out
+		}'
 }
 
 # The one PMJS adapter: the plugins to leave out ($1, JSON strings), switched off before any
