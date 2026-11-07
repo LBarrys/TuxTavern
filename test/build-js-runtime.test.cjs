@@ -434,6 +434,8 @@ test('a standalone source copy builds without the surrounding workspace', () => 
   const root = temporaryDirectory('pmjs-standalone-');
   const clone = path.join(root, 'runtime');
   for (const directory of ['js']) fs.cpSync(path.join(__dirname, '..', directory), path.join(clone, directory), { recursive: true });
+  fs.mkdirSync(path.join(clone, 'runner'));
+  fs.copyFileSync(path.join(__dirname, '../runner/file-overrides.cjs'), path.join(clone, 'runner/file-overrides.cjs'));
   fs.mkdirSync(path.join(clone, 'tools'));
   for (const file of ['build-js-runtime.mjs', 'game-inspect.mjs']) fs.copyFileSync(path.join(__dirname, '../tools', file), path.join(clone, 'tools', file));
   const game = writeMvGame(root, { plugins: [{ name: 'YED_Tiled', status: true }] });

@@ -8,6 +8,7 @@ const vm = require('node:vm');
 const { performance } = require('node:perf_hooks');
 const { acquireLock, createLease, retainLeases } = require('./preparation-lifetime.cjs');
 const { preparationFiles, writeJson } = require('./preparation-files.cjs');
+const { resolveFileOverride } = require('./file-overrides.cjs');
 const { catalogInvalidator, readCatalog, publishCatalog, checksum, retainedCatalogKeys } = require('./preparation-catalog.cjs');
 const { COMPILER_VERSION, mapContract, geometryEstimate, engineTilemap, compileRpgMap, compileTiledMap } = require('./map-demand.cjs');
 const hash = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
@@ -78,10 +79,14 @@ async function validateEntry(directory, key, files) {
   } catch (_) { return null; }
 }
 
-function gameInputs(native) {
+function gameInputs(native, virtualFiles) {
   if (!native.fs || typeof native.fs.readBytes !== 'function' || typeof native.fs.readDirectory !== 'function')
     throw new Error('game filesystem unavailable for map preparation');
+  function resolve(logical) {
+    return resolveFileOverride(logical, virtualFiles.overrides || {}, source => native.fs.exists(source)) || logical;
+  }
   function read(logical) {
+    logical = resolve(logical);
     const file = native.assets.sourcePath(logical), sourceIdentity = native.assets.sourceIdentity(logical);
     const contents = native.fs.readBytes(logical);
     if (!file || contents === null) throw new Error('missing game input '+logical);
@@ -91,7 +96,7 @@ function gameInputs(native) {
       throw new Error('game input changed while reading '+logical);
     return { bytes, dependency: { logical, file, sourceIdentity: capturedIdentity, hash: hash(bytes) } };
   }
-  return { read, exists: logical => native.fs.exists(logical),
+  return { read, exists: logical => native.fs.exists(resolve(logical)),
     directory: logical => native.fs.readDirectory(logical) || [] };
 }
 async function engineContract(game, mz) {
@@ -136,7 +141,7 @@ async function ordinaryUpperBound(inputs, renderer, files) {
 
 async function prepareMaps({ gameRoot, cacheRoot, native, width = 816, height = 624,
   shouldCancel = () => false, onProgress = () => {}, logger = console, verifyRegions = false, verifyHashes = false,
-  preparationContext = 'live' }) {
+  preparationContext = 'live', virtualFiles = {} }) {
   if (!['live', 'offline'].includes(preparationContext)) throw new Error('invalid preparation context');
   const offline = preparationContext === 'offline';
   const started = performance.now(), root = path.join(cacheRoot, 'maps');
@@ -222,7 +227,7 @@ async function prepareMaps({ gameRoot, cacheRoot, native, width = 816, height = 
       if (shouldCancel()) { result.cancelled = true; return result; }
     }
     report('discover', '', 0, 0);
-    const game = gameInputs(native), mz = game.exists('js/rmmz_core.js');
+    const game = gameInputs(native, virtualFiles), mz = game.exists('js/rmmz_core.js');
     const systemInput = game.read('data/System.json'), sheetsInput = game.read('data/Tilesets.json');
     const system = JSON.parse(systemInput.bytes), sheets = JSON.parse(sheetsInput.bytes);
     const contract = await engineContract(game, mz);

@@ -405,3 +405,16 @@ test('provably unprofitable geometry avoids native packing and snapshots; uncert
   const ordinary = fixture(t), accepted = await prepareMaps(ordinary);
   assert.equal(accepted.earlyRefusals, 0); assert.equal(ordinary.jobs, 1); assert.equal(accepted.installed, 1);
 });
+
+test('map overrides are prepared from the mod file (upstream PMJS dd3f2f2)', async t => {
+  const f = fixture(t);
+  f.virtualFiles = { overrides: { data: { '.json': '.pack' } } };
+  fs.writeFileSync(path.join(f.gameRoot, 'data/Map001.pack'), JSON.stringify(f.map));
+  fs.writeFileSync(path.join(f.gameRoot, 'data/Map001.json'), 'invalid base map');
+  const first = await prepareMaps(f);
+  assert.equal(first.error, undefined);
+  assert.equal(first.selected, 1);
+  f.map.data[1] = 2;
+  fs.writeFileSync(path.join(f.gameRoot, 'data/Map001.pack'), JSON.stringify(f.map));
+  assert.equal((await prepareMaps(f)).generated, 1, 'the override content is part of the preparation identity');
+});

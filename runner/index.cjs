@@ -22,6 +22,7 @@ function resolveDefaults(input) {
   let preparedCompactSampling = input.preparedCompactSampling;
   let preparedCropUploads = input.preparedCropUploads;
   let preparationFonts = [];
+  let virtualFiles = input.virtualFiles;
   let configDirectory = process.cwd();
   let fullscreen = false;
 
@@ -41,6 +42,7 @@ function resolveDefaults(input) {
       preparationFonts = Object.values(cfg.fonts).flat().filter(font => typeof font === 'string');
     }
     assertDisableOptimizationsShape(cfg.disableOptimizations, configPath);
+    if (virtualFiles === undefined) virtualFiles = cfg.virtualFiles;
     configDirectory = path.dirname(configPath);
     if (cfg.assetPreparation !== undefined) assetPreparation = cfg.assetPreparation;
     if (preparedFrameCacheBytes === undefined) preparedFrameCacheBytes = cfg.preparedFrameCacheBytes;
@@ -118,7 +120,7 @@ function resolveDefaults(input) {
   assetPreparation.recipes = validRecipes(assetPreparation.recipes || []);
   // The window NW.js would open: filling the screen instead stretches and blurs the game.
   const windowSize = fullscreen ? null : width + 'x' + height;
-  return { ...input, width, height, title, windowSize, assetPreparation, preparationFonts,
+  return { ...input, width, height, title, windowSize, assetPreparation, preparationFonts, virtualFiles,
     preparedFrameCacheBytes, preparedCompactSampling, preparedCropUploads };
 }
 
@@ -454,7 +456,7 @@ async function prepareStartupAssets(options, native) {
       current = { phase: 'map-discover', completed: 0, total: 0 };
       preparation.maps = await prepareMaps({ gameRoot: options.gameRoot,
         cacheRoot: options.assetPreparation.cacheRoot, native, width: options.width, height: options.height,
-        verifyHashes: options.assetPreparation.verifyHashes,
+        verifyHashes: options.assetPreparation.verifyHashes, virtualFiles: options.virtualFiles || {},
         shouldCancel: () => cancelled, onProgress: progress => {
           activeLog.progress(progress); current = progress;
           try { showProgress(); }

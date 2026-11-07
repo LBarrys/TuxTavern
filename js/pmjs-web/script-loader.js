@@ -55,6 +55,7 @@
       });
     };
     NativeHost.runtime.loadScript = function(path) {
+      if (typeof gameReadPath === 'function') path = gameReadPath(path);
       var script = {
         src: resolveScriptVirtualSrc(path)
       };
