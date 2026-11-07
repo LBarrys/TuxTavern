@@ -19,7 +19,7 @@ doas sh tools/apk.sh     # Alpine: the same, as an apk package
                          # needs Meson 1.4 or newer (pipx install meson where the system's is older)
 ```
 
-`install.sh` and `build-mkxp-z.sh` name the packages to install first if any are missing.
+`install.sh` and `build-mkxp-z.sh` name the packages to install first if any are missing. MV/MZ need Node.js 18 or newer.
 
 ## Use
 

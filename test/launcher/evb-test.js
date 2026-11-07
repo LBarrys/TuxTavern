@@ -3,6 +3,16 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const zlib = require('zlib');
+// zlib.crc32 is Node 20.15 and 22.2 or newer; Ubuntu 24.04 ships Node 18.
+const crcTable = Int32Array.from({ length: 256 }, (_, n) => {
+  for (let k = 0; k < 8; k++) n = n >>> 1 ^ (n & 1 ? 0xedb88320 : 0);
+  return n;
+});
+const crc32 = zlib.crc32 || (data => {
+  let c = -1;
+  for (let i = 0; i < data.length; i++) c = c >>> 8 ^ crcTable[(c ^ data[i]) & 255];
+  return (c ^ -1) >>> 0;
+});
 const { aplib, unpack, unzip, isNwPackage } = require('../../lib/evb.js');
 
 function pack(data) {
@@ -85,7 +95,7 @@ function zip(files, zip64 = false) {
     const body = method === 8 ? zlib.deflateRawSync(data) : data;
     const flags = f.utf8 ? 0x800 : 0;
     const lh = Buffer.alloc(30);
-    lh.writeUInt32LE(0x04034b50, 0); lh.writeUInt16LE(flags, 6); lh.writeUInt16LE(method, 8); lh.writeUInt32LE(zlib.crc32(data), 14);
+    lh.writeUInt32LE(0x04034b50, 0); lh.writeUInt16LE(flags, 6); lh.writeUInt16LE(method, 8); lh.writeUInt32LE(crc32(data), 14);
     lh.writeUInt32LE(body.length, 18); lh.writeUInt32LE(f.usize ?? data.length, 22); lh.writeUInt16LE(name.length, 26);
     locals.push(lh, name, body);
     const extra = Buffer.alloc(zip64 ? 28 : 0);
@@ -95,7 +105,7 @@ function zip(files, zip64 = false) {
     }
     const big = v => (zip64 ? 0xffffffff : v);
     const ch = Buffer.alloc(46);
-    ch.writeUInt32LE(0x02014b50, 0); ch.writeUInt16LE(flags, 8); ch.writeUInt16LE(method, 10); ch.writeUInt32LE(f.crc ?? zlib.crc32(data), 16);
+    ch.writeUInt32LE(0x02014b50, 0); ch.writeUInt16LE(flags, 8); ch.writeUInt16LE(method, 10); ch.writeUInt32LE(f.crc ?? crc32(data), 16);
     ch.writeUInt32LE(big(body.length), 20); ch.writeUInt32LE(big(f.usize ?? data.length), 24);
     ch.writeUInt16LE(name.length, 28); ch.writeUInt16LE(extra.length, 30); ch.writeUInt32LE(big(offset), 42);
     central.push(ch, name, extra);

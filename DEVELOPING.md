@@ -8,6 +8,8 @@ Any distribution: `sh tools/install.sh` (`-u` for `~/.local`; CMake options afte
 release and installs it under `PREFIX/lib/tuxtavern` with a `PREFIX/bin/tuxtavern` wrapper. If build
 packages are missing it prints the install command for apk, apt-get, dnf, zypper or pacman.
 
+Node.js 18 (Ubuntu 24.04's) is the oldest tested; the suites run on 18 and 22.
+
 Alpine, as a package rebuilt and upgraded after each `git pull`: `doas sh tools/apk.sh` (installs
 `tuxtavern@busylinux`, PMJS and the launcher, signed with `/root/keys/local.rsa`, as BusyLinux's `update.sh` does). By hand:
 
