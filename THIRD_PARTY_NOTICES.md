@@ -15,6 +15,7 @@ PMJS's MIT license covers its own contributions, not third-party material.
 | Zoom blur fixture | pixi-filters 3.1.0 | MIT; `test/assets/pixi-filters/LICENSE` |
 | Fallback and test font | Liberation Sans 2.1.5, renamed subset | SIL-OFL-1.1; `js/pmjs-web/fallback-font.LICENSE`, `test/assets/testfont.LICENSE` |
 | Text shaping font | DejaVu 2.37, renamed PMJS Text Test | Bitstream-Vera, Arev terms and public-domain DejaVu changes; `test/assets/text-shaping.LICENSE` |
+| mkxp-z (XP/VX/VX Ace runtime), in `mkxp-z/` | [mkxp-z](https://github.com/mkxp-z/mkxp-z), commit in `mkxp-z/git-hash` | GPL-2.0-or-later; `mkxp-z/COPYING`. Its Liberation Sans is SIL-OFL-1.1 and `gamecontrollerdb.txt` is Zlib (SDL_GameControllerDB) |
 | Host HarfBuzz | Build-dependent | MIT-style terms; `third_party/harfbuzz.LICENSE` |
 
 This software is based in part on the work of the FreeType Team.
