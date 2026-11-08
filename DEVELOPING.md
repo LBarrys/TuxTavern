@@ -4,35 +4,16 @@ Run the commands from the repository root.
 
 ## Build
 
-Any distribution: `sh tools/install.sh` (`-u` for `~/.local`; CMake options after `--`) builds a
-release and installs it under `PREFIX/lib/tuxtavern` with a `PREFIX/bin/tuxtavern` wrapper. If build
-packages are missing it prints the install command for apk, apt-get, dnf, zypper or pacman.
-
-Node.js 18 (Ubuntu 24.04's) is the oldest tested; the suites run on 18 and 22.
+Any distribution: `sh tools/install.sh` (`-u` for `~/.local`, `-m` with mkxp-z; CMake options after
+`--`) builds a release and installs it under `PREFIX/lib/tuxtavern` with a `PREFIX/bin/tuxtavern`
+wrapper (`bin/tuxtavern` and `bin/pmjs` find their files from their own path, so not a symlink; do not
+strip them: PMJS checks them against `build-info.json`). Missing build packages stop it with the install
+command for apk, apt-get, dnf, zypper or pacman; the tests also need Xvfb (`xvfb xauth` on Debian).
 
 Alpine, as a package rebuilt and upgraded after each `git pull`: `doas sh tools/apk.sh` (installs
-`tuxtavern@busylinux`, PMJS and the launcher, signed with `/root/keys/local.rsa`, as BusyLinux's `update.sh` does). By hand:
+`tuxtavern@busylinux`, signed with `/root/keys/local.rsa`, as BusyLinux's `update.sh` does).
 
-```sh
-doas apk add build-base cmake samurai pkgconf git nodejs-dev linux-headers \
-  pc:sdl2 mesa-dev libpng-dev libwebp-dev zlib-dev libjpeg-turbo-dev \
-  freetype-dev harfbuzz-dev lz4-dev ffmpeg-dev
-cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
-cmake --build build --target pmjs_native
-cmake --install build --prefix /usr/lib/pmjs
-```
-
-`/usr/lib/pmjs/bin/pmjs` finds its files from its own path: put it on `PATH` with a small
-script (`exec /usr/lib/pmjs/bin/pmjs "$@"`), not a symlink. Do not strip the installed files.
-
-Ubuntu 24.04 (the tests also need `xvfb xauth`; `tools/install.sh` has the Fedora, openSUSE and Arch lists):
-
-```sh
-sudo apt-get install build-essential cmake ninja-build pkg-config git nodejs libnode-dev \
-  libsdl2-dev libegl-dev libgles-dev libpng-dev libwebp-dev zlib1g-dev libjpeg-dev libfreetype-dev \
-  libharfbuzz-dev liblz4-dev libavformat-dev libavcodec-dev libavutil-dev libswresample-dev \
-  libswscale-dev xvfb xauth
-```
+Node.js 18 (Ubuntu 24.04's) is the oldest tested; the suites run on 18 and 22.
 
 ## Tests
 
@@ -106,7 +87,7 @@ MZ 1.10.0/Pixi 5.3.12; MV on Pixi 7.4.2 (pixi-rpgm, as in Karryn's Prison) is ne
 | `PMJS_PRESENT_FILTER` | `nearest`, `linear` or `sharp` |
 | `PMJS_EXIT_HOTKEY` | SDL controller button that quits, or `none` |
 | `PMJS_DEFER_IMAGES` | `1` always decode images later, `0` never; unset: only in load bursts |
-| `PMJS_PREPARED_FRAME_CACHE_BYTES` | Prepared frame cache size (default 4 MiB) |
+| `PMJS_PREPARED_FRAME_CACHE_BYTES` | Prepared frame cache size (default 32 MiB) |
 | `PMJS_DISABLE_OPT=id,…` | Turn off named optimisations |
 | `PMJS_IMAGE_CACHE_IDLE=SECONDS` | MV: drop cached images unused that long (stock MV keeps them until the cache is full) |
 | `PMJS_OPT_DIAGNOSTICS=1`, `PMJS_BOOT_DIAGNOSTICS=1` | List optimisation decisions; also boot steps |

@@ -26,7 +26,7 @@ depends="$depends ffmpeg-libavformat ffmpeg-libavcodec ffmpeg-libavutil ffmpeg-l
 makedepends="build-base cmake samurai pkgconf git nodejs-dev linux-headers pc:sdl2 mesa-dev
   libpng-dev libwebp-dev zlib-dev libjpeg-turbo-dev freetype-dev harfbuzz-dev lz4-dev ffmpeg-dev openssl"
 # mkxp-z: Meson and what its own Ruby 3.1 builds with, and the libraries it uses from Alpine (or,
-# with -M, the Wayland files its own SDL needs).
+# with -M, the Wayland files its own SDL needs). Keep in step with install.sh's mkxpz lists.
 case $mkxpz in
 system) makedepends="$makedepends meson python3 bison ruby perl bash sdl2_image-dev sdl2_ttf-dev openal-soft-dev
   physfs-dev libogg-dev libvorbis-dev libtheora-dev fluidsynth-dev pixman-dev openssl-dev yaml-dev libffi-dev uchardet-dev" ;;
