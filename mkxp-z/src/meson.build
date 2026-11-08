@@ -827,22 +827,24 @@ global_dependencies += sdl2_ttf
 
 if sdl2_ttf.type_name() == 'internal'
     global_args += '-DMKXPZ_TTF_FONT=_TTF_Font'
+# TuxTavern: font.h forward-declares `struct MKXPZ_TTF_FONT`, so this is the struct tag. SDL_ttf 2.x
+# has `typedef struct _TTF_Font TTF_Font`; checking `TTF_Font *` first chose the typedef there.
 elif meson.get_compiler('c').compiles('''
     #include <SDL_ttf.h>
     int main(void) {
-        TTF_Font *font = TTF_OpenFont("", 0);
-        return font != NULL;
-    }
-''', name: 'TTF_Font test', dependencies: sdl2_ttf)
-    global_args += '-DMKXPZ_TTF_FONT=TTF_Font'
-elif meson.get_compiler('c').compiles('''
-    #include <SDL_ttf.h>
-    int main(void) {
-        _TTF_Font *font = TTF_OpenFont("", 0);
+        struct _TTF_Font *font = TTF_OpenFont("", 0);
         return font != NULL;
     }
 ''', name: '_TTF_Font test', dependencies: sdl2_ttf)
     global_args += '-DMKXPZ_TTF_FONT=_TTF_Font'
+elif meson.get_compiler('c').compiles('''
+    #include <SDL_ttf.h>
+    int main(void) {
+        struct TTF_Font *font = TTF_OpenFont("", 0);
+        return font != NULL;
+    }
+''', name: 'TTF_Font test', dependencies: sdl2_ttf)
+    global_args += '-DMKXPZ_TTF_FONT=TTF_Font'
 else
     error('failed to determine the name of the TTF_Font type')
 endif

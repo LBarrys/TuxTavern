@@ -172,6 +172,26 @@ out=$(PATH="$fx/minbin" XDG_DATA_HOME="$fx/inst/data" WAYLAND_DISPLAY=wayland-0 
 out=$(PATH="$fx/pm/apt:$fx/minbin" sh ./tuxtavern -i "$fx/inst/xp" 2>&1); check 'without one it says how to get it' 'runtime: mkxp-z not installed (sh tools/install.sh -m in a TuxTavern checkout)'
 out=$(PATH="$fx/pm/apk:$fx/minbin" WAYLAND_DISPLAY=wayland-0 sh ./tuxtavern "$fx/inst/xp" 2>&1); check 'on Alpine through the package script' 'XP/VX/VX Ace games need mkxp-z (doas sh tools/apk.sh -m in a TuxTavern checkout)'
 
+echo "== mkxp-z/"
+# mkxp-z's src/meson.build names SDL_ttf's font struct by the first check that compiles, and font.h
+# forward-declares `struct MKXPZ_TTF_FONT`, so the name must be the struct tag (SDL_ttf 2.x: _TTF_Font).
+if pkg-config --exists SDL2_ttf 2>/dev/null && command -v cc >/dev/null && command -v c++ >/dev/null; then
+	# The names the checks choose, in order (the first line is for mkxp-z's own SDL_ttf).
+	names=$(sed -n "s/.*global_args += '-DMKXPZ_TTF_FONT=\([A-Za-z_]*\)'.*/\1/p" mkxp-z/src/meson.build | tail -n +2)
+	name='' i=0
+	for n in $names; do
+		i=$((i + 1))
+		awk -v want=$i "/compiles\\('''/ { k++; grab = (k == want); next } grab && /^''', name:/ { exit } grab { print }" mkxp-z/src/meson.build >"$fx/ttf.c"
+		# shellcheck disable=SC2046
+		if cc -c -o /dev/null $(pkg-config --cflags SDL2_ttf) "$fx/ttf.c" 2>/dev/null; then name=$n; break; fi
+	done
+	printf '#include <SDL_ttf.h>\nstruct %s;\nint main() { %s *font = TTF_OpenFont("", 0); return font != 0; }\n' "$name" "$name" >"$fx/ttf.cpp"
+	# shellcheck disable=SC2046
+	if [ -n "$name" ] && c++ -c -o /dev/null $(pkg-config --cflags SDL2_ttf) "$fx/ttf.cpp" 2>/dev/null; then
+		pass=$((pass + 1)); echo "  ok mkxp-z names this SDL_ttf's font type by its struct tag ($name), as font.h needs"
+	else fail=$((fail + 1)); echo "FAIL mkxp-z's SDL_ttf check picks '$name', which font.h cannot forward-declare"; fi
+else echo "  skip SDL2_ttf development files are not installed"; fi
+
 echo "== lib"
 if command -v node >/dev/null 2>&1; then
 	for t in test/launcher/*-test.js; do
