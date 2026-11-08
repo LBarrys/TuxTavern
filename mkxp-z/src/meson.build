@@ -460,8 +460,9 @@ if not sdl2.found() or not sdl2main.found()
         'use_threads': 'enabled',
         'use_timers': 'enabled',
         'use_video': 'enabled',
-        'use_video_kmsdrm': is_unix ? 'enabled' : 'disabled',
-        'use_video_x11': is_unix ? 'enabled' : 'disabled',
+        # TuxTavern: Wayland only, no X11 or KMS/DRM backend.
+        'use_video_kmsdrm': 'disabled',
+        'use_video_x11': 'disabled',
         'use_video_wayland': is_unix ? 'enabled' : 'disabled',
         'use_video_wayland_libdecor': is_unix ? 'enabled' : 'disabled',
         'use_video_opengl': 'enabled',

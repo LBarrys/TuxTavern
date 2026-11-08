@@ -1,2 +1,4 @@
 # Lines starting with # and empty lines are ignored.
 # This file can be used to specify a value for the Git hash if the source code is not in a Git repository.
+# TuxTavern: the upstream commit mkxp-z/ is based on (its own changes are in TuxTavern's history).
+f02d586624dc53de373889cc16d9b1516da0a3a5
