@@ -20,9 +20,15 @@ pkg_cmd() {
 }
 # How to install TuxTavern's MV/MZ runtime from a checkout.
 pmjs_hint() { if have apk; then printf 'doas sh tools/apk.sh'; else printf 'sh tools/install.sh'; fi; }
+# And mkxp-z, built by the same scripts.
+mkxpz_hint() { printf '%s -m' "$(pmjs_hint)"; }
 # An install keeps pmjs beside this script.
 pmjs=$here/pmjs
 [ -x "$pmjs" ] || pmjs=$(command -v pmjs 2>/dev/null || true)
+# And mkxp-z in lib/mkxp-z (install.sh -m); otherwise one on PATH.
+mkxpz=
+for f in "$here"/../lib/mkxp-z/mkxp-z.*; do [ -f "$f" ] && [ -x "$f" ] && mkxpz=$(cd "${f%/*}" && pwd -P)/${f##*/}; done
+[ -n "$mkxpz" ] || mkxpz=$(command -v mkxp-z 2>/dev/null || true)
 ci_glob() { printf '%s\n' "$1" | awk '{ for (i = 1; i <= length($0); i++) { c = substr($0, i, 1); u = toupper(c); l = tolower(c); printf "%s", (u != l ? "[" l u "]" : c) } }'; }
 find_ci() {
 	# shellcheck disable=SC2046
@@ -153,8 +159,8 @@ fi
 
 mkxp_preload_dir() {
 	[ -z "${TUXTAVERN_MKXPZ_PRELOAD:-}" ] || { echo "$TUXTAVERN_MKXPZ_PRELOAD"; return 0; }
-	m=$(command -v mkxp-z 2>/dev/null) || return 1
-	m=$(dirname "$(readlink -f "$m")")
+	[ -n "$mkxpz" ] || return 1
+	m=$(dirname "$(readlink -f "$mkxpz")")
 	for p in "$m/../lib/mkxp-z/scripts/preload" "$m/scripts/preload"; do
 		[ -f "$p/win32_wrap.rb" ] && { (cd "$p" && pwd -P); return 0; }
 	done
@@ -199,11 +205,11 @@ info)
 	evb) echo "packed:  $(basename "$packed") ($(packed_exe >/dev/null; echo "$packing")), unpacked on first run to $unpacked" ;;
 	nwjs-zip) echo "packed:  $(find_ci package.nw), unpacked on first run to $unpacked" ;;
 	rgss)
-		if have mkxp-z; then
-			# build-mkxp-z.sh records what it built beside the preload scripts.
+		if [ -n "$mkxpz" ]; then
+			# tools/mkxp-z.sh records what it built beside the preload scripts.
 			built=$(cat "$(mkxp_preload_dir || echo /nonexistent)/../../VERSION" 2>/dev/null || true)
-			echo "runtime: $(command -v mkxp-z)${built:+ ($built)}"
-		else echo "runtime: mkxp-z not installed (./build-mkxp-z.sh)"
+			echo "runtime: $mkxpz${built:+ ($built)}"
+		else echo "runtime: mkxp-z not installed ($(mkxpz_hint) in a TuxTavern checkout)"
 		fi
 		echo "config:  written by tuxtavern to $data/mkxp/$id"
 		[ -z "$(game_mkxp)" ] || echo "         merged with the game's $(game_mkxp)"
@@ -365,7 +371,7 @@ nwjs-zip | evb)
 	export TUXTAVERN_GAME_DIR="$game"
 	exec sh "$self" ${test:+--test} ${nocheat:+--no-cheat} "$unpacked" ;;
 rgss)
-	have mkxp-z || die "XP/VX/VX Ace games need mkxp-z (./build-mkxp-z.sh builds it)"
+	[ -n "$mkxpz" ] || die "XP/VX/VX Ace games need mkxp-z ($(mkxpz_hint) in a TuxTavern checkout)"
 	pre=$(mkxp_preload_dir || true)
 	[ -z "$pre" ] || export TUXTAVERN_MKXPZ_PRELOAD="$pre"
 	scripts=$(find_ci 'data/scripts.r*data*')
@@ -397,6 +403,6 @@ rgss)
 	fi
 	cd "$conf"
 	export SDL_VIDEODRIVER=wayland SRCDIR="$conf" TUXTAVERN_SHIM_DIR="$lib/rgss" TUXTAVERN_RGSS_VERSION="$rgss" TUXTAVERN_CHEAT="$cheat"
-	if [ -n "$test" ]; then exec mkxp-z test; else exec mkxp-z; fi ;;
+	if [ -n "$test" ]; then exec "$mkxpz" test; else exec "$mkxpz"; fi ;;
 *) die "no RPG Maker XP/VX/VX Ace/MV/MZ game found in $game" ;;
 esac

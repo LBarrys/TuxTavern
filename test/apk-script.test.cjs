@@ -88,3 +88,16 @@ test('apk.sh packages the checkout and installs it from the local repository', {
   assert.deepEqual(fs.readdirSync(path.join(root, 'state', 'var', 'tmp')), [], 'build files go');
   fs.rmSync(root, { recursive: true });
 });
+
+test('apk.sh -m builds mkxp-z with Alpine libraries and depends on what it links to', () => {
+  const text = fs.readFileSync(script, 'utf8');
+  const system = text.match(/system\) makedepends="([^"]*)"/)[1];
+  for (const pkg of ['meson', 'ruby', 'bison', 'sdl2_image-dev', 'sdl2_ttf-dev', 'openal-soft-dev', 'physfs-dev', 'fluidsynth-dev'])
+    assert.match(system, new RegExp(`(^|\\s)${pkg}(\\s|$)`), pkg);
+  assert.match(text.match(/bundled\) makedepends="([^"]*)"/)[1], / wayland-dev /);
+  assert.match(text, /sh "\$src\/tools\/mkxp-z.sh" "\$WORK\/mkxp-z" --bundled/);
+  assert.match(text, /depends="\$depends \$\(ldd "\$exe"/);
+  const usage = spawnSync('sh', [script, '--bogus'], { encoding: 'utf8' });
+  assert.equal(usage.status, 1);
+  assert.match(usage.stderr, /usage: .*apk\.sh \[-m \| --mkxp-z \| -M \| --mkxp-z-bundled\]/);
+});

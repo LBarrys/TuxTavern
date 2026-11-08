@@ -113,72 +113,64 @@ check 'and -u installs into ~/.local' "--prefix $fx/is/home/.local/lib/tuxtavern
 out=$(cat "$fx/is/home/.local/bin/tuxtavern" 2>&1)
 check 'with a wrapper, as bin/tuxtavern finds its files from its own path' "exec \"$fx/is/home/.local/lib/tuxtavern/bin/tuxtavern\" \"\$@\""
 case $(ls "$fx/is/cache") in *tuxtavern-build*) fail=$((fail + 1)); echo "FAIL the build folder was left behind" ;; *) pass=$((pass + 1)); echo "  ok and removes its build folder" ;; esac
-PC_MISSING='' is "$fx/pm/none" --bogus; check 'an unknown option is refused' 'usage: tools/install.sh [-u | --user] [-- CMAKE_OPTIONS...]'
+PC_MISSING='' is "$fx/pm/none" --bogus; check 'an unknown option is refused' 'usage: tools/install.sh [-u | --user] [-m | --mkxp-z | -M | --mkxp-z-bundled] [-- CMAKE_OPTIONS...]'
 
-echo "== build-mkxp-z"
-# Stand-ins that log what the script asks of them: apk, git, meson, ldd and id.
-mkdir -p "$fx/bm/bin"
-log="$fx/bm/log"
-cat >"$fx/bm/bin/apk" <<'EOS'
-#!/bin/sh
-echo "apk $*" >>"$BM_LOG"
-[ "$1 $2" != "info -e" ] || case $3 in pc:*|*-dev) exit 1 ;; esac
-EOS
-cat >"$fx/bm/bin/git" <<'EOS'
-#!/bin/sh
-case $1 in
-clone) for d; do :; done; mkdir -p "$d/src"; printf "project('mkxp-z', 'c', meson_version: '>=1.4.0')\n" >"$d/meson.build"; printf "'use_video_x11': is_unix ? 'enabled' : 'disabled'\n'use_video_kmsdrm': is_unix ? 'enabled' : 'disabled'\n" >"$d/src/meson.build" ;;
--C) echo "dev 1a2b3c4 2026-11-02" ;;
-esac
-EOS
-cat >"$fx/bm/bin/meson" <<'EOS'
+echo "== tools/mkxp-z.sh"
+# A stand-in meson that logs what it is asked and installs an executable into its --prefix.
+mkdir -p "$fx/mz/bin"
+cat >"$fx/mz/bin/meson" <<'EOF'
 #!/bin/sh
 [ "$1" != --version ] || { echo "${MESON_VERSION:-1.4.0}"; exit; }
-echo "meson $*" >>"$BM_LOG"
-case $1 in setup) for a; do case $a in --prefix) next=1 ;; *) [ -z "${next:-}" ] || { echo "$a" >"$BM_LOG.stage"; next=; } ;; esac; done ;;
-install) st=$(cat "$BM_LOG.stage"); mkdir -p "$st/scripts/preload"; : >"$st/mkxp-z.x86_64" ;; esac
-EOS
-printf '#!/bin/sh\necho "\tlibSDL2-2.0.so.0 => /usr/lib/libSDL2-2.0.so.0 (0x1)"\necho "\tlibruby.so.3.1 => /tmp/stage/lib/libruby.so.3.1 (0x2)"\necho "\tlibc.musl-x86_64.so.1 => /lib/ld-musl-x86_64.so.1 (0x3)"\necho "\t/lib/ld-musl-x86_64.so.1 (0x4)"\n' >"$fx/bm/bin/ldd"
-printf '#!/bin/sh\necho 0\n' >"$fx/bm/bin/id"
-chmod +x "$fx/bm/bin/"*
-bm() { : >"$log"; out=$(BM_LOG="$log" PATH="$fx/bm/bin:$PATH" PREFIX="$fx/bm/prefix" XDG_CACHE_HOME="$fx/bm/cache" sh ./build-mkxp-z.sh "$@" 2>&1; cat "$log"); }
-bm
-check 'build-mkxp-z builds the bundled libraries by default' 'meson setup --prefix'
-check 'on Alpine it also asks for the Wayland development files the bundled SDL needs' 'pc:wayland-client pc:wayland-egl'
-case $out in *default_system*|*sdl2_image-dev*|*"apk add -q so:"*) fail=$((fail + 1)); echo "FAIL the default build changed" ;; *) pass=$((pass + 1)); echo "  ok and the default build is as it was" ;; esac
-out=$(cat "$fx/bm/prefix/lib/mkxp-z/VERSION" 2>&1); check 'it records what it built, for --info' 'dev 1a2b3c4 2026-11-02'
-bm -s
-check '--system-libs uses Alpine'"'"'s libraries but mkxp-z'"'"'s own Ruby 3.1' '-Ddefault_system=auto -Druby_system=disabled build'
-check 'installing their development files to build with' 'sdl2_image-dev'
-check 'and keeps installed the system libraries mkxp-z links to' 'apk add -q so:libSDL2-2.0.so.0 so:libc.musl-x86_64.so.1'
-case $out in *so:libruby*) fail=$((fail + 1)); echo "FAIL a library from the build folder was asked of apk" ;; *) pass=$((pass + 1)); echo "  ok but not the ones it built itself" ;; esac
-bm --system-libs --user; check 'the long forms work too' '-Ddefault_system=auto'
-# Elsewhere: stand-in build tools, no apk; pkg-config lacks the modules in $PC_MISSING.
-mkdir -p "$fx/bm2/bin"
-cp "$fx/bm/bin/git" "$fx/bm/bin/meson" "$fx/bm2/bin/"
-for t in c++ cmake ninja python3 bison ruby perl bash wayland-scanner; do printf '#!/bin/sh\n' >"$fx/bm2/bin/$t"; done
-printf '#!/bin/sh\necho "ldd $*" >>"$BM_LOG"\n' >"$fx/bm2/bin/ldd"
-printf '#!/bin/sh\ncase " $PC_MISSING " in *" $2 "*) exit 1 ;; esac\n' >"$fx/bm2/bin/pkg-config"
-chmod +x "$fx/bm2/bin/"*
-bm2() {
-	p=$1; shift; : >"$log"; rm -rf "$fx/bm/prefix"
-	out=$(BM_LOG="$log" PATH="$p:$fx/bm2/bin:$fx/minbin" PREFIX="$fx/bm/prefix" XDG_CACHE_HOME="$fx/bm/cache" sh ./build-mkxp-z.sh "$@" 2>&1; cat "$log")
-}
-PC_MISSING='xkbcommon' bm2 "$fx/pm/apt"
-check 'elsewhere it names what is missing' 'missing: xkbcommon. Install the build packages first, as root:'
-check 'with the command for apt' 'apt-get install build-essential cmake meson pkg-config python3 git bison ruby perl libwayland-dev'
-case $out in *'meson setup'*) fail=$((fail + 1)); echo "FAIL it built with packages missing" ;; *) pass=$((pass + 1)); echo "  ok without building" ;; esac
-PC_MISSING='SDL2_ttf' bm2 "$fx/pm/dnf" -s
-check 'and with -s the system libraries, by pkg-config module for dnf' "'pkgconfig(SDL2_ttf)'"
-PC_MISSING='SDL2_ttf' bm2 "$fx/pm/pacman" -s; check 'and by package for pacman' 'pacman -S --needed base-devel cmake meson pkgconf python git bison ruby perl wayland'
-PC_MISSING='' bm2 "$fx/pm/apt" -s
-check 'with everything there it builds with the system libraries' '-Ddefault_system=auto -Druby_system=disabled build'
-case $out in *'apk '*|*'ldd '*) fail=$((fail + 1)); echo "FAIL it tried to keep packages outside Alpine" ;; *) pass=$((pass + 1)); echo "  ok and leaves the packages, which are the user's, alone" ;; esac
-out=$(cat "$fx/bm/prefix/lib/mkxp-z/VERSION" 2>&1); check 'installing it as on Alpine' 'dev 1a2b3c4 2026-11-02'
-MESON_VERSION=1.3.2 PC_MISSING='' bm2 "$fx/pm/apt"
+echo "meson $* pwd=$PWD" >>"$MZ_LOG"
+case $1 in setup) for a; do case $a in --prefix) next=1 ;; *) [ -z "${next:-}" ] || { echo "$a" >"$MZ_LOG.stage"; next=; } ;; esac; done ;;
+install) st=$(cat "$MZ_LOG.stage"); mkdir -p "$st/scripts/preload"; : >"$st/scripts/preload/win32_wrap.rb"; : >"$st/mkxp-z.x86_64" ;; esac
+EOF
+chmod +x "$fx/mz/bin/meson"
+mz() { : >"$fx/mz/log"; out=$(MZ_LOG="$fx/mz/log" XDG_CACHE_HOME="$fx/mz/cache" PATH="$fx/mz/bin:$PATH" sh tools/mkxp-z.sh "$@" 2>&1; cat "$fx/mz/log"); }
+mz "$fx/mz/stage"
+check 'mkxp-z.sh builds mkxp-z/ with the system libraries by default' '-Ddefault_system=auto -Druby_system=disabled build'
+check 'on a copy, as Meson downloads subprojects into its source tree' "pwd=$fx/mz/cache/mkxp-z-build."
+[ -f "$fx/mz/stage/mkxp-z.x86_64" ] && [ ! -e mkxp-z/build ] && pass=$((pass + 1)) && echo "  ok into STAGE, leaving the checkout alone" || { fail=$((fail + 1)); echo "FAIL the stage or checkout is wrong"; }
+out=$(cat "$fx/mz/stage/VERSION"); check 'recording the upstream commit and TuxTavern'"'"'s, for --info' 'f02d586 (TuxTavern '
+case $(ls "$fx/mz/cache") in *mkxp-z-build*) fail=$((fail + 1)); echo "FAIL the build folder was left behind" ;; *) pass=$((pass + 1)); echo "  ok and removes its build folder" ;; esac
+mz "$fx/mz/stage" --bundled
+case $out in *default_system*) fail=$((fail + 1)); echo "FAIL --bundled still used the system libraries" ;; *) pass=$((pass + 1)); echo "  ok --bundled builds mkxp-z's own libraries" ;; esac
+MESON_VERSION=1.3.2 mz "$fx/mz/stage"
 check 'an older Meson than mkxp-z asks for is named, with how to get a newer one' 'mkxp-z needs Meson 1.4.0 or newer, and this system has 1.3.2'
-MESON_VERSION=1.10.1 PC_MISSING='' bm2 "$fx/pm/apt"; check 'versions compare by number, not as text' 'meson setup --prefix'
-bm --bogus; check 'an unknown option is refused' 'usage: ./build-mkxp-z.sh [-u | --user] [-s | --system-libs]'
+MESON_VERSION=1.10.1 mz "$fx/mz/stage"; check 'versions compare by number, not as text' 'meson setup --prefix'
+mz "$fx/mz/stage" --bogus; check 'an unknown option is refused' 'usage: tools/mkxp-z.sh STAGE [--bundled]'
+
+echo "== install.sh -m"
+for t in meson python3 bison ruby perl bash; do [ -e "$fx/is/bin/$t" ] || printf '#!/bin/sh\n' >"$fx/is/bin/$t"; done
+cp "$fx/mz/bin/meson" "$fx/is/bin/meson"
+chmod +x "$fx/is/bin/"*
+im() { : >"$fx/mz/log"; IS_MZ=1 MZ_LOG="$fx/mz/log" is "$@"; out="$out
+$(cat "$fx/mz/log")"; }
+PC_MISSING='SDL2_ttf' im "$fx/pm/apt" -u -m
+check 'install.sh -m also checks what mkxp-z needs' 'missing: SDL2_ttf.'
+check 'and names its packages for apt' 'meson python3 bison ruby perl libsdl2-image-dev libsdl2-ttf-dev'
+PC_MISSING='xkbcommon' im "$fx/pm/apt" -u --mkxp-z-bundled; check 'with -M, the Wayland files its own SDL needs' 'meson python3 bison ruby perl libwayland-dev wayland-protocols libxkbcommon-dev'
+PC_MISSING='SDL2_ttf' im "$fx/pm/apt" -u; check 'but not without -m' '==> building in'
+PC_MISSING='' im "$fx/pm/none" -u -m
+check 'with everything there it builds mkxp-z with the system libraries' '-Ddefault_system=auto -Druby_system=disabled build'
+[ -f "$fx/is/home/.local/lib/tuxtavern/lib/mkxp-z/mkxp-z.x86_64" ] && pass=$((pass + 1)) && echo "  ok and installs it as lib/mkxp-z" || { fail=$((fail + 1)); echo "FAIL mkxp-z was not installed"; }
+PC_MISSING='' im "$fx/pm/none" -u -M
+case $out in *default_system*) fail=$((fail + 1)); echo "FAIL -M used the system libraries" ;; *) pass=$((pass + 1)); echo "  ok -M builds mkxp-z's own libraries" ;; esac
+PC_MISSING='' im "$fx/pm/none" -u
+case $out in *meson*) fail=$((fail + 1)); echo "FAIL mkxp-z was built without -m" ;; *) pass=$((pass + 1)); echo "  ok and without -m, no mkxp-z" ;; esac
+
+echo "== launcher and an installed mkxp-z"
+# The layout install.sh -m makes: bin/tuxtavern, share/tuxtavern, lib/mkxp-z.
+mkdir -p "$fx/inst/bin" "$fx/inst/lib/mkxp-z/scripts/preload" "$fx/inst/xp/Data"
+cp tuxtavern "$fx/inst/bin/tuxtavern"; cp -R lib "$fx/inst/share-lib"; mkdir -p "$fx/inst/share" && mv "$fx/inst/share-lib" "$fx/inst/share/tuxtavern"
+printf '#!/bin/sh\necho "installed mkxp-z driver=$SDL_VIDEODRIVER args=$*"\n' >"$fx/inst/lib/mkxp-z/mkxp-z.x86_64"; chmod +x "$fx/inst/lib/mkxp-z/mkxp-z.x86_64"
+: >"$fx/inst/lib/mkxp-z/scripts/preload/win32_wrap.rb"; echo 'f02d586 (TuxTavern 1234567)' >"$fx/inst/lib/mkxp-z/VERSION"
+: >"$fx/inst/xp/Data/Scripts.rxdata"; : >"$fx/inst/xp/Game.exe"
+out=$(PATH="$fx/minbin" sh "$fx/inst/bin/tuxtavern" -i "$fx/inst/xp" 2>&1)
+check 'the launcher finds mkxp-z beside its install, before PATH' "runtime: $fx/inst/lib/mkxp-z/mkxp-z.x86_64 (f02d586 (TuxTavern 1234567))"
+out=$(PATH="$fx/minbin" XDG_DATA_HOME="$fx/inst/data" WAYLAND_DISPLAY=wayland-0 sh "$fx/inst/bin/tuxtavern" "$fx/inst/xp" 2>&1); check 'and runs it on Wayland' 'installed mkxp-z driver=wayland args='
+out=$(PATH="$fx/pm/apt:$fx/minbin" sh ./tuxtavern -i "$fx/inst/xp" 2>&1); check 'without one it says how to get it' 'runtime: mkxp-z not installed (sh tools/install.sh -m in a TuxTavern checkout)'
+out=$(PATH="$fx/pm/apk:$fx/minbin" WAYLAND_DISPLAY=wayland-0 sh ./tuxtavern "$fx/inst/xp" 2>&1); check 'on Alpine through the package script' 'XP/VX/VX Ace games need mkxp-z (doas sh tools/apk.sh -m in a TuxTavern checkout)'
 
 echo "== lib"
 if command -v node >/dev/null 2>&1; then
@@ -300,7 +292,7 @@ console.log(phase, vm.runInContext("typeof tuxUser === \"string\" ? tuxUser : \"
 	check 'the cheat menu is on by default' 'cheat=1'
 	echo 'dev 1a2b3c4 2026-10-31' >"$fx/lib/mkxp-z/VERSION"
 	out=$(PATH="$fx/bin:$PATH" TUXTAVERN_MKXPZ_PRELOAD="$fx/lib/mkxp-z/scripts/preload" sh ./tuxtavern -i "$fx/xp" 2>&1)
-	check '--info shows which mkxp-z build-mkxp-z.sh built' "runtime: $fx/bin/mkxp-z (dev 1a2b3c4 2026-10-31)"
+	check '--info shows which mkxp-z tools/mkxp-z.sh built' "runtime: $fx/bin/mkxp-z (dev 1a2b3c4 2026-10-31)"
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" TUXTAVERN_MKXPZ_PRELOAD="$fx/lib/mkxp-z/scripts/preload" sh ./tuxtavern "$fx/xp" 2>&1)
 	check "mkxp-z's Ruby library is passed along" "\"rubyLoadpath\": [\"$fx/lib/mkxp-z/stdlib\"]"
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" TUXTAVERN_YJIT=1 sh ./tuxtavern "$fx/xp" 2>&1); check 'TUXTAVERN_YJIT=1 turns on Ruby JIT' '"YJITEnable": true'

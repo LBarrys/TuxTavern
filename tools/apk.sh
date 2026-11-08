@@ -1,10 +1,18 @@
 #!/bin/sh
 # Builds this checkout into a signed .apk and installs it as tuxtavern@busylinux, from the
 # local repository BusyLinux's update.sh uses (set up here on plain Alpine). As root:
-#   git pull && doas sh tools/apk.sh
+#   git pull && doas sh tools/apk.sh       # -m: with mkxp-z, for XP/VX/VX Ace (-M: its own libraries)
 set -eu
 
 die() { printf 'apk.sh: %s\n' "$*" >&2; exit 1; }
+mkxpz=
+for arg; do
+	case $arg in
+	-m | --mkxp-z) mkxpz=system ;;
+	-M | --mkxp-z-bundled) mkxpz=bundled ;;
+	*) die "usage: $0 [-m | --mkxp-z | -M | --mkxp-z-bundled]" ;;
+	esac
+done
 [ "$(id -u)" = 0 ] || die "run this as root"
 src=$(cd "$(dirname "$0")/.." && pwd -P)
 arch=$(apk --print-arch)
@@ -17,6 +25,13 @@ depends="$depends ffmpeg-libavformat ffmpeg-libavcodec ffmpeg-libavutil ffmpeg-l
 # SDL2 by what it provides: newer Alpine replaces sdl2 with sdl2-compat, and sdl2-dev would conflict with it.
 makedepends="build-base cmake samurai pkgconf git nodejs-dev linux-headers pc:sdl2 mesa-dev
   libpng-dev libwebp-dev zlib-dev libjpeg-turbo-dev freetype-dev harfbuzz-dev lz4-dev ffmpeg-dev openssl"
+# mkxp-z: Meson and what its own Ruby 3.1 builds with, and the libraries it uses from Alpine (or,
+# with -M, the Wayland files its own SDL needs).
+case $mkxpz in
+system) makedepends="$makedepends meson python3 bison ruby perl bash sdl2_image-dev sdl2_ttf-dev openal-soft-dev
+  physfs-dev libogg-dev libvorbis-dev libtheora-dev fluidsynth-dev pixman-dev openssl-dev yaml-dev libffi-dev uchardet-dev" ;;
+bundled) makedepends="$makedepends meson python3 bison ruby perl bash wayland-dev wayland-protocols libxkbcommon-dev" ;;
+esac
 
 # The checkout belongs to a user; without this git refuses it, and build-info.json
 # would not record the commit.
@@ -42,6 +57,14 @@ mkdir -p "$WORK/pkg/usr/bin" "$REPO"
 cmake -S "$src" -B "$WORK/build" -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
 cmake --build "$WORK/build" --target pmjs_native
 cmake --install "$WORK/build" --prefix "$WORK/pkg/usr/lib/tuxtavern"
+if [ -n "$mkxpz" ]; then
+	if [ "$mkxpz" = bundled ]; then sh "$src/tools/mkxp-z.sh" "$WORK/mkxp-z" --bundled
+	else sh "$src/tools/mkxp-z.sh" "$WORK/mkxp-z"; fi
+	cp -R "$WORK/mkxp-z" "$WORK/pkg/usr/lib/tuxtavern/lib/mkxp-z"
+	# What mkxp-z links to from Alpine becomes part of the package's dependencies.
+	for exe in "$WORK/mkxp-z"/mkxp-z.*; do :; done
+	depends="$depends $(ldd "$exe" | awk '$1 ~ /^lib/ && $3 ~ /^\/(usr\/)?lib\// { print "so:" $1 }' | sort -u | tr '\n' ' ')"
+fi
 # bin/tuxtavern and bin/pmjs find their files from their own path, so /usr/bin gets a wrapper, not a link.
 printf '#!/bin/sh\nexec /usr/lib/tuxtavern/bin/tuxtavern "$@"\n' >"$WORK/pkg/usr/bin/tuxtavern"
 chmod 755 "$WORK/pkg/usr/bin/tuxtavern"

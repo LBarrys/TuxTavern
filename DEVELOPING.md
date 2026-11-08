@@ -52,8 +52,15 @@ npm test
 sh test/launcher/run.sh
 busybox sh test/launcher/run.sh
 dash test/launcher/run.sh
-shellcheck tuxtavern build-mkxp-z.sh tools/pmjs.sh tools/apk.sh tools/install.sh
+shellcheck tuxtavern tools/pmjs.sh tools/apk.sh tools/install.sh tools/mkxp-z.sh
 ```
+
+`mkxp-z/` is mkxp-z's `dev` branch at the commit in `mkxp-z/git-hash`, without `macos/`, `windows/`,
+`tests/` and the CJK font; TuxTavern's changes to it are ordinary commits (Wayland only: see
+`src/meson.build`). Port upstream commits with `git format-patch -1 HASH --stdout | git apply --3way
+--directory=mkxp-z`, and move `git-hash` on when catching up. `tools/mkxp-z.sh STAGE` builds it on a copy
+(Meson downloads subprojects into its source tree); `install.sh -m` and `apk.sh -m` install that as
+`lib/mkxp-z`, where the launcher looks before `PATH`.
 
 `tools/upstream-paths.txt` lists upstream PMJS files that live at another path here; rewrite upstream
 patches through it before applying them.

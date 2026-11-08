@@ -13,13 +13,12 @@ No Wine, no browser.
 
 ```sh
 git clone https://github.com/LBarrys/TuxTavern && cd TuxTavern
-sh tools/install.sh      # builds and installs into /usr/local (-u: ~/.local); again after each git pull
-doas sh tools/apk.sh     # Alpine: the same, as an apk package
-./build-mkxp-z.sh        # XP/VX/VX Ace; removes its build files after (-s: with the system's libraries, faster)
-                         # needs Meson 1.4 or newer (pipx install meson where the system's is older)
+sh tools/install.sh -m   # builds and installs into /usr/local (-u: ~/.local); again after each git pull
+doas sh tools/apk.sh -m  # Alpine: the same, as an apk package
 ```
 
-`install.sh` and `build-mkxp-z.sh` name the packages to install first if any are missing. MV/MZ need Node.js 18 or newer.
+- `-m` adds mkxp-z, for XP/VX/VX Ace (`-M`: with its own libraries instead of the system's; slow). It needs Meson 1.4 or newer (`pipx install meson` where the system's is older).
+- `install.sh` names the packages to install first if any are missing. MV/MZ need Node.js 18 or newer.
 
 ## Use
 
