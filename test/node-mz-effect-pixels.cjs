@@ -16,7 +16,6 @@ const reference = JSON.parse(fs.readFileSync(path.join(referenceRoot, 'provenanc
 const hash = file => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 assert.equal(hash(path.join(__dirname, 'helpers/effect-pixel-scenario.cjs')), reference.scenarioSha256);
 assert.equal(hash(path.join(referenceRoot, reference.audio.file)), reference.audio.sha256);
-assert.equal(hash(path.join(__dirname, '../tools/generate-mz-effect-reference.cjs')), reference.generatorSha256);
 assert.equal(hash(path.join(__dirname, 'effect-fixtures.cjs')), reference.fixtureGeneratorSha256);
 assert.equal(hash(path.join(__dirname, 'helpers/png.cjs')), reference.pngEncoderSha256);
 writeEffectFixtures(assetRoot);

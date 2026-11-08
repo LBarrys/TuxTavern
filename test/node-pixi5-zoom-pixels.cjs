@@ -10,7 +10,6 @@ const reference = require('./assets/reference/pixi5-zoom-blur.json');
 const hash = file => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 assert.equal(hash(path.join(__dirname, 'helpers/zoom-blur-scenario.cjs')), reference.scenarioSha256);
 assert.equal(hash(path.join(__dirname, 'assets/pixi-filters/zoom-blur-3.1.0.js')), reference.pluginSha256);
-assert.equal(hash(path.join(__dirname, '../tools/generate-pixi5-zoom-reference.cjs')), reference.generatorSha256);
 native.initialize({ gameRoot: assets, width: 32, height: 24, windowTitle: 'Pixi 5 ZoomBlur' });
 const handles = new Set();
 try {

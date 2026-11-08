@@ -10,7 +10,6 @@ assert.equal(reference.pixi, '5.3.12');
 assert.equal(reference.mipmap, 'OFF');
 const hash = file => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 assert.equal(hash(path.join(__dirname, 'helpers/tiling-scenario.cjs')), reference.scenarioSha256);
-assert.equal(hash(path.join(__dirname, '../tools/generate-pixi5-tiling-reference.cjs')), reference.generatorSha256);
 const sceneryDirectory = path.join(assets, 'img', 'overlays');
 const sceneryFile = path.join(sceneryDirectory, `pmjs-scenery-window-${process.pid}.png`);
 let sceneryImage = null;

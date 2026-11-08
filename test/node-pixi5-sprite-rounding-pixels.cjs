@@ -10,7 +10,6 @@ const reference = JSON.parse(zlib.gunzipSync(fs.readFileSync(path.join(__dirname
 const hash = file => crypto.createHash('sha256').update(fs.readFileSync(path.join(__dirname, file))).digest('hex');
 assert.equal(reference.pixi, '5.3.12');
 assert.equal(hash('helpers/sprite-rounding-scenario.cjs'), reference.scenarioSha256);
-assert.equal(hash('../tools/generate-pixi5-sprite-rounding-reference.cjs'), reference.generatorSha256);
 assert.equal(hash('assets/pixi5/sprite-vertices-5.3.12.cjs'), reference.vertexFixtureSha256);
 const native = require(path.resolve(process.argv[2])), assets = path.resolve(process.argv[3]);
 native.initialize({ gameRoot: assets, width: 64, height: 64, windowTitle: 'Pixi 5 sprite rounding' });

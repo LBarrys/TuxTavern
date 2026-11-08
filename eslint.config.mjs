@@ -20,10 +20,4 @@ export default [
     languageOptions: { ecmaVersion: 2022, globals: globals.node },
     rules: { ...safetyRules, 'no-undef': 'error' },
   },
-  {
-    files: [
-      'tools/generate-*-reference.cjs',
-    ],
-    languageOptions: { globals: globals.browser },
-  },
 ];
