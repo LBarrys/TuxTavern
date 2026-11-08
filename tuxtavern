@@ -25,10 +25,9 @@ mkxpz_hint() { printf '%s -m' "$(pmjs_hint)"; }
 # An install keeps pmjs beside this script.
 pmjs=$here/pmjs
 [ -x "$pmjs" ] || pmjs=$(command -v pmjs 2>/dev/null || true)
-# And mkxp-z in lib/mkxp-z (install.sh -m); otherwise one on PATH.
+# And mkxp-z in lib/mkxp-z (install.sh -m).
 mkxpz=
 for f in "$here"/../lib/mkxp-z/mkxp-z.*; do [ -f "$f" ] && [ -x "$f" ] && mkxpz=$(cd "${f%/*}" && pwd -P)/${f##*/}; done
-[ -n "$mkxpz" ] || mkxpz=$(command -v mkxp-z 2>/dev/null || true)
 ci_glob() { printf '%s\n' "$1" | awk '{ for (i = 1; i <= length($0); i++) { c = substr($0, i, 1); u = toupper(c); l = tolower(c); printf "%s", (u != l ? "[" l u "]" : c) } }'; }
 find_ci() {
 	# shellcheck disable=SC2046
@@ -70,8 +69,7 @@ Runs a Windows RPG Maker XP/VX/VX Ace/MV/MZ game natively (default: the current 
 Games run on Wayland only. RTPs go in ~/.local/share/tuxtavern/rtp/ (XP: Standard;
 VX: RPGVX; VX Ace: RPGVXAce). Environment: TUXTAVERN_SKIP (plugins or scripts to leave out,
 e.g. ones that build HTML), TUXTAVERN_DUMP_SCRIPTS=DIR (XP/VX/VX Ace: write the game's
-scripts there), TUXTAVERN_RGSS_SKIP (shims to leave out),
-TUXTAVERN_MKXPZ_PRELOAD (mkxp-z's scripts/preload, if not found), TUXTAVERN_YJIT=1
+scripts there), TUXTAVERN_RGSS_SKIP (shims to leave out), TUXTAVERN_YJIT=1
 (XP/VX/VX Ace: try Ruby's JIT compiler; experimental, x86-64 only), TUXTAVERN_SCREENSHOTS
 (MV/MZ: F12 saves a screenshot; 1 for ~/Pictures, or a folder), TUXTAVERN_KEYS (MV/MZ:
 extra keys, e.g. wasd or w=up,e=ok,q=cancel; XP/VX/VX Ace: mkxp-z's F1), TUXTAVERN_OVERRIDES
@@ -157,14 +155,9 @@ elif packed=$(packed_exe); then engine='evb'
 else engine=
 fi
 
+# mkxp-z's own Ruby scripts (win32_wrap.rb and others), which lib/rgss/all.rb loads.
 mkxp_preload_dir() {
-	[ -z "${TUXTAVERN_MKXPZ_PRELOAD:-}" ] || { echo "$TUXTAVERN_MKXPZ_PRELOAD"; return 0; }
-	[ -n "$mkxpz" ] || return 1
-	m=$(dirname "$(readlink -f "$mkxpz")")
-	for p in "$m/../lib/mkxp-z/scripts/preload" "$m/scripts/preload"; do
-		[ -f "$p/win32_wrap.rb" ] && { (cd "$p" && pwd -P); return 0; }
-	done
-	return 1
+	[ -n "$mkxpz" ] && [ -f "${mkxpz%/*}/scripts/preload/win32_wrap.rb" ] && echo "${mkxpz%/*}/scripts/preload"
 }
 rtp_names() {
 	ini=$(find_ci game.ini)

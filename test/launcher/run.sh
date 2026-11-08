@@ -170,6 +170,9 @@ out=$(PATH="$fx/minbin" sh "$fx/inst/bin/tuxtavern" -i "$fx/inst/xp" 2>&1)
 check 'the launcher finds mkxp-z beside its install, before PATH' "runtime: $fx/inst/lib/mkxp-z/mkxp-z.x86_64 (f02d586 (TuxTavern 1234567))"
 out=$(PATH="$fx/minbin" XDG_DATA_HOME="$fx/inst/data" WAYLAND_DISPLAY=wayland-0 sh "$fx/inst/bin/tuxtavern" "$fx/inst/xp" 2>&1); check 'and runs it on Wayland' 'installed mkxp-z driver=wayland args='
 out=$(PATH="$fx/pm/apt:$fx/minbin" sh ./tuxtavern -i "$fx/inst/xp" 2>&1); check 'without one it says how to get it' 'runtime: mkxp-z not installed (sh tools/install.sh -m in a TuxTavern checkout)'
+mkdir -p "$fx/pathmk" && printf '#!/bin/sh\necho old mkxp-z\n' >"$fx/pathmk/mkxp-z" && chmod +x "$fx/pathmk/mkxp-z"
+out=$(PATH="$fx/pathmk:$fx/pm/apt:$fx/minbin" sh ./tuxtavern -i "$fx/inst/xp" 2>&1)
+check 'an mkxp-z on PATH (the old build-mkxp-z.sh) is not used' 'runtime: mkxp-z not installed'
 out=$(PATH="$fx/pm/apk:$fx/minbin" WAYLAND_DISPLAY=wayland-0 sh ./tuxtavern "$fx/inst/xp" 2>&1); check 'on Alpine through the package script' 'XP/VX/VX Ace games need mkxp-z (doas sh tools/apk.sh -m in a TuxTavern checkout)'
 
 echo "== mkxp-z/"
@@ -206,11 +209,15 @@ require('fs').writeFileSync(process.argv[1], evb({ name: '%DEFAULT FOLDER%', chi
   { name: 'www', children: [f('index.html', ''), { name: 'js', children: [f('rpg_core.js', '')] }] }] }))" "$fx/packed/Game.exe"
 	# shellcheck disable=SC2016
 	printf '#!/bin/sh\necho "pmjs $* driver=${SDL_VIDEODRIVER:-} hz=${PMJS_RENDER_HZ:-}"\nfor a; do case $a in *.js) cat "$a" ;; esac; done\n' >"$fx/bin/pmjs" && chmod +x "$fx/bin/pmjs"
+	# XP/VX/VX Ace games need the installed layout install.sh -m makes: bin/tuxtavern,
+	# share/tuxtavern and lib/mkxp-z, here with a stand-in mkxp-z that reads mkxp.json in SRCDIR.
+	tt="$fx/ti/bin/tuxtavern"
+	mkdir -p "$fx/ti/bin" "$fx/ti/share" "$fx/ti/lib/mkxp-z/scripts/preload" "$fx/ti/lib/mkxp-z/stdlib" "$fx/data/tuxtavern/rtp/Standard"
+	cp tuxtavern "$tt" && cp -R lib "$fx/ti/share/tuxtavern"
 	# shellcheck disable=SC2016
-	# As mkxp-z, it reads mkxp.json in SRCDIR.
-	printf '#!/bin/sh\necho "mkxp-z rgss=$TUXTAVERN_RGSS_VERSION driver=$SDL_VIDEODRIVER cheat=$TUXTAVERN_CHEAT pwd=$PWD srcdir=$SRCDIR args=$*"; cd "${SRCDIR:-.}" && cat mkxp.json\n' >"$fx/bin/mkxp-z" && chmod +x "$fx/bin/mkxp-z"
-	mkdir -p "$fx/lib/mkxp-z/scripts/preload" "$fx/lib/mkxp-z/stdlib" "$fx/data/tuxtavern/rtp/Standard"
-	: >"$fx/lib/mkxp-z/scripts/preload/win32_wrap.rb"
+	printf '#!/bin/sh\necho "mkxp-z rgss=$TUXTAVERN_RGSS_VERSION driver=$SDL_VIDEODRIVER cheat=$TUXTAVERN_CHEAT pwd=$PWD srcdir=$SRCDIR args=$*"; cd "${SRCDIR:-.}" && cat mkxp.json\n' >"$fx/ti/lib/mkxp-z/mkxp-z.x86_64"
+	chmod +x "$fx/ti/lib/mkxp-z/mkxp-z.x86_64"
+	: >"$fx/ti/lib/mkxp-z/scripts/preload/win32_wrap.rb"
 
 	out=$(PATH="/usr/bin:/bin" sh ./tuxtavern "$fx/mv" 2>&1); check 'without pmjs it says how to get it' 'MV/MZ games need pmjs'
 	out=$(PATH="$fx/pm/apk:$fx/minbin" sh ./tuxtavern "$fx/mv" 2>&1); check 'on Alpine it names the apk package script' 'MV/MZ games need pmjs (doas sh tools/apk.sh in a TuxTavern checkout)'
@@ -303,33 +310,33 @@ console.log(phase, vm.runInContext("typeof tuxUser === \"string\" ? tuxUser : \"
 	case $out in *tuxtavern.cheats*) fail=$((fail + 1)); echo "FAIL --no-cheat did not reach the unpacked game" ;; *) pass=$((pass + 1)); echo "  ok --no-cheat reaches a packed game after unpacking" ;; esac
 	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" sh ./tuxtavern "$fx/nwdir" 2>&1); check 'a package.nw folder runs without unpacking' "pmjs run --game $fx/nwdir/Package.nw "
 
-	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./tuxtavern "$fx/xp" 2>&1); check 'XP runs as RGSS1' 'rgss=1'; check 'mkxp-z is told to use Wayland' 'driver=wayland'
+	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh "$tt" "$fx/xp" 2>&1); check 'XP runs as RGSS1' 'rgss=1'; check 'mkxp-z is told to use Wayland' 'driver=wayland'
 	check 'mkxp-z starts from the config TuxTavern wrote' "pwd=$fx/data/tuxtavern/mkxp/"
 	check 'and reads it there (LonaRPG ran without the shims)' "srcdir=$fx/data/tuxtavern/mkxp/"
 	check 'which points at the game' "\"gameFolder\": \"$fx/xp\""
 	check 'loads the shims' 'rgss/all.rb"]'; check 'turns F12 reset off' '"enableReset": false'
 	check 'adds the installed RTP the game names' "\"RTP\": [\"$fx/data/tuxtavern/rtp/Standard\"]"
 	check 'the cheat menu is on by default' 'cheat=1'
-	echo 'dev 1a2b3c4 2026-10-31' >"$fx/lib/mkxp-z/VERSION"
-	out=$(PATH="$fx/bin:$PATH" TUXTAVERN_MKXPZ_PRELOAD="$fx/lib/mkxp-z/scripts/preload" sh ./tuxtavern -i "$fx/xp" 2>&1)
-	check '--info shows which mkxp-z tools/mkxp-z.sh built' "runtime: $fx/bin/mkxp-z (dev 1a2b3c4 2026-10-31)"
-	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" TUXTAVERN_MKXPZ_PRELOAD="$fx/lib/mkxp-z/scripts/preload" sh ./tuxtavern "$fx/xp" 2>&1)
-	check "mkxp-z's Ruby library is passed along" "\"rubyLoadpath\": [\"$fx/lib/mkxp-z/stdlib\"]"
-	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" TUXTAVERN_YJIT=1 sh ./tuxtavern "$fx/xp" 2>&1); check 'TUXTAVERN_YJIT=1 turns on Ruby JIT' '"YJITEnable": true'
+	echo 'dev 1a2b3c4 2026-10-31' >"$fx/ti/lib/mkxp-z/VERSION"
+	out=$(PATH="$fx/bin:$PATH" sh "$tt" -i "$fx/xp" 2>&1)
+	check '--info shows which mkxp-z tools/mkxp-z.sh built' "runtime: $fx/ti/lib/mkxp-z/mkxp-z.x86_64 (dev 1a2b3c4 2026-10-31)"
+	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh "$tt" "$fx/xp" 2>&1)
+	check "mkxp-z's Ruby library is passed along" "\"rubyLoadpath\": [\"$fx/ti/lib/mkxp-z/stdlib\"]"
+	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" TUXTAVERN_YJIT=1 sh "$tt" "$fx/xp" 2>&1); check 'TUXTAVERN_YJIT=1 turns on Ruby JIT' '"YJITEnable": true'
 	mkdir -p "$fx/xpenv/Data"; : >"$fx/xpenv/Data/Scripts.rxdata"; echo 'TUXTAVERN_YJIT=1' >"$fx/xpenv/tuxtavern.env"
-	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./tuxtavern "$fx/xpenv" 2>&1); check 'and so does tuxtavern.env, for XP/VX/VX Ace' '"YJITEnable": true'
+	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh "$tt" "$fx/xpenv" 2>&1); check 'and so does tuxtavern.env, for XP/VX/VX Ace' '"YJITEnable": true'
 	out=$(ls "$fx/xp"); check 'the game folder is left untouched' 'Data'; case $out in *mkxp.json*) fail=$((fail + 1)); echo "FAIL TuxTavern wrote into the game folder" ;; esac
-	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./tuxtavern "$fx/vx" 2>&1); check 'VX Ace runs as RGSS3' 'rgss=3'
+	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh "$tt" "$fx/vx" 2>&1); check 'VX Ace runs as RGSS3' 'rgss=3'
 	check "which keeps the game's settings" '"windowTitle": "VX"'; check 'and adds the shims' 'rgss/all.rb"]'
 	check 'comments before the object are left alone' '// settings {'
-	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./tuxtavern "$fx/pre" 2>&1); check "a game's own preloadScript is respected and said so" 'sets its own preloadScript'
+	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh "$tt" "$fx/pre" 2>&1); check "a game's own preloadScript is respected and said so" 'sets its own preloadScript'
 	check 'its config is still written' '"preloadScript": ["mine.rb"]'
 	check "and TuxTavern's shims load instead" 'rgss/all.rb"]'
-	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./tuxtavern "$fx/xpa" 2>&1); check 'an XP archive-only game runs as RGSS1' 'rgss=1'
+	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh "$tt" "$fx/xpa" 2>&1); check 'an XP archive-only game runs as RGSS1' 'rgss=1'
 	check 'a missing RTP is pointed out' "extract it to $fx/data/tuxtavern/rtp/RPGVX"
-	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./tuxtavern "$fx/vxa" 2>&1); check 'a VX archive-only game runs as RGSS2' 'rgss=2'
-	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./tuxtavern -C "$fx/vxa" 2>&1); check '--no-cheat reaches XP/VX/VX Ace games' 'cheat= '
-	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./tuxtavern -T "$fx/vxa" 2>&1); check '-T starts mkxp-z in playtest mode' 'args=test'
+	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh "$tt" "$fx/vxa" 2>&1); check 'a VX archive-only game runs as RGSS2' 'rgss=2'
+	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh "$tt" -C "$fx/vxa" 2>&1); check '--no-cheat reaches XP/VX/VX Ace games' 'cheat= '
+	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh "$tt" -T "$fx/vxa" 2>&1); check '-T starts mkxp-z in playtest mode' 'args=test'
 
 	mkdir -p "$fx/mz/save"
 	node -e "process.stdout.write(require('zlib').deflateSync('{\"party\":{\"_gold\":100}}').toString('latin1'))" >"$fx/mz/save/file1.rmmzsave"
@@ -365,6 +372,9 @@ puts [o.id == o.object_id, nil.id, true.id].join(","), [TRUE, FALSE, NIL].inspec
 	mkdir -p "$fx/preload" && printf 'module MKXP; def self.marker; "mkxp_wrap"; end; end\n' >"$fx/preload/mkxp_wrap.rb" && : >"$fx/preload/win32_wrap.rb"
 	out=$(TUXTAVERN_MKXPZ_PRELOAD="$fx/preload" TUXTAVERN_SHIM_DIR="$PWD/lib/rgss" TUXTAVERN_RGSS_SKIP=casefold,cheats,lenient,patches,raw_bitmap,input_poll,ini_wrap,user32_wrap,dl_wrap,textmode,msgbox_echo ruby -e 'load "lib/rgss/all.rb"; puts MKXP.marker' 2>&1)
 	check "mkxp-z's mkxp_wrap.rb is loaded, for mkxp's old MKXP names" 'mkxp_wrap'
+	mkdir -p "$fx/cwdpre/scripts/preload" && cp "$fx/preload/"*.rb "$fx/cwdpre/scripts/preload/"
+	out=$(cd "$fx/cwdpre" && TUXTAVERN_SHIM_DIR="$OLDPWD/lib/rgss" TUXTAVERN_RGSS_SKIP=casefold,cheats,lenient,patches,raw_bitmap,input_poll,ini_wrap,user32_wrap,dl_wrap,textmode,msgbox_echo ruby -e "load '$OLDPWD/lib/rgss/all.rb'; puts defined?(MKXP) ? 'found' : 'none'" 2>&1)
+	check 'without TUXTAVERN_MKXPZ_PRELOAD the shims guess no folder, and say how to fix it' 'install mkxp-z again (sh tools/install.sh -m)'
 	for t in test/launcher/*-test.rb; do
 		out=$(ruby "$t" 2>&1) || true
 		pass=$((pass + $(printf '%s\n' "$out" | grep -c '^ok '))); fail=$((fail + $(printf '%s\n' "$out" | grep -vc '^ok ')))

@@ -1,10 +1,8 @@
 module RpgmShims
   def self.mkxpz_preload
-    candidates = [ENV['TUXTAVERN_MKXPZ_PRELOAD']]
-    %w[/usr/local /usr].each { |p| candidates << "#{p}/lib/mkxp-z/scripts/preload" }
-    candidates << "#{ENV['HOME']}/.local/lib/mkxp-z/scripts/preload" if ENV['HOME']
-    candidates << 'scripts/preload'
-    candidates.compact.find { |dir| File.file?("#{dir}/win32_wrap.rb") }
+    # The launcher passes the scripts/preload folder of the mkxp-z it runs.
+    dir = ENV['TUXTAVERN_MKXPZ_PRELOAD']
+    dir if dir && File.file?("#{dir}/win32_wrap.rb")
   end
 
   def self.shim_dir
@@ -64,7 +62,7 @@ RpgmShims.load_one(here, 'cheats') unless ENV['TUXTAVERN_CHEAT'].to_s.empty?
 if mkxpz.nil?
   begin
     $stdout.puts 'tuxtavern: mkxp-z\'s win32_wrap.rb was not found; Win32API calls will raise.'
-    $stdout.puts 'tuxtavern: set TUXTAVERN_MKXPZ_PRELOAD to the folder holding it.'
+    $stdout.puts 'tuxtavern: install mkxp-z again (sh tools/install.sh -m).'
     $stdout.flush
   rescue StandardError
     nil
