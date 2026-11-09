@@ -64,5 +64,5 @@ from [Kawariki](https://github.com/Orochimarufan/Kawariki) (Taeyeon Mori), [rmse
 [evbunpack](https://github.com/mos9527/evbunpack) (mos9527, Apache-2.0) and aplib (Sandor Nemes, GPL-3.0).
 Mostly written by Claude (Anthropic).
 
-GPL-3.0 as a whole. PMJS's files stay MIT (`LICENSE`); the shims in `lib/rgss/` are CC0; `REUSE.toml` says
+GPL-3.0 as a whole. PMJS's files stay MIT (`pmjs/LICENSE`); the shims in `lib/rgss/` are CC0; `REUSE.toml` says
 which is which.

@@ -22,9 +22,9 @@ pkg_cmd() {
 pmjs_hint() { if have apk; then printf 'doas sh tools/apk.sh'; else printf 'sh tools/install.sh'; fi; }
 # And mkxp-z, built by the same scripts.
 mkxpz_hint() { printf '%s -m' "$(pmjs_hint)"; }
-# An install keeps pmjs beside this script.
+# An install keeps pmjs beside this script (in a checkout, pmjs/ is its source).
 pmjs=$here/pmjs
-[ -x "$pmjs" ] || pmjs=$(command -v pmjs 2>/dev/null || true)
+{ [ -f "$pmjs" ] && [ -x "$pmjs" ]; } || pmjs=$(command -v pmjs 2>/dev/null || true)
 # And mkxp-z in lib/mkxp-z (install.sh -m).
 mkxpz=
 for f in "$here"/../lib/mkxp-z/mkxp-z.*; do [ -f "$f" ] && [ -x "$f" ] && mkxpz=$(cd "${f%/*}" && pwd -P)/${f##*/}; done

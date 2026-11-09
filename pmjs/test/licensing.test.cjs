@@ -55,14 +55,3 @@ test('inventory checks reject invalid classifications, stale entries and missing
     assert.equal(check().status, 0);
   } finally { fs.rmSync(temporary, { recursive: true, force: true }); }
 });
-
-test('every licence REUSE.toml names has its text in LICENSES/, and every text there is named', () => {
-  const reuse = fs.readFileSync(path.join(root, 'REUSE.toml'), 'utf8');
-  const named = new Set();
-  for (const [, expression] of reuse.matchAll(/SPDX-License-Identifier = "([^"]+)"/g))
-    for (const id of expression.split(/\s+(?:AND|OR|WITH)\s+|[()]/)) if (id.trim()) named.add(id.trim());
-  const texts = new Set(fs.readdirSync(path.join(root, 'LICENSES')).map(file => file.replace(/\.txt$/, '')));
-  for (const id of named) assert.ok(texts.has(id), `LICENSES/${id}.txt is missing`);
-  // FTL: the FreeType notice in THIRD_PARTY_NOTICES.md (PMJS links the system's FreeType).
-  for (const id of texts) assert.ok(named.has(id) || id === 'FTL', `LICENSES/${id}.txt is not used`);
-});

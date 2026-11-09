@@ -1,6 +1,7 @@
 # Developing TuxTavern
 
-Run the commands from the repository root.
+Run the commands from the repository root. `pmjs/` and `mkxp-z/` are the engines, laid out as upstream;
+the root holds the launcher, `lib/`, the install scripts and what both share.
 
 ## Build
 
@@ -19,21 +20,19 @@ Node.js 18 (Ubuntu 24.04's) is the oldest tested; the suites run on 18 and 22.
 
 The `dev` preset builds with tests and turns compiler warnings into errors. Native tests need Xvfb.
 Where GitHub archive downloads are blocked (some proxies), give CMake the Effekseer source itself:
-clone it at the commit in `tools/effekseer.lock.json`, apply `third_party/effekseer-mz.patch`, and
+clone it at the commit in `pmjs/tools/effekseer.lock.json`, apply `pmjs/third_party/effekseer-mz.patch`, and
 configure with `-DFETCHCONTENT_SOURCE_DIR_PMJS_EFFEKSEER=DIR` (or `-DPMJS_EFFEKSEER_ARCHIVE=FILE` for the tarball).
 
 ```sh
 cmake --preset dev
 cmake --build --preset dev --parallel 4
 ctest --preset dev --output-on-failure
-npm ci
-npm run lint
-npm run licensing
-npm test
+(cd pmjs && npm ci && npm run lint && npm run licensing && npm test)
+node --test test/*.test.cjs
 sh test/launcher/run.sh
 busybox sh test/launcher/run.sh
 dash test/launcher/run.sh
-shellcheck tuxtavern tools/pmjs.sh tools/apk.sh tools/install.sh tools/mkxp-z.sh
+shellcheck tuxtavern pmjs/tools/pmjs.sh tools/apk.sh tools/install.sh tools/mkxp-z.sh
 ```
 
 `mkxp-z/` is mkxp-z's `dev` branch at the commit in `mkxp-z/git-hash`, without `macos/`, `windows/`,
@@ -41,10 +40,10 @@ shellcheck tuxtavern tools/pmjs.sh tools/apk.sh tools/install.sh tools/mkxp-z.sh
 `src/meson.build`). Port upstream commits with `git format-patch -1 HASH --stdout | git apply --3way
 --directory=mkxp-z`, and move `git-hash` on when catching up. `tools/mkxp-z.sh STAGE` builds it on a copy
 (Meson downloads subprojects into its source tree); `install.sh -m` and `apk.sh -m` install that as
-`lib/mkxp-z`, where the launcher looks before `PATH`.
+`lib/mkxp-z`, where the launcher looks for it.
 
-`tools/upstream-paths.txt` lists upstream PMJS files that live at another path here; rewrite upstream
-patches through it before applying them.
+`pmjs/` is PMJS's tree. Port upstream commits the same way (`--directory=pmjs`), after rewriting them
+through `pmjs/tools/upstream-paths.txt`, which lists upstream files that live at another path here.
 
 ## Running pmjs directly
 
