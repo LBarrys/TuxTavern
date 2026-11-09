@@ -40,7 +40,9 @@ shellcheck tt pmjs/tools/pmjs.sh tools/apk.sh tools/install.sh tools/mkxp-z.sh
 `src/meson.build`). Port upstream commits with `git format-patch -1 HASH --stdout | git apply --3way
 --directory=mkxp-z`, and move `git-hash` on when catching up. `tools/mkxp-z.sh STAGE` builds it on a copy
 (Meson downloads subprojects into its source tree); `install.sh -m` and `apk.sh -m` install that as
-`lib/mkxp-z`, where the launcher looks for it.
+`lib/mkxp-z`, where the launcher looks for it. With `--system-ruby` (`-r`) it links the newest Ruby whose
+development files are installed and writes that Ruby's library folders to `loadpath` for the launcher;
+`lib/rgss/ruby32.rb` puts back what Ruby 3.2 removed (`Fixnum`, `File.exists?`, `Object#=~`, taint).
 
 `pmjs/` is PMJS's tree. Port upstream commits the same way (`--directory=pmjs`), after rewriting them
 through `pmjs/tools/upstream-paths.txt`, which lists upstream files that live at another path here.

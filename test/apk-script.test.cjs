@@ -101,3 +101,12 @@ test('apk.sh -m builds mkxp-z with Alpine libraries and depends on what it links
   assert.equal(usage.status, 1);
   assert.match(usage.stderr, /usage: .*apk\.sh \[-m \| --mkxp-z \| -M \| --mkxp-z-bundled\]/);
 });
+
+test('apk.sh -r builds mkxp-z with Alpine\'s Ruby, and only with Alpine\'s libraries', () => {
+  const text = fs.readFileSync(script, 'utf8');
+  assert.match(text, /\[ -z "\$ruby" \] \|\| makedepends="\$makedepends ruby-dev"/);
+  assert.match(text, /sh "\$src\/tools\/mkxp-z.sh" "\$WORK\/mkxp-z" \$\{ruby:\+--system-ruby\}/);
+  const bundled = spawnSync('sh', [script, '-M', '-r'], { encoding: 'utf8' });
+  assert.equal(bundled.status, 1);
+  assert.match(bundled.stderr, /-r builds mkxp-z with Alpine's libraries, so not with -M/);
+});

@@ -4,23 +4,29 @@
 #   sh tools/install.sh        # into /usr/local, as root through doas or sudo
 #   sh tools/install.sh -u     # into ~/.local
 #   sh tools/install.sh -m     # with mkxp-z too, for XP/VX/VX Ace (-M: with its own libraries; slow)
+#   sh tools/install.sh -r     # -m, with the system's Ruby instead of mkxp-z's own Ruby 3.1
 # Options after -- go to CMake, e.g. -- -DFETCHCONTENT_SOURCE_DIR_PMJS_EFFEKSEER=DIR (DEVELOPING.md).
 set -eu
 
 die() { printf 'install.sh: %s\n' "$*" >&2; exit 1; }
 have() { command -v "$1" >/dev/null 2>&1; }
 
-prefix=${PREFIX:-/usr/local} mkxpz=''
+prefix=${PREFIX:-/usr/local} mkxpz='' ruby=''
 while [ $# -gt 0 ]; do
 	case $1 in
 	-u | --user) prefix=$HOME/.local ;;
 	-m | --mkxp-z) mkxpz=system ;;
 	-M | --mkxp-z-bundled) mkxpz=bundled ;;
+	-r | --system-ruby) ruby=1 ;;
 	--) shift; break ;;
-	*) die "usage: $0 [-u | --user] [-m | --mkxp-z | -M | --mkxp-z-bundled] [-- CMAKE_OPTIONS...]" ;;
+	*) die "usage: $0 [-u | --user] [-m | --mkxp-z | -M | --mkxp-z-bundled] [-r | --system-ruby] [-- CMAKE_OPTIONS...]" ;;
 	esac
 	shift
 done
+if [ -n "$ruby" ]; then
+	[ "$mkxpz" != bundled ] || die "-r builds mkxp-z with the system's libraries, so not with -M"
+	mkxpz=system
+fi
 src=$(cd "$(dirname "$0")/.." && pwd -P)
 
 # What the build needs, and each package manager's names for it (pkgconfig() and pc: name the
@@ -55,6 +61,7 @@ mkxpz_packages() {
 		if [ "$mkxpz" = system ]; then printf ' sdl2_image sdl2_ttf openal physfs libogg libvorbis libtheora fluidsynth pixman openssl libyaml libffi uchardet'
 		else printf ' wayland wayland-protocols libxkbcommon'; fi ;;
 	esac
+	[ -z "$ruby" ] || case $1 in apk | apt-get) printf ' ruby-dev' ;; dnf | zypper) printf ' ruby-devel' ;; esac
 }
 mkxpz_modules() { if [ "$mkxpz" = system ]; then echo "$mkxpz_libs"; else echo "$mkxpz_wayland"; fi; }
 missing=
@@ -63,6 +70,8 @@ have ninja || have samu || have make || missing="$missing ninja"
 if [ -n "$mkxpz" ]; then
 	for t in $mkxpz_tools; do have "$t" || missing="$missing $t"; done
 	modules="$modules $(mkxpz_modules)"
+	# Ruby's development files, by any version (ruby-3.4.pc).
+	[ -z "$ruby" ] || ! have pkg-config || pkg-config --list-all | grep -q '^ruby-[0-9]' || missing="$missing ruby-dev"
 fi
 if have pkg-config; then
 	for m in $modules; do pkg-config --exists "$m" || missing="$missing $m"; done
@@ -105,7 +114,7 @@ echo "==> building in $work, removed again when this script ends"
 cmake -S "$src" -B "$work" -G "$generator" -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF "$@"
 cmake --build "$work" --target pmjs_native
 case $mkxpz in
-system) sh "$src/tools/mkxp-z.sh" "$work/mkxp-z" ;;
+system) sh "$src/tools/mkxp-z.sh" "$work/mkxp-z" ${ruby:+--system-ruby} ;;
 bundled) sh "$src/tools/mkxp-z.sh" "$work/mkxp-z" --bundled ;;
 esac
 dest=$prefix/lib/tuxtavern

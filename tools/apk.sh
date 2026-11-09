@@ -2,17 +2,23 @@
 # Builds this checkout into a signed .apk and installs it as tuxtavern@busylinux, from the
 # local repository BusyLinux's update.sh uses (set up here on plain Alpine). As root:
 #   git pull && doas sh tools/apk.sh       # -m: with mkxp-z, for XP/VX/VX Ace (-M: its own libraries)
+#                                          # -r: -m, with Alpine's Ruby instead of mkxp-z's own 3.1
 set -eu
 
 die() { printf 'apk.sh: %s\n' "$*" >&2; exit 1; }
-mkxpz=
+mkxpz='' ruby=''
 for arg; do
 	case $arg in
 	-m | --mkxp-z) mkxpz=system ;;
 	-M | --mkxp-z-bundled) mkxpz=bundled ;;
-	*) die "usage: $0 [-m | --mkxp-z | -M | --mkxp-z-bundled]" ;;
+	-r | --system-ruby) ruby=1 ;;
+	*) die "usage: $0 [-m | --mkxp-z | -M | --mkxp-z-bundled] [-r | --system-ruby]" ;;
 	esac
 done
+if [ -n "$ruby" ]; then
+	[ "$mkxpz" != bundled ] || die "-r builds mkxp-z with Alpine's libraries, so not with -M"
+	mkxpz=system
+fi
 [ "$(id -u)" = 0 ] || die "run this as root"
 src=$(cd "$(dirname "$0")/.." && pwd -P)
 arch=$(apk --print-arch)
@@ -32,6 +38,7 @@ system) makedepends="$makedepends meson python3 bison ruby perl bash sdl2_image-
   physfs-dev libogg-dev libvorbis-dev libtheora-dev fluidsynth-dev pixman-dev openssl-dev yaml-dev libffi-dev uchardet-dev" ;;
 bundled) makedepends="$makedepends meson python3 bison ruby perl bash wayland-dev wayland-protocols libxkbcommon-dev" ;;
 esac
+[ -z "$ruby" ] || makedepends="$makedepends ruby-dev"
 
 # The checkout belongs to a user; without this git refuses it, and build-info.json
 # would not record the commit.
@@ -59,7 +66,7 @@ cmake --build "$WORK/build" --target pmjs_native
 cmake --install "$WORK/build" --prefix "$WORK/pkg/usr/lib/tuxtavern"
 if [ -n "$mkxpz" ]; then
 	if [ "$mkxpz" = bundled ]; then sh "$src/tools/mkxp-z.sh" "$WORK/mkxp-z" --bundled
-	else sh "$src/tools/mkxp-z.sh" "$WORK/mkxp-z"; fi
+	else sh "$src/tools/mkxp-z.sh" "$WORK/mkxp-z" ${ruby:+--system-ruby}; fi
 	cp -R "$WORK/mkxp-z" "$WORK/pkg/usr/lib/tuxtavern/lib/mkxp-z"
 	# What mkxp-z links to from Alpine becomes part of the package's dependencies.
 	for exe in "$WORK/mkxp-z"/mkxp-z.*; do :; done

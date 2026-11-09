@@ -382,6 +382,10 @@ rgss)
 	done
 	stdlib=''
 	[ -z "$pre" ] || [ ! -d "$pre/../../stdlib" ] || stdlib=$(json "$(cd "$pre/../../stdlib" && pwd -P)")
+	# Built with the system's Ruby (tools/mkxp-z.sh --system-ruby): its library folders.
+	if [ -z "$stdlib" ] && [ -n "$pre" ] && [ -f "$pre/../../loadpath" ]; then
+		while read -r dir; do [ -z "$dir" ] || stdlib="$stdlib${stdlib:+, }$(json "$dir")"; done <"$pre/../../loadpath"
+	fi
 	keys="\"gameFolder\": $(json "$game"), \"preloadScript\": [$(json "$lib/rgss/all.rb")], \"enableReset\": false, \"RTP\": [$paths], \"rubyLoadpath\": [$stdlib]"
 	if [ -n "${TUXTAVERN_YJIT:-}" ]; then
 		keys="$keys, \"YJITEnable\": true"

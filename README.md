@@ -18,6 +18,7 @@ doas sh tools/apk.sh -m  # Alpine: the same, as an apk package
 ```
 
 - `-m` adds mkxp-z, for XP/VX/VX Ace (`-M`: with its own libraries instead of the system's; slow). It needs Meson 1.4 or newer (`pipx install meson` where the system's is older).
+- `-r`: `-m` with the system's Ruby (`ruby-dev`) instead of mkxp-z's own 3.1; quicker to build, less tried with games.
 - `install.sh` names the packages to install first if any are missing. MV/MZ need Node.js 18 or newer.
 
 ## Use

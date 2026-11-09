@@ -88,7 +88,8 @@ echo "== install.sh"
 # Stand-ins for the build tools; pkg-config lacks the modules named in $PC_MISSING.
 mkdir -p "$fx/is/bin" "$fx/is/include/node" && : >"$fx/is/include/node/node_api.h"
 for t in c++ git node ninja; do printf '#!/bin/sh\n' >"$fx/is/bin/$t"; done
-printf '#!/bin/sh\ncase " $PC_MISSING " in *" $2 "*) exit 1 ;; esac\n' >"$fx/is/bin/pkg-config"
+# shellcheck disable=SC2016
+printf '#!/bin/sh\n[ "$1" != --list-all ] || { case " $PC_MISSING " in *" ruby "*) ;; *) echo "ruby-3.4 Ruby - x" ;; esac; exit; }\ncase " $PC_MISSING " in *" $2 "*) exit 1 ;; esac\n' >"$fx/is/bin/pkg-config"
 cat >"$fx/is/bin/cmake" <<'EOF'
 #!/bin/sh
 echo "cmake $*" >>"$IS_LOG"
@@ -119,7 +120,7 @@ printf 'someone else'"'"'s\n' >"$fx/is/home/.local/bin/tuxtavern"; PC_MISSING=''
 [ -e "$fx/is/home/.local/bin/tuxtavern" ] && pass=$((pass + 1)) && echo "  ok but not another program by that name" || { fail=$((fail + 1)); echo "FAIL another tuxtavern was removed"; }
 rm -f "$fx/is/home/.local/bin/tuxtavern"
 case $(ls "$fx/is/cache") in *tuxtavern-build*) fail=$((fail + 1)); echo "FAIL the build folder was left behind" ;; *) pass=$((pass + 1)); echo "  ok and removes its build folder" ;; esac
-PC_MISSING='' is "$fx/pm/none" --bogus; check 'an unknown option is refused' 'usage: tools/install.sh [-u | --user] [-m | --mkxp-z | -M | --mkxp-z-bundled] [-- CMAKE_OPTIONS...]'
+PC_MISSING='' is "$fx/pm/none" --bogus; check 'an unknown option is refused' 'usage: tools/install.sh [-u | --user] [-m | --mkxp-z | -M | --mkxp-z-bundled] [-r | --system-ruby] [-- CMAKE_OPTIONS...]'
 
 echo "== tools/mkxp-z.sh"
 # A stand-in meson that logs what it is asked and installs an executable into its --prefix.
@@ -144,7 +145,25 @@ case $out in *default_system*) fail=$((fail + 1)); echo "FAIL --bundled still us
 MESON_VERSION=1.3.2 mz "$fx/mz/stage"
 check 'an older Meson than mkxp-z asks for is named, with how to get a newer one' 'mkxp-z needs Meson 1.4.0 or newer, and this system has 1.3.2'
 MESON_VERSION=1.10.1 mz "$fx/mz/stage"; check 'versions compare by number, not as text' 'meson setup --prefix'
-mz "$fx/mz/stage" --bogus; check 'an unknown option is refused' 'usage: tools/mkxp-z.sh STAGE [--bundled]'
+mz "$fx/mz/stage" --bogus; check 'an unknown option is refused' 'usage: tools/mkxp-z.sh STAGE [--bundled | --system-ruby]'
+# A stand-in pkg-config with the development files of Ruby 3.4 and 3.10 (as Alpine's ruby-dev has).
+mkdir -p "$fx/mz/ruby"
+cat >"$fx/mz/ruby/pkg-config" <<'EOF'
+#!/bin/sh
+case $1 in
+--list-all) printf 'sdl2 SDL2 - x\nruby-3.4 Ruby - x\nruby-3.10 Ruby - x\n' ;;
+--variable=rubylibdir) echo "/usr/lib/ruby/${2#ruby-}.0" ;;
+--variable=rubyarchdir) echo "/usr/lib/ruby/${2#ruby-}.0/x86_64-linux-musl" ;;
+esac
+EOF
+chmod +x "$fx/mz/ruby/pkg-config"
+PATH="$fx/mz/ruby:$PATH" mz "$fx/mz/stage" --system-ruby
+check '--system-ruby links the newest Ruby with development files' '-Ddefault_system=auto -Druby_system=enabled -Dmri_version=3.10 build'
+out=$(cat "$fx/mz/stage/loadpath"); check 'and names its library and extensions for the launcher' "/usr/lib/ruby/3.10.0
+/usr/lib/ruby/3.10.0/x86_64-linux-musl"
+out=$(cat "$fx/mz/stage/VERSION"); check 'and --info says so' ', system Ruby 3.10'
+printf '#!/bin/sh\n' >"$fx/mz/ruby/pkg-config"
+PATH="$fx/mz/ruby:$PATH" mz "$fx/mz/stage" --system-ruby; check 'without them it says what to install' "--system-ruby needs Ruby's development files"
 
 echo "== install.sh -m"
 for t in meson python3 bison ruby perl bash; do [ -e "$fx/is/bin/$t" ] || printf '#!/bin/sh\n' >"$fx/is/bin/$t"; done
@@ -164,6 +183,11 @@ PC_MISSING='' im "$fx/pm/none" -u -M
 case $out in *default_system*) fail=$((fail + 1)); echo "FAIL -M used the system libraries" ;; *) pass=$((pass + 1)); echo "  ok -M builds mkxp-z's own libraries" ;; esac
 PC_MISSING='' im "$fx/pm/none" -u
 case $out in *meson*) fail=$((fail + 1)); echo "FAIL mkxp-z was built without -m" ;; *) pass=$((pass + 1)); echo "  ok and without -m, no mkxp-z" ;; esac
+PC_MISSING='ruby' im "$fx/pm/apt" -u -r; check "-r needs Ruby's development files" 'missing: ruby-dev.'
+check 'naming them with the rest for apt' 'libuchardet-dev ruby-dev'
+PC_MISSING='ruby' im "$fx/pm/dnf" -u -r; check 'and for dnf' "'pkgconfig(uchardet)'  ruby-devel"
+PC_MISSING='' im "$fx/pm/none" -u -r; check '-r builds mkxp-z with the system Ruby, without -m' '-Ddefault_system=auto -Druby_system=enabled -Dmri_version=3.4 build'
+PC_MISSING='' im "$fx/pm/none" -u -M -r; check 'but not with mkxp-z'"'"'s own libraries' '-r builds mkxp-z with the system'"'"'s libraries, so not with -M'
 
 echo "== launcher and an installed mkxp-z"
 # The layout install.sh -m makes: bin/tt, share/tuxtavern, lib/mkxp-z.
@@ -328,6 +352,10 @@ console.log(phase, vm.runInContext("typeof tuxUser === \"string\" ? tuxUser : \"
 	check '--info shows which mkxp-z tools/mkxp-z.sh built' "runtime: $fx/ti/lib/mkxp-z/mkxp-z.x86_64 (dev 1a2b3c4 2026-10-31)"
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh "$tt" "$fx/xp" 2>&1)
 	check "mkxp-z's Ruby library is passed along" "\"rubyLoadpath\": [\"$fx/ti/lib/mkxp-z/stdlib\"]"
+	mv "$fx/ti/lib/mkxp-z/stdlib" "$fx/ti/stdlib-aside" && printf '/usr/lib/ruby/3.4.0\n/usr/lib/ruby/3.4.0/x86_64-linux\n' >"$fx/ti/lib/mkxp-z/loadpath"
+	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh "$tt" "$fx/xp" 2>&1)
+	check "or, built with the system's Ruby, its library folders" '"rubyLoadpath": ["/usr/lib/ruby/3.4.0", "/usr/lib/ruby/3.4.0/x86_64-linux"]'
+	rm "$fx/ti/lib/mkxp-z/loadpath" && mv "$fx/ti/stdlib-aside" "$fx/ti/lib/mkxp-z/stdlib"
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" TUXTAVERN_YJIT=1 sh "$tt" "$fx/xp" 2>&1); check 'TUXTAVERN_YJIT=1 turns on Ruby JIT' '"YJITEnable": true'
 	mkdir -p "$fx/xpenv/Data"; : >"$fx/xpenv/Data/Scripts.rxdata"; echo 'TUXTAVERN_YJIT=1' >"$fx/xpenv/tuxtavern.env"
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh "$tt" "$fx/xpenv" 2>&1); check 'and so does tuxtavern.env, for XP/VX/VX Ace' '"YJITEnable": true'
@@ -378,6 +406,8 @@ puts [o.id == o.object_id, nil.id, true.id].join(","), [TRUE, FALSE, NIL].inspec
 	mkdir -p "$fx/preload" && printf 'module MKXP; def self.marker; "mkxp_wrap"; end; end\n' >"$fx/preload/mkxp_wrap.rb" && : >"$fx/preload/win32_wrap.rb"
 	out=$(TUXTAVERN_MKXPZ_PRELOAD="$fx/preload" TUXTAVERN_SHIM_DIR="$PWD/lib/rgss" TUXTAVERN_RGSS_SKIP=casefold,cheats,lenient,patches,raw_bitmap,input_poll,ini_wrap,user32_wrap,dl_wrap,textmode,msgbox_echo ruby -e 'load "lib/rgss/all.rb"; puts MKXP.marker' 2>&1)
 	check "mkxp-z's mkxp_wrap.rb is loaded, for mkxp's old MKXP names" 'mkxp_wrap'
+	out=$(TUXTAVERN_SHIM_DIR="$PWD/lib/rgss" TUXTAVERN_RGSS_SKIP=casefold,cheats,lenient,patches,raw_bitmap,input_poll,ini_wrap,user32_wrap,dl_wrap,textmode,msgbox_echo ruby -e 'load "lib/rgss/all.rb"; puts [1.is_a?(Fixnum), File.exists?("tt")].join(",")' 2>&1)
+	check "ruby32.rb gives a newer Ruby back what games' scripts call (Fixnum, File.exists?)" 'true,true'
 	mkdir -p "$fx/cwdpre/scripts/preload" && cp "$fx/preload/"*.rb "$fx/cwdpre/scripts/preload/"
 	out=$(cd "$fx/cwdpre" && TUXTAVERN_SHIM_DIR="$OLDPWD/lib/rgss" TUXTAVERN_RGSS_SKIP=casefold,cheats,lenient,patches,raw_bitmap,input_poll,ini_wrap,user32_wrap,dl_wrap,textmode,msgbox_echo ruby -e "load '$OLDPWD/lib/rgss/all.rb'; puts defined?(MKXP) ? 'found' : 'none'" 2>&1)
 	check 'without TUXTAVERN_MKXPZ_PRELOAD the shims guess no folder, and say how to fix it' 'install mkxp-z again (sh tools/install.sh -m)'
