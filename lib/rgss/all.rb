@@ -25,7 +25,7 @@ module RpgmShims
     load path
     true
   rescue Exception => e
-    warning = "tuxtavern: #{name}.rb did not load: #{e.class}: #{e.message}"
+    warning = "tt: #{name}.rb did not load: #{e.class}: #{e.message}"
     begin
       $stdout.puts warning
       $stdout.flush
@@ -61,8 +61,8 @@ RpgmShims.load_one(here, 'cheats') unless ENV['TUXTAVERN_CHEAT'].to_s.empty?
 
 if mkxpz.nil?
   begin
-    $stdout.puts 'tuxtavern: mkxp-z\'s win32_wrap.rb was not found; Win32API calls will raise.'
-    $stdout.puts 'tuxtavern: install mkxp-z again (sh tools/install.sh -m).'
+    $stdout.puts 'tt: mkxp-z\'s win32_wrap.rb was not found; Win32API calls will raise.'
+    $stdout.puts 'tt: install mkxp-z again (sh tools/install.sh -m).'
     $stdout.flush
   rescue StandardError
     nil

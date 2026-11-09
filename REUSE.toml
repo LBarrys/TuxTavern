@@ -79,7 +79,7 @@ SPDX-FileCopyrightText = "1991-2024 Unicode, Inc."
 SPDX-License-Identifier = "Unicode-3.0"
 
 [[annotations]]
-path = ["tuxtavern", "CMakeLists.txt", "tools/**", "lib/*.js", "test/**"]
+path = ["tt", "CMakeLists.txt", "tools/**", "lib/*.js", "test/**"]
 precedence = "override"
 SPDX-FileCopyrightText = "2026 rpgm and TuxTavern contributors"
 SPDX-License-Identifier = "GPL-3.0-only"

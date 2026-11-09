@@ -24,7 +24,7 @@ const w = {
 const press = (keyCode, repeat = false) => listeners.forEach(f => f({ keyCode, repeat }));
 const logged = [];
 const log = console.log;
-console.log = text => (String(text).startsWith('tuxtavern:') ? logged.push(text) : log(text));
+console.log = text => (String(text).startsWith('tt:') ? logged.push(text) : log(text));
 try {
   install(w, shots, 'Tux Quest');
   press(122); press(123, true);
@@ -35,7 +35,7 @@ try {
   const first = fs.readdirSync(shots);
   is('it is saved, named after the game and the time', first.length === 1 && /^Tux Quest-\d{8}-\d{6}\.png$/.test(first[0]), true);
   is('with the captured bytes', fs.readFileSync(path.join(shots, first[0]), 'utf8'), 'png one');
-  is('saying where', logged.pop(), 'tuxtavern: screenshot saved to ' + path.join(shots, first[0]));
+  is('saying where', logged.pop(), 'tt: screenshot saved to ' + path.join(shots, first[0]));
   // A shot in the same second as an earlier one gets its own name (this second or the next).
   fs.rmSync(path.join(shots, first[0]));
   const now = Date.now(), taken = [now, now + 1000].map(t => `Tux Quest-${stamp(new Date(t))}`);
@@ -49,7 +49,7 @@ try {
   fs.writeFileSync(shots, 'a file, not a folder');
   press(123);
   captures.shift().callback(Buffer.from('png three'));
-  is('a folder that cannot be made is reported, not thrown', /^tuxtavern: screenshot not saved: /.test(logged.pop()), true);
+  is('a folder that cannot be made is reported, not thrown', /^tt: screenshot not saved: /.test(logged.pop()), true);
   is('the time stamp is local YYYYMMDD-HHMMSS', stamp(new Date(2026, 0, 2, 3, 4, 5)), '20260102-030405');
 } finally {
   console.log = log;

@@ -21,7 +21,7 @@ case $1 in
 --print-arch) echo x86_64 ;;
 list) [ ! -f /var/lib/installed ] || echo "tuxtavern-$(cat /var/lib/installed) x86_64 {tuxtavern} (MIT) [installed]" ;;
 mkpkg) while [ $# -gt 0 ]; do
-    case $1 in --files) cp "$2/usr/bin/tuxtavern" /var/lib/wrapper ;; --output) : > "$2" ;; esac
+    case $1 in --files) cp "$2/usr/bin/tt" /var/lib/wrapper ;; --output) : > "$2" ;; esac
     shift
   done ;;
 esac`,
@@ -75,7 +75,7 @@ test('apk.sh packages the checkout and installs it from the local repository', {
     'build tools stay until TuxTavern is installed');
   assert.ok(first.calls.includes('openssl genrsa'), 'a missing signing key is created');
   assert.equal(fs.readFileSync(path.join(root, 'state', 'var', 'lib', 'wrapper'), 'utf8'),
-    '#!/bin/sh\nexec /usr/lib/tuxtavern/bin/tuxtavern "$@"\n');
+    '#!/bin/sh\nexec /usr/lib/tuxtavern/bin/tt "$@"\n');
   assert.ok(fs.existsSync(path.join(root, 'state', 'etc', 'apk', 'keys', 'local.rsa.pub')));
   assert.deepEqual(fs.readdirSync(repo), [`tuxtavern-${version}-r0.apk`]);
 

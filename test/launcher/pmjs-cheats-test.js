@@ -338,7 +338,7 @@ f8();
 // On the title screen Karryn exists, but the game is not loaded (map 0) and her stats throw.
 const logged = [];
 const log = console.log;
-console.log = text => (String(text).startsWith('tuxtavern:') ? logged.push(text) : log(text));
+console.log = text => (String(text).startsWith('tt:') ? logged.push(text) : log(text));
 karryn.maxWill = () => { throw new TypeError("Cannot read properties of undefined (reading '5')"); };
 w.$gameMap.mapId = () => 0;
 f8();
@@ -356,7 +356,7 @@ const gold = w.$gameParty.gold;
 w.$gameParty.gold = () => { throw new Error('broken'); };
 f8();
 is('a failing menu closes, and the game goes on', [menu.open, w.SceneManager._scene.updates], [false, updates + 1]);
-is('saying why', /^tuxtavern: the F8 menu closed after an error: Error: broken/.test(logged[0]), true);
+is('saying why', /^tt: the F8 menu closed after an error: Error: broken/.test(logged[0]), true);
 w.$gameParty.gold = gold;
 console.log = log;
 

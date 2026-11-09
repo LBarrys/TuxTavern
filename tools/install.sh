@@ -113,11 +113,13 @@ $as_root rm -rf "$dest"
 $as_root cmake --install "$work" --prefix "$dest"
 # The launcher finds mkxp-z here, beside its own files, as it finds pmjs.
 [ -z "$mkxpz" ] || { $as_root mkdir -p "$dest/lib" && $as_root cp -R "$work/mkxp-z" "$dest/lib/mkxp-z"; }
-# bin/tuxtavern and bin/pmjs find their files from their own path, so bin/ gets a wrapper, not a link.
+# bin/tt and bin/pmjs find their files from their own path, so bin/ gets a wrapper, not a link.
 $as_root mkdir -p "$prefix/bin"
-printf '#!/bin/sh\nexec "%s/bin/tuxtavern" "$@"\n' "$dest" | $as_root tee "$prefix/bin/tuxtavern" >/dev/null
-$as_root chmod 755 "$prefix/bin/tuxtavern"
+printf '#!/bin/sh\nexec "%s/bin/tt" "$@"\n' "$dest" | $as_root tee "$prefix/bin/tt" >/dev/null
+$as_root chmod 755 "$prefix/bin/tt"
+# The command was tuxtavern before; its old wrapper points at a file that is gone now.
+! grep -qs "^exec \"$dest/bin/tuxtavern\"" "$prefix/bin/tuxtavern" || $as_root rm -f "$prefix/bin/tuxtavern"
 
 echo "
-Installed to $dest (command: $prefix/bin/tuxtavern). To remove it, delete both."
-case :$PATH: in *":$prefix/bin:"*) ;; *) echo "$prefix/bin is not on PATH: add it, or run $prefix/bin/tuxtavern." ;; esac
+Installed to $dest (command: $prefix/bin/tt). To remove it, delete both."
+case :$PATH: in *":$prefix/bin:"*) ;; *) echo "$prefix/bin is not on PATH: add it, or run $prefix/bin/tt." ;; esac

@@ -6,8 +6,8 @@ the root holds the launcher, `lib/`, the install scripts and what both share.
 ## Build
 
 Any distribution: `sh tools/install.sh` (`-u` for `~/.local`, `-m` with mkxp-z; CMake options after
-`--`) builds a release and installs it under `PREFIX/lib/tuxtavern` with a `PREFIX/bin/tuxtavern`
-wrapper (`bin/tuxtavern` and `bin/pmjs` find their files from their own path, so not a symlink; do not
+`--`) builds a release and installs it under `PREFIX/lib/tuxtavern` with a `PREFIX/bin/tt`
+wrapper (`bin/tt` and `bin/pmjs` find their files from their own path, so not a symlink; do not
 strip them: PMJS checks them against `build-info.json`). Missing build packages stop it with the install
 command for apk, apt-get, dnf, zypper or pacman; the tests also need Xvfb (`xvfb xauth` on Debian).
 
@@ -32,7 +32,7 @@ node --test test/*.test.cjs
 sh test/launcher/run.sh
 busybox sh test/launcher/run.sh
 dash test/launcher/run.sh
-shellcheck tuxtavern pmjs/tools/pmjs.sh tools/apk.sh tools/install.sh tools/mkxp-z.sh
+shellcheck tt pmjs/tools/pmjs.sh tools/apk.sh tools/install.sh tools/mkxp-z.sh
 ```
 
 `mkxp-z/` is mkxp-z's `dev` branch at the commit in `mkxp-z/git-hash`, without `macos/`, `windows/`,
@@ -47,7 +47,7 @@ through `pmjs/tools/upstream-paths.txt`, which lists upstream files that live at
 
 ## Running pmjs directly
 
-`tuxtavern GAME` runs MV/MZ games on PMJS. Directly:
+`tt GAME` runs MV/MZ games on PMJS. Directly:
 
 ```sh
 pmjs --version

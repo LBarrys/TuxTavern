@@ -21,7 +21,7 @@ module RpgmPatches
   ].freeze
 
   def self.say(text)
-    $stdout.puts "tuxtavern: #{text}"
+    $stdout.puts "tt: #{text}"
     $stdout.flush
   rescue StandardError
     nil

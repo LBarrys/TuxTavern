@@ -1,7 +1,7 @@
 # TuxTavern
 
 Runs Windows RPG Maker XP/VX/VX Ace/MV/MZ games natively on Linux (glibc or musl). One project: the
-`tuxtavern` launcher, PMJS (MV/MZ, from github.com/bbbreaddd/pmjs) and, for now, mkxp-z (XP/VX/VX Ace).
+`tt` launcher, PMJS (MV/MZ, from github.com/bbbreaddd/pmjs) and, for now, mkxp-z (XP/VX/VX Ace).
 `pmjs/` and `mkxp-z/` hold each engine's files, laid out as upstream; the root holds what both share
 (launcher, `lib/`, install scripts, docs, licences).
 
@@ -30,7 +30,7 @@ Runs Windows RPG Maker XP/VX/VX Ace/MV/MZ games natively on Linux (glibc or musl
   - `sh test/launcher/run.sh`, `busybox sh test/launcher/run.sh` and `dash test/launcher/run.sh` (launcher, `lib/`)
   - `node --test test/*.test.cjs` (install scripts, `REUSE.toml`)
   - in `pmjs/`: `npm test`, `npx eslint js runner tools test`; `ctest` (needs Xvfb)
-- `tuxtavern`, `pmjs/tools/pmjs.sh`, `tools/apk.sh`, `tools/install.sh` and `tools/mkxp-z.sh` are POSIX sh: `shellcheck` clean, run under
+- `tt`, `pmjs/tools/pmjs.sh`, `tools/apk.sh`, `tools/install.sh` and `tools/mkxp-z.sh` are POSIX sh: `shellcheck` clean, run under
   bash, dash and BusyBox sh.
 - MV/MZ: behave like NW.js (e.g. `require`/`process` in the page, no `module`/`exports`).
 - RGSS shims loaded before the game's scripts hook with `alias_method`, never `prepend`

@@ -13,7 +13,7 @@ check() {
 		fail=$((fail + 1)); echo "FAIL $1: expected '$2' in:"; printf '%s\n' "$out" | sed 's/^/     | /'
 	fi
 }
-run() { out=$(sh ./tuxtavern "$@" 2>&1); }
+run() { out=$(sh ./tt "$@" 2>&1); }
 
 mkdir -p "$fx/mv/www/js" "$fx/mz/js" "$fx/zip" "$fx/eapp/resources/app" "$fx/xp/Data" "$fx/vx/data" "$fx/none" "$fx/evb" "$fx/exe" "$fx/xpa" "$fx/vxa" "$fx/2k" "$fx/html"
 echo "Utils.RPGMAKER_VERSION = \"1.6.1\";" >"$fx/mv/www/js/rpg_core.js"
@@ -36,13 +36,13 @@ mkdir -p "$fx/pre"; : >"$fx/pre/Game.ini"; : >"$fx/pre/Game.rgss3a"; printf '{ "
 printf 'MZ\000\000.enig\000ma1' >"$fx/exe/Game.exe"
 printf 'MZ\000\000.enigma1\000' >"$fx/evb/GAME.EXE"
 
-echo "== tuxtavern"
-run --version; check 'reports its version' 'tuxtavern 0.'
+echo "== tt"
+run --version; check 'reports its version' 'tt 0.'
 run --info "$fx/mv"; check 'MV is detected' 'engine:  mv'; check 'MV version is read' 'version: 1.6.1'
 run --info "$fx/mv/Game.exe"; check 'a Game.exe path means its folder' 'engine:  mv'
 run --info "$fx/mz"; check 'MZ is detected' 'engine:  mz'; check 'MZ version is read' 'version: 1.8.0'
 run --info "$fx/zip"; check 'package.nw is detected' 'engine:  nwjs-zip'
-run --info "$fx/xp"; check 'XP is detected' 'engine:  rgss'; check 'TuxTavern writes the config' 'config:  written by tuxtavern'
+run --info "$fx/xp"; check 'XP is detected' 'engine:  rgss'; check 'TuxTavern writes the config' 'config:  written by tt'
 check 'the RTP the game names is reported' 'rtp:     Standard, not installed'
 run --info "$fx/vx"; check 'detection ignores letter case' 'engine:  rgss'; check "a game's own mkxp.json is found" "merged with the game's mkxp.json"
 run --info "$fx/vxa"; check 'an archive-only game is detected' 'engine:  rgss'
@@ -51,18 +51,18 @@ run --info "$fx/nwdir/Secretary.exe"; check 'also when started from the exe next
 run --info "$fx/none"; check 'an empty folder is not a game' 'engine:  not recognized'
 game="$fx/my game\$%"; mkdir -p "$game/www/js" "$game/www/data" "$game/www/icon"; : >"$game/www/js/rpg_core.js"; : >"$game/www/icon/icon.png"
 echo '{"currencyUnit":"G","gameTitle":"Tux Quest","locale":"en_US"}' >"$game/www/data/System.json"
-out=$(XDG_DATA_HOME="$fx/apps" sh ./tuxtavern --desktop "$game" 2>&1); check '--desktop adds an MV game to the app launcher' 'Added Tux Quest to the app launcher'
+out=$(XDG_DATA_HOME="$fx/apps" sh ./tt --desktop "$game" 2>&1); check '--desktop adds an MV game to the app launcher' 'Added Tux Quest to the app launcher'
 out=$(cat "$fx"/apps/applications/tuxtavern-*.desktop); check 'named after its title' 'Name=Tux Quest'
-check 'running it from its folder, quoted for a .desktop file' "Exec=\"$(readlink -f ./tuxtavern)\" \"$fx/my game\\\\\$%%\""
+check 'running it from its folder, quoted for a .desktop file' "Exec=\"$(readlink -f ./tt)\" \"$fx/my game\\\\\$%%\""
 check 'with its icon' "Icon=$game/www/icon/icon.png"
 if command -v desktop-file-validate >/dev/null 2>&1; then
 	out=$(desktop-file-validate "$fx"/apps/applications/tuxtavern-*.desktop 2>&1 && echo valid); check 'which is a valid desktop entry' 'valid'
 fi
 rm -rf "$fx/apps"
 printf '[Game]\r\nTitle=Ruby Days\r\n' >"$fx/xp/Game.ini.new"; cp "$fx/xp/Game.ini" "$fx/xp/Game.ini.old"; cat "$fx/xp/Game.ini.new" >>"$fx/xp/Game.ini"
-out=$(XDG_DATA_HOME="$fx/apps" sh ./tuxtavern -d "$fx/xp" 2>&1); check "an XP game is named from Game.ini" 'Added Ruby Days'
+out=$(XDG_DATA_HOME="$fx/apps" sh ./tt -d "$fx/xp" 2>&1); check "an XP game is named from Game.ini" 'Added Ruby Days'
 printf '[Game]\r\nTitle=\203\211\203C\r\n' >"$fx/xp/Game.ini"
-out=$(XDG_DATA_HOME="$fx/apps" sh ./tuxtavern -d "$fx/xp" 2>&1); check 'a Shift-JIS title falls back to the folder name' 'Added xp to'
+out=$(XDG_DATA_HOME="$fx/apps" sh ./tt -d "$fx/xp" 2>&1); check 'a Shift-JIS title falls back to the folder name' 'Added xp to'
 mv "$fx/xp/Game.ini.old" "$fx/xp/Game.ini"; rm -f "$fx/xp/Game.ini.new"
 run --desktop "$fx/none"; check '--desktop needs a game' 'no RPG Maker XP/VX/VX Ace/MV/MZ game found'
 run --info "$fx/evb"; check 'an Enigma-packed exe is detected' 'engine:  evb'; check 'and named' 'GAME.EXE (Enigma'
@@ -92,7 +92,7 @@ printf '#!/bin/sh\ncase " $PC_MISSING " in *" $2 "*) exit 1 ;; esac\n' >"$fx/is/
 cat >"$fx/is/bin/cmake" <<'EOF'
 #!/bin/sh
 echo "cmake $*" >>"$IS_LOG"
-[ "$1" != --install ] || { mkdir -p "$4/bin"; : >"$4/bin/tuxtavern"; }
+[ "$1" != --install ] || { mkdir -p "$4/bin"; : >"$4/bin/tt"; }
 EOF
 chmod +x "$fx/is/bin/"*
 is() {
@@ -106,12 +106,18 @@ PC_MISSING=sdl2 is "$fx/pm/dnf" -u; check 'and for dnf, by pkg-config module' "d
 PC_MISSING=sdl2 is "$fx/pm/apk" -u; check 'and for apk' 'apk add build-base cmake samurai pkgconf git nodejs-dev linux-headers mesa-dev pc:sdl2'
 PC_MISSING=sdl2 is "$fx/pm/pacman" -u; check 'and for pacman' 'pacman -S --needed base-devel cmake ninja pkgconf git nodejs sdl2'
 PC_MISSING=sdl2 is "$fx/pm/none" -u; check 'or what to install without a known package manager' 'Install a C++ compiler, CMake, Ninja, pkg-config, git, Node.js with its'
+mkdir -p "$fx/is/home/.local/bin"
+printf '#!/bin/sh\nexec "%s/bin/tuxtavern" "$@"\n' "$fx/is/home/.local/lib/tuxtavern" >"$fx/is/home/.local/bin/tuxtavern"
 PC_MISSING='' is "$fx/pm/none" -u -- -DEXAMPLE=1
 check 'with everything there it builds the native add-on' 'cmake --build'
 check 'passing options after -- to CMake' '-DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DEXAMPLE=1'
 check 'and -u installs into ~/.local' "--prefix $fx/is/home/.local/lib/tuxtavern"
-out=$(cat "$fx/is/home/.local/bin/tuxtavern" 2>&1)
-check 'with a wrapper, as bin/tuxtavern finds its files from its own path' "exec \"$fx/is/home/.local/lib/tuxtavern/bin/tuxtavern\" \"\$@\""
+out=$(cat "$fx/is/home/.local/bin/tt" 2>&1)
+check 'with a wrapper, as bin/tt finds its files from its own path' "exec \"$fx/is/home/.local/lib/tuxtavern/bin/tt\" \"\$@\""
+[ ! -e "$fx/is/home/.local/bin/tuxtavern" ] && pass=$((pass + 1)) && echo "  ok and removes the wrapper of the old tuxtavern command" || { fail=$((fail + 1)); echo "FAIL the old tuxtavern wrapper was left"; }
+printf 'someone else'"'"'s\n' >"$fx/is/home/.local/bin/tuxtavern"; PC_MISSING='' is "$fx/pm/none" -u
+[ -e "$fx/is/home/.local/bin/tuxtavern" ] && pass=$((pass + 1)) && echo "  ok but not another program by that name" || { fail=$((fail + 1)); echo "FAIL another tuxtavern was removed"; }
+rm -f "$fx/is/home/.local/bin/tuxtavern"
 case $(ls "$fx/is/cache") in *tuxtavern-build*) fail=$((fail + 1)); echo "FAIL the build folder was left behind" ;; *) pass=$((pass + 1)); echo "  ok and removes its build folder" ;; esac
 PC_MISSING='' is "$fx/pm/none" --bogus; check 'an unknown option is refused' 'usage: tools/install.sh [-u | --user] [-m | --mkxp-z | -M | --mkxp-z-bundled] [-- CMAKE_OPTIONS...]'
 
@@ -160,20 +166,20 @@ PC_MISSING='' im "$fx/pm/none" -u
 case $out in *meson*) fail=$((fail + 1)); echo "FAIL mkxp-z was built without -m" ;; *) pass=$((pass + 1)); echo "  ok and without -m, no mkxp-z" ;; esac
 
 echo "== launcher and an installed mkxp-z"
-# The layout install.sh -m makes: bin/tuxtavern, share/tuxtavern, lib/mkxp-z.
+# The layout install.sh -m makes: bin/tt, share/tuxtavern, lib/mkxp-z.
 mkdir -p "$fx/inst/bin" "$fx/inst/lib/mkxp-z/scripts/preload" "$fx/inst/xp/Data"
-cp tuxtavern "$fx/inst/bin/tuxtavern"; cp -R lib "$fx/inst/share-lib"; mkdir -p "$fx/inst/share" && mv "$fx/inst/share-lib" "$fx/inst/share/tuxtavern"
+cp tt "$fx/inst/bin/tt"; cp -R lib "$fx/inst/share-lib"; mkdir -p "$fx/inst/share" && mv "$fx/inst/share-lib" "$fx/inst/share/tuxtavern"
 printf '#!/bin/sh\necho "installed mkxp-z driver=$SDL_VIDEODRIVER args=$*"\n' >"$fx/inst/lib/mkxp-z/mkxp-z.x86_64"; chmod +x "$fx/inst/lib/mkxp-z/mkxp-z.x86_64"
 : >"$fx/inst/lib/mkxp-z/scripts/preload/win32_wrap.rb"; echo 'f02d586 (TuxTavern 1234567)' >"$fx/inst/lib/mkxp-z/VERSION"
 : >"$fx/inst/xp/Data/Scripts.rxdata"; : >"$fx/inst/xp/Game.exe"
-out=$(PATH="$fx/minbin" sh "$fx/inst/bin/tuxtavern" -i "$fx/inst/xp" 2>&1)
+out=$(PATH="$fx/minbin" sh "$fx/inst/bin/tt" -i "$fx/inst/xp" 2>&1)
 check 'the launcher finds mkxp-z beside its install, before PATH' "runtime: $fx/inst/lib/mkxp-z/mkxp-z.x86_64 (f02d586 (TuxTavern 1234567))"
-out=$(PATH="$fx/minbin" XDG_DATA_HOME="$fx/inst/data" WAYLAND_DISPLAY=wayland-0 sh "$fx/inst/bin/tuxtavern" "$fx/inst/xp" 2>&1); check 'and runs it on Wayland' 'installed mkxp-z driver=wayland args='
-out=$(PATH="$fx/pm/apt:$fx/minbin" sh ./tuxtavern -i "$fx/inst/xp" 2>&1); check 'without one it says how to get it' 'runtime: mkxp-z not installed (sh tools/install.sh -m in a TuxTavern checkout)'
+out=$(PATH="$fx/minbin" XDG_DATA_HOME="$fx/inst/data" WAYLAND_DISPLAY=wayland-0 sh "$fx/inst/bin/tt" "$fx/inst/xp" 2>&1); check 'and runs it on Wayland' 'installed mkxp-z driver=wayland args='
+out=$(PATH="$fx/pm/apt:$fx/minbin" sh ./tt -i "$fx/inst/xp" 2>&1); check 'without one it says how to get it' 'runtime: mkxp-z not installed (sh tools/install.sh -m in a TuxTavern checkout)'
 mkdir -p "$fx/pathmk" && printf '#!/bin/sh\necho old mkxp-z\n' >"$fx/pathmk/mkxp-z" && chmod +x "$fx/pathmk/mkxp-z"
-out=$(PATH="$fx/pathmk:$fx/pm/apt:$fx/minbin" sh ./tuxtavern -i "$fx/inst/xp" 2>&1)
+out=$(PATH="$fx/pathmk:$fx/pm/apt:$fx/minbin" sh ./tt -i "$fx/inst/xp" 2>&1)
 check 'an mkxp-z on PATH (the old build-mkxp-z.sh) is not used' 'runtime: mkxp-z not installed'
-out=$(PATH="$fx/pm/apk:$fx/minbin" WAYLAND_DISPLAY=wayland-0 sh ./tuxtavern "$fx/inst/xp" 2>&1); check 'on Alpine through the package script' 'XP/VX/VX Ace games need mkxp-z (doas sh tools/apk.sh -m in a TuxTavern checkout)'
+out=$(PATH="$fx/pm/apk:$fx/minbin" WAYLAND_DISPLAY=wayland-0 sh ./tt "$fx/inst/xp" 2>&1); check 'on Alpine through the package script' 'XP/VX/VX Ace games need mkxp-z (doas sh tools/apk.sh -m in a TuxTavern checkout)'
 
 echo "== mkxp-z/"
 # mkxp-z's src/meson.build names SDL_ttf's font struct by the first check that compiles, and font.h
@@ -209,60 +215,60 @@ require('fs').writeFileSync(process.argv[1], evb({ name: '%DEFAULT FOLDER%', chi
   { name: 'www', children: [f('index.html', ''), { name: 'js', children: [f('rpg_core.js', '')] }] }] }))" "$fx/packed/Game.exe"
 	# shellcheck disable=SC2016
 	printf '#!/bin/sh\necho "pmjs $* driver=${SDL_VIDEODRIVER:-} hz=${PMJS_RENDER_HZ:-}"\nfor a; do case $a in *.js) cat "$a" ;; esac; done\n' >"$fx/bin/pmjs" && chmod +x "$fx/bin/pmjs"
-	# XP/VX/VX Ace games need the installed layout install.sh -m makes: bin/tuxtavern,
+	# XP/VX/VX Ace games need the installed layout install.sh -m makes: bin/tt,
 	# share/tuxtavern and lib/mkxp-z, here with a stand-in mkxp-z that reads mkxp.json in SRCDIR.
-	tt="$fx/ti/bin/tuxtavern"
+	tt="$fx/ti/bin/tt"
 	mkdir -p "$fx/ti/bin" "$fx/ti/share" "$fx/ti/lib/mkxp-z/scripts/preload" "$fx/ti/lib/mkxp-z/stdlib" "$fx/data/tuxtavern/rtp/Standard"
-	cp tuxtavern "$tt" && cp -R lib "$fx/ti/share/tuxtavern"
+	cp tt "$tt" && cp -R lib "$fx/ti/share/tuxtavern"
 	# shellcheck disable=SC2016
 	printf '#!/bin/sh\necho "mkxp-z rgss=$TUXTAVERN_RGSS_VERSION driver=$SDL_VIDEODRIVER cheat=$TUXTAVERN_CHEAT pwd=$PWD srcdir=$SRCDIR args=$*"; cd "${SRCDIR:-.}" && cat mkxp.json\n' >"$fx/ti/lib/mkxp-z/mkxp-z.x86_64"
 	chmod +x "$fx/ti/lib/mkxp-z/mkxp-z.x86_64"
 	: >"$fx/ti/lib/mkxp-z/scripts/preload/win32_wrap.rb"
 
-	out=$(PATH="/usr/bin:/bin" sh ./tuxtavern "$fx/mv" 2>&1); check 'without pmjs it says how to get it' 'MV/MZ games need pmjs'
-	out=$(PATH="$fx/pm/apk:$fx/minbin" sh ./tuxtavern "$fx/mv" 2>&1); check 'on Alpine it names the apk package script' 'MV/MZ games need pmjs (doas sh tools/apk.sh in a TuxTavern checkout)'
-	out=$(PATH="$fx/pm/apt:$fx/minbin" sh ./tuxtavern "$fx/mv" 2>&1); check 'elsewhere the install script' 'MV/MZ games need pmjs (sh tools/install.sh in a TuxTavern checkout)'
-	out=$(PATH="$fx/pm/apt:$fx/minbin" sh ./tuxtavern --edit-save "$fx/pm/file1.rpgsave" 2>&1); check 'and node is named for the package manager there: apt' '--edit-save needs node (apt-get install nodejs)'
-	out=$(PATH="$fx/pm/pacman:$fx/minbin" sh ./tuxtavern --edit-save "$fx/pm/file1.rpgsave" 2>&1); check 'pacman' '--edit-save needs node (pacman -S nodejs)'
-	out=$(PATH="$fx/minbin" sh ./tuxtavern --edit-save "$fx/pm/file1.rpgsave" 2>&1); check 'or just its name without one' '--edit-save needs node (install nodejs)'
-	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" sh ./tuxtavern "$fx/mv" 2>&1)
+	out=$(PATH="/usr/bin:/bin" sh ./tt "$fx/mv" 2>&1); check 'without pmjs it says how to get it' 'MV/MZ games need pmjs'
+	out=$(PATH="$fx/pm/apk:$fx/minbin" sh ./tt "$fx/mv" 2>&1); check 'on Alpine it names the apk package script' 'MV/MZ games need pmjs (doas sh tools/apk.sh in a TuxTavern checkout)'
+	out=$(PATH="$fx/pm/apt:$fx/minbin" sh ./tt "$fx/mv" 2>&1); check 'elsewhere the install script' 'MV/MZ games need pmjs (sh tools/install.sh in a TuxTavern checkout)'
+	out=$(PATH="$fx/pm/apt:$fx/minbin" sh ./tt --edit-save "$fx/pm/file1.rpgsave" 2>&1); check 'and node is named for the package manager there: apt' '--edit-save needs node (apt-get install nodejs)'
+	out=$(PATH="$fx/pm/pacman:$fx/minbin" sh ./tt --edit-save "$fx/pm/file1.rpgsave" 2>&1); check 'pacman' '--edit-save needs node (pacman -S nodejs)'
+	out=$(PATH="$fx/minbin" sh ./tt --edit-save "$fx/pm/file1.rpgsave" 2>&1); check 'or just its name without one' '--edit-save needs node (install nodejs)'
+	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" sh ./tt "$fx/mv" 2>&1)
 	check 'an MV game is prepared from its www folder' "pmjs prepare --game $fx/mv/www --config"
 	check 'then run on Wayland, saving where NW.js does' "pmjs run --game $fx/mv/www --save-root $fx/mv/www/save driver=wayland"
 	check 'with its asset cache kept out of the game' "--config $fx/cache/tuxtavern/pmjs/"
 	check 'the F8 cheat menu is loaded as a PMJS adapter' '/tuxtavern.js driver='
 	check 'and installs itself once the game plugins have loaded' "PMJS.phases.on('afterGuestPlugins', 'tuxtavern.cheats'"
 	out=$(cat "$fx"/cache/tuxtavern/pmjs/*/config.json); check 'the asset cache is in the cache folder' "\"cacheRoot\": \"$fx/cache/tuxtavern/pmjs/"
-	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" TUXTAVERN_OVERRIDES='data:.json=.pack,js/plugins:.js=.mod,data:.png=_en.png' TUXTAVERN_SAVE_DIRS='saves' sh ./tuxtavern "$fx/mv" 2>&1)
+	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" TUXTAVERN_OVERRIDES='data:.json=.pack,js/plugins:.js=.mod,data:.png=_en.png' TUXTAVERN_SAVE_DIRS='saves' sh ./tt "$fx/mv" 2>&1)
 	out=$(node -e 'for (const f of process.argv.slice(1)) { const c = JSON.parse(require("fs").readFileSync(f, "utf8")); if (c.virtualFiles) console.log(JSON.stringify(c.virtualFiles)); }' "$fx"/cache/tuxtavern/pmjs/*/config.json 2>&1)
 	check 'TUXTAVERN_OVERRIDES and TUXTAVERN_SAVE_DIRS reach the PMJS config, grouped by folder' '{"overrides":{"data":{".json":".pack",".png":"_en.png"},"js/plugins":{".js":".mod"}},"saveDirectories":["saves"]}'
-	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" TUXTAVERN_OVERRIDES='data:json=x' sh ./tuxtavern "$fx/mv" 2>&1)
+	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" TUXTAVERN_OVERRIDES='data:json=x' sh ./tt "$fx/mv" 2>&1)
 	check 'and a rule it cannot read stops the game with how to write one' 'TUXTAVERN_OVERRIDES: cannot read data:json=x (use folder:.ext=.new'
 	case $out in *'pmjs prepare'*) fail=$((fail + 1)); echo "FAIL a bad TUXTAVERN_OVERRIDES still ran the game" ;; *) pass=$((pass + 1)); echo "  ok without running it" ;; esac
-	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" sh ./tuxtavern "$fx/mv" 2>&1)
+	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" sh ./tt "$fx/mv" 2>&1)
 	out=$(cat "$fx"/cache/tuxtavern/pmjs/*/config.json)
 	case $out in *virtualFiles*) fail=$((fail + 1)); echo "FAIL virtualFiles written without the variables" ;; *) pass=$((pass + 1)); echo "  ok without them the config is unchanged" ;; esac
-	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" sh ./tuxtavern -C "$fx/mv" 2>&1)
+	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" sh ./tt -C "$fx/mv" 2>&1)
 	case $out in *--adapter*) fail=$((fail + 1)); echo "FAIL -C still loaded the cheat menu" ;; *) pass=$((pass + 1)); echo "  ok -C (--no-cheat) leaves the cheat menu out" ;; esac
-	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" TUXTAVERN_SKIP='MOD/DRGN_TranslationUI,Other' sh ./tuxtavern -C "$fx/mv" 2>&1)
+	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" TUXTAVERN_SKIP='MOD/DRGN_TranslationUI,Other' sh ./tt -C "$fx/mv" 2>&1)
 	check 'TUXTAVERN_SKIP is passed as the adapter, even without the cheat menu' '/tuxtavern.js driver='
 	check 'which leaves those plugins out before any loads' 'var skip = ["MOD/DRGN_TranslationUI", "Other"];'
-	check 'saying so' 'tuxtavern: TUXTAVERN_SKIP leaves out'
-	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" sh ./tuxtavern "$fx/mz" 2>&1); check 'an MZ game runs from its own folder' "pmjs run --game $fx/mz --save-root $fx/mz/save driver=wayland"
-	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" sh ./tuxtavern -T "$fx/mz" 2>&1); check '-T says it is XP/VX/VX Ace only' '-T works for XP/VX/VX Ace games only'
+	check 'saying so' 'tt: TUXTAVERN_SKIP leaves out'
+	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" sh ./tt "$fx/mz" 2>&1); check 'an MZ game runs from its own folder' "pmjs run --game $fx/mz --save-root $fx/mz/save driver=wayland"
+	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" sh ./tt -T "$fx/mz" 2>&1); check '-T says it is XP/VX/VX Ace only' '-T works for XP/VX/VX Ace games only'
 	mkdir -p "$fx/mvenv/www/js"; : >"$fx/mvenv/www/js/rpg_core.js"
 	printf '# PMJS_RENDER_HZ=120\r\nPMJS_RENDER_HZ=30\r\n\r\nTUXTAVERN_SKIP=Foo,Bar\r\nPATH=/nowhere\r\nPMJS_NOVALUE\r\n' >"$fx/mvenv/TuxTavern.env"
-	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" sh ./tuxtavern "$fx/mvenv" 2>&1)
+	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" sh ./tt "$fx/mvenv" 2>&1)
 	check "a game's tuxtavern.env sets PMJS_* variables" 'driver=wayland hz=30'
 	check 'and TUXTAVERN_* ones' 'var skip = ["Foo", "Bar"];'
 	check 'but no others' "only PMJS_*, TUXTAVERN_* and SDL_* are read, not: PATH=/nowhere"
 	check 'a line without = is pointed out' "no '=' in: PMJS_NOVALUE"
-	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" PMJS_RENDER_HZ=60 sh ./tuxtavern "$fx/mvenv" 2>&1)
+	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" PMJS_RENDER_HZ=60 sh ./tt "$fx/mvenv" 2>&1)
 	check 'what the environment sets wins over tuxtavern.env' 'driver=wayland hz=60'
-	out=$(PATH="$fx/bin:$PATH" sh ./tuxtavern -i "$fx/mvenv" 2>&1); check '--info names tuxtavern.env' "settings: $fx/mvenv/TuxTavern.env"
+	out=$(PATH="$fx/bin:$PATH" sh ./tt -i "$fx/mvenv" 2>&1); check '--info names tuxtavern.env' "settings: $fx/mvenv/TuxTavern.env"
 	mkdir -p "$fx/mvuser/www/js" && : >"$fx/mvuser/www/js/rpg_core.js"
 	printf 'var tuxUser = (globalThis.tuxUser || "") + "a";\n' >"$fx/mvuser/a.tuxtavern.js"
 	printf 'throw new Error("broken fix");\n' >"$fx/mvuser/B.TuxTavern.js"
-	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" sh ./tuxtavern -C "$fx/mvuser" 2>&1)
+	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" sh ./tt -C "$fx/mvuser" 2>&1)
 	check "a game folder's *.tuxtavern.js are found, any case, in name order" "[\"$fx/mvuser/B.TuxTavern.js\", \"$fx/mvuser/a.tuxtavern.js\"]"
 	adapter=$(ls "$fx"/cache/tuxtavern/pmjs/*/tuxtavern.js | while read -r f; do grep -l mvuser "$f"; done | head -n 1)
 	out=$(node -e '
@@ -273,42 +279,42 @@ const [phase, run] = hooks["tuxtavern.user"]; run();
 console.log(phase, vm.runInContext("typeof tuxUser === \"string\" ? tuxUser : \"none\"", ctx), logged.join(" | "));' "$adapter" 2>&1)
 	check 'they run once the game plugins have loaded, in the global scope as plugin scripts do' 'afterGuestPlugins a '
 	check 'one that fails is logged, and the others still run' 'B.TuxTavern.js failed: Error: broken fix'
-	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" sh ./tuxtavern -C "$fx/mz" 2>&1)
+	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" sh ./tt -C "$fx/mz" 2>&1)
 	case $out in *tuxtavern.user*) fail=$((fail + 1)); echo "FAIL user scripts are added without any *.tuxtavern.js" ;; *) pass=$((pass + 1)); echo "  ok without them there is nothing to run" ;; esac
-	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" HOME="$fx/home" TUXTAVERN_SCREENSHOTS=1 sh ./tuxtavern "$fx/mv" 2>&1)
+	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" HOME="$fx/home" TUXTAVERN_SCREENSHOTS=1 sh ./tt "$fx/mv" 2>&1)
 	check 'TUXTAVERN_SCREENSHOTS=1 adds F12 screenshots to ~/Pictures, named after the game' "shots.install(globalThis, \"$fx/home/Pictures\", \"mv\")"
-	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" TUXTAVERN_SCREENSHOTS="$fx/shots" sh ./tuxtavern -C "$fx/mv" 2>&1)
+	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" TUXTAVERN_SCREENSHOTS="$fx/shots" sh ./tt -C "$fx/mv" 2>&1)
 	check 'or to the folder it names, also without the cheat menu' "shots.install(globalThis, \"$fx/shots\", \"mv\")"
-	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" TUXTAVERN_KEYS='wasd,e=ok' sh ./tuxtavern -C "$fx/mv" 2>&1)
+	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" TUXTAVERN_KEYS='wasd,e=ok' sh ./tt -C "$fx/mv" 2>&1)
 	check 'TUXTAVERN_KEYS adds its key mappings to the game' 'keys.install(globalThis, "wasd,e=ok")'
 	case $out in *tuxtavern.keys*) ;; *) fail=$((fail + 1)); echo "FAIL the key mappings are not installed once the plugins have loaded" ;; esac
-	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" sh ./tuxtavern "$fx/mv" 2>&1)
+	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" sh ./tt "$fx/mv" 2>&1)
 	case $out in *tuxtavern.screenshots*) fail=$((fail + 1)); echo "FAIL screenshots are on without TUXTAVERN_SCREENSHOTS" ;; *) pass=$((pass + 1)); echo "  ok screenshots are off unless asked for" ;; esac
 	case $out in *tuxtavern.keys*) fail=$((fail + 1)); echo "FAIL keys are remapped without TUXTAVERN_KEYS" ;; *) pass=$((pass + 1)); echo "  ok keys stay as the game has them unless asked" ;; esac
-	out=$(PATH="$fx/bin:$PATH" sh ./tuxtavern -i "$fx/mz" 2>&1); check '--info names pmjs, and its version' "runtime: $fx/bin/pmjs (pmjs --version"
+	out=$(PATH="$fx/bin:$PATH" sh ./tt -i "$fx/mz" 2>&1); check '--info names pmjs, and its version' "runtime: $fx/bin/pmjs (pmjs --version"
 	mkdir -p "$fx/mvinfo/www/js/libs" "$fx/mzinfo/js/libs" && : >"$fx/mvinfo/www/js/rpg_core.js" && : >"$fx/mzinfo/js/rmmz_core.js"
 	printf '/*!\n * pixi.js - v4.5.4\n */\n' >"$fx/mvinfo/www/js/libs/pixi.js"
 	printf 'var $plugins =\n[\n{"name":"A","status":true,"parameters":{}},\n{"name":"B","status": false,"parameters":{}},\n{"name":"C","status":true,"parameters":{}}\n];\n' >"$fx/mvinfo/www/js/plugins.js"
 	printf 'var PIXI = {};\nPIXI.VERSION = "5.3.12";\n' >"$fx/mzinfo/js/libs/pixi.js"
-	out=$(PATH="$fx/bin:$PATH" sh ./tuxtavern -i "$fx/mvinfo" 2>&1)
+	out=$(PATH="$fx/bin:$PATH" sh ./tt -i "$fx/mvinfo" 2>&1)
 	check "--info shows the game's Pixi version" 'pixi:    4.5.4'; check 'and how many plugins are on' 'plugins: 2 of 3 on'
-	out=$(PATH="$fx/bin:$PATH" sh ./tuxtavern -i "$fx/mzinfo" 2>&1); check 'also from a Pixi without the header' 'pixi:    5.3.12'
-	out=$(PATH="$fx/bin:$PATH" WAYLAND_DISPLAY='' sh ./tuxtavern "$fx/packed" 2>&1); check 'without a Wayland session nothing runs' 'Wayland only'
+	out=$(PATH="$fx/bin:$PATH" sh ./tt -i "$fx/mzinfo" 2>&1); check 'also from a Pixi without the header' 'pixi:    5.3.12'
+	out=$(PATH="$fx/bin:$PATH" WAYLAND_DISPLAY='' sh ./tt "$fx/packed" 2>&1); check 'without a Wayland session nothing runs' 'Wayland only'
 
 	: >"$fx/packed/fix.tuxtavern.js"
-	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" XDG_CACHE_HOME="$fx/cache" sh ./tuxtavern "$fx/packed" 2>&1)
+	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" XDG_CACHE_HOME="$fx/cache" sh ./tt "$fx/packed" 2>&1)
 	check 'an Enigma-packed game is unpacked and run on PMJS' "pmjs run --game $fx/data/tuxtavern/unpacked/"
 	check "and a *.tuxtavern.js beside the packed exe is used" "[\"$fx/packed/fix.tuxtavern.js\"]"
 	out=$(cd "$fx/data" && find . -type f | sort); check 'its files are unpacked' 'www/js/rpg_core.js'
 	mkdir -p "$fx/nwexe"
 	node -e "const { zip } = require('./test/launcher/evb-test.js'); require('fs').writeFileSync(process.argv[1], Buffer.concat([Buffer.from('MZ'),
   Buffer.alloc(5000), zip([{ name: 'package.json', data: '{}' }, { name: 'js/rmmz_core.js', data: '' }])]))" "$fx/nwexe/Game.exe"
-	out=$(PATH="$fx/bin:$PATH" sh ./tuxtavern -i "$fx/nwexe" 2>&1); check 'a game zipped onto the NW.js Game.exe is detected' 'Game.exe (NW.js package)'
-	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" XDG_CACHE_HOME="$fx/cache" sh ./tuxtavern "$fx/nwexe" 2>&1)
+	out=$(PATH="$fx/bin:$PATH" sh ./tt -i "$fx/nwexe" 2>&1); check 'a game zipped onto the NW.js Game.exe is detected' 'Game.exe (NW.js package)'
+	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" XDG_CACHE_HOME="$fx/cache" sh ./tt "$fx/nwexe" 2>&1)
 	check 'and unpacked and run as an MZ game' "pmjs run --game $fx/data/tuxtavern/unpacked/"
-	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" XDG_CACHE_HOME="$fx/cache" sh ./tuxtavern -C "$fx/packed" 2>&1)
+	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" XDG_CACHE_HOME="$fx/cache" sh ./tt -C "$fx/packed" 2>&1)
 	case $out in *tuxtavern.cheats*) fail=$((fail + 1)); echo "FAIL --no-cheat did not reach the unpacked game" ;; *) pass=$((pass + 1)); echo "  ok --no-cheat reaches a packed game after unpacking" ;; esac
-	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" sh ./tuxtavern "$fx/nwdir" 2>&1); check 'a package.nw folder runs without unpacking' "pmjs run --game $fx/nwdir/Package.nw "
+	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" sh ./tt "$fx/nwdir" 2>&1); check 'a package.nw folder runs without unpacking' "pmjs run --game $fx/nwdir/Package.nw "
 
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh "$tt" "$fx/xp" 2>&1); check 'XP runs as RGSS1' 'rgss=1'; check 'mkxp-z is told to use Wayland' 'driver=wayland'
 	check 'mkxp-z starts from the config TuxTavern wrote' "pwd=$fx/data/tuxtavern/mkxp/"
@@ -340,11 +346,11 @@ console.log(phase, vm.runInContext("typeof tuxUser === \"string\" ? tuxUser : \"
 
 	mkdir -p "$fx/mz/save"
 	node -e "process.stdout.write(require('zlib').deflateSync('{\"party\":{\"_gold\":100}}').toString('latin1'))" >"$fx/mz/save/file1.rmmzsave"
-	out=$(EDITOR=true sh ./tuxtavern --edit-save "$fx/mz/save/file1.rmmzsave" 2>&1); check '--edit-save writes nothing when nothing changed' 'Unchanged'
-	out=$(EDITOR="sed -i s/100/250/" sh ./tuxtavern -e "$fx/mz/save/file1.rmmzsave" 2>&1); check '-e (--edit-save) writes an edit back' 'Wrote'
+	out=$(EDITOR=true sh ./tt --edit-save "$fx/mz/save/file1.rmmzsave" 2>&1); check '--edit-save writes nothing when nothing changed' 'Unchanged'
+	out=$(EDITOR="sed -i s/100/250/" sh ./tt -e "$fx/mz/save/file1.rmmzsave" 2>&1); check '-e (--edit-save) writes an edit back' 'Wrote'
 	out=$(node lib/savejson.js decode "$fx/mz/save/file1.rmmzsave" /dev/stdout); check 'and the save holds it' '"_gold": 250'
 	out=$(ls "$fx/mz/save"); check 'next to a backup of the original' 'file1.rmmzsave.bak'
-	out=$(EDITOR="sed -i s/250/oops,/" sh ./tuxtavern --edit-save "$fx/mz/save/file1.rmmzsave" 2>&1); check 'a broken edit is not written' 'your edit is kept in'
+	out=$(EDITOR="sed -i s/250/oops,/" sh ./tt --edit-save "$fx/mz/save/file1.rmmzsave" 2>&1); check 'a broken edit is not written' 'your edit is kept in'
 	for f in lib/*.js; do
 		if node --check "$f" 2>/dev/null; then pass=$((pass + 1)); else fail=$((fail + 1)); echo "FAIL $f does not parse"; fi
 	done
@@ -384,10 +390,10 @@ puts [o.id == o.object_id, nil.id, true.id].join(","), [TRUE, FALSE, NIL].inspec
 	check 'VX Ace gets Hash#index back, as Ruby 1.9 had it' 'a'
 	if command -v node >/dev/null 2>&1; then
 		mkdir -p "$fx/ace" && ruby test/launcher/rgss-save.rb make "$fx/ace"
-		out=$(EDITOR="sed -i -e s/1234567/7654321/ -e s/ラルフ/Ralf/" sh ./tuxtavern -e "$fx/ace/Save01.rvdata2" 2>&1); check '--edit-save edits a VX Ace save' 'Wrote'
+		out=$(EDITOR="sed -i -e s/1234567/7654321/ -e s/ラルフ/Ralf/" sh ./tt -e "$fx/ace/Save01.rvdata2" 2>&1); check '--edit-save edits a VX Ace save' 'Wrote'
 		out=$(ruby test/launcher/rgss-save.rb read "$fx/ace/Save01.rvdata2" 2>&1)
 		check 'which Ruby reads back, edited, with shared objects still shared' 'gold=7654321 hp=450 name=Ralf shared=true'
-		out=$(EDITOR=true sh ./tuxtavern -e "$fx/ace/Save1.rxdata" 2>&1); check 'and an XP save, unchanged' 'Unchanged'
+		out=$(EDITOR=true sh ./tt -e "$fx/ace/Save1.rxdata" 2>&1); check 'and an XP save, unchanged' 'Unchanged'
 	fi
 	mkdir -p "$fx/rgss"
 	# shellcheck disable=SC2016

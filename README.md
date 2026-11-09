@@ -23,17 +23,18 @@ doas sh tools/apk.sh -m  # Alpine: the same, as an apk package
 ## Use
 
 ```sh
-tuxtavern [GAME_DIR | Game.exe]   # default: current directory
-tuxtavern --no-cheat GAME         # turn off the F8 cheat menu (god mode, no clip, speed, teleport, items...)
-tuxtavern --test GAME             # XP/VX/VX Ace: playtest
-tuxtavern --edit-save SAVE        # edit a save as JSON in $EDITOR
-tuxtavern --info GAME             # show what was detected
-tuxtavern --desktop GAME          # add it to the app launcher
+tt [GAME_DIR | Game.exe]     # default: current directory
+tt --no-cheat GAME           # turn off the F8 cheat menu (god mode, no clip, speed, teleport, items...)
+tt --test GAME               # XP/VX/VX Ace: playtest
+tt --edit-save SAVE          # edit a save as JSON in $EDITOR
+tt --info GAME               # show what was detected
+tt --desktop GAME            # add it to the app launcher
 ```
 
 - **Missing graphics or sounds:** extract the game's [RTP](https://www.rpgmakerweb.com/run-time-package)
   to `~/.local/share/tuxtavern/rtp/` as `Standard`, `RPGVX` or `RPGVXAce`. `--info` names the one needed.
-- **MV/MZ uses too much power:** `PMJS_RENDER_HZ=60 tuxtavern GAME` (draws at 60 frames a second, not as fast as it can).
+- **App launcher entry broke after updating:** the command is now `tt`; run `tt --desktop GAME` again.
+- **MV/MZ uses too much power:** `PMJS_RENDER_HZ=60 tt GAME` (draws at 60 frames a second, not as fast as it can).
 - **A plugin or script stops a game** (e.g. one that builds HTML): `TUXTAVERN_SKIP=name,...` leaves it out.
 - **Screenshots (MV/MZ):** `TUXTAVERN_SCREENSHOTS=1` makes F12 save one to `~/Pictures` (or give a folder).
 - **Other keys (MV/MZ):** `TUXTAVERN_KEYS=wasd` (or `w=up,e=ok,q=cancel,...`); XP/VX/VX Ace: mkxp-z's F1 menu.
@@ -64,5 +65,5 @@ from [Kawariki](https://github.com/Orochimarufan/Kawariki) (Taeyeon Mori), [rmse
 [evbunpack](https://github.com/mos9527/evbunpack) (mos9527, Apache-2.0) and aplib (Sandor Nemes, GPL-3.0).
 Mostly written by Claude (Anthropic).
 
-GPL-3.0 as a whole. PMJS's files stay MIT (`pmjs/LICENSE`); the shims in `lib/rgss/` are CC0; `REUSE.toml` says
+GPL-3.0 as a whole (`LICENSE`). PMJS's files stay MIT (`pmjs/LICENSE`); the shims in `lib/rgss/` are CC0; `REUSE.toml` says
 which is which.

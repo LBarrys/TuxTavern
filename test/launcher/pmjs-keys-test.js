@@ -24,11 +24,11 @@ const w = {
 };
 const logged = [];
 const log = console.log;
-console.log = text => (String(text).startsWith('tuxtavern:') ? logged.push(text) : log(text));
+console.log = text => (String(text).startsWith('tt:') ? logged.push(text) : log(text));
 install(w, 'wasd,f5=none,bogus');
 console.log = log;
 is('the mappings are added once the plugins have loaded', [w.Input.keyMapper[87], w.Input.keyMapper[116], w.Input.keyMapper[13]], ['up', undefined, 'ok']);
-is('and what cannot be read is said', logged, ['tuxtavern: TUXTAVERN_KEYS: cannot read bogus (use key=action, e.g. w=up)']);
+is('and what cannot be read is said', logged, ['tt: TUXTAVERN_KEYS: cannot read bogus (use key=action, e.g. w=up)']);
 w.ConfigManager.applyData({});
 is('they stay when the game applies its own key config', [w.Input.keyMapper[87], w.Input.keyMapper[68], w.Input.keyMapper[13]], ['up', 'right', 'ok']);
 is('which is not changed, so they are not saved into it', saved, { 13: 'ok', 87: 'pageup' });

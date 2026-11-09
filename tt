@@ -8,7 +8,7 @@ here=$(dirname "$self")
 lib=$here/lib
 [ -d "$lib/rgss" ] || lib=$here/../share/tuxtavern
 
-die() { printf 'tuxtavern: %s\n' "$*" >&2; exit 1; }
+die() { printf 'tt: %s\n' "$*" >&2; exit 1; }
 have() { command -v "$1" >/dev/null 2>&1; }
 # How to install package $1 with this system's package manager (the names asked for are the same
 # on Alpine, Debian, Fedora, Arch and openSUSE).
@@ -53,8 +53,8 @@ packed_exe() {
 
 usage() {
 	cat <<EOF
-Usage: tuxtavern [-T | -C | -i | -d] [GAME_DIR | GAME.exe]
-       tuxtavern -e SAVE_FILE
+Usage: tt [-T | -C | -i | -d] [GAME_DIR | GAME.exe]
+       tt -e SAVE_FILE
 
 Runs a Windows RPG Maker XP/VX/VX Ace/MV/MZ game natively (default: the current directory).
 
@@ -88,7 +88,7 @@ while [ $# -gt 0 ]; do
 	-d | --desktop) mode=desktop ;;
 	-e | --edit-save) mode=edit-save ;;
 	-h | --help) usage; exit 0 ;;
-	-V | --version) echo "tuxtavern $VERSION"; exit 0 ;;
+	-V | --version) echo "tt $VERSION"; exit 0 ;;
 	--) shift; break ;;
 	-*) die "unknown option $1 (see --help)" ;;
 	*) break ;;
@@ -130,12 +130,12 @@ if [ -n "$settings" ] && [ -f "$game/$settings" ]; then
 		case $name in
 		*[!A-Za-z0-9_]* | '') ;;
 		PMJS_* | TUXTAVERN_* | SDL_*)
-			[ "$name" != "$line" ] || { echo "tuxtavern: $settings: no '=' in: $line" >&2; continue; }
+			[ "$name" != "$line" ] || { echo "tt: $settings: no '=' in: $line" >&2; continue; }
 			eval "given=\${$name+x}"
 			[ -n "$given" ] || export "$name=${line#*=}"
 			continue ;;
 		esac
-		echo "tuxtavern: $settings: only PMJS_*, TUXTAVERN_* and SDL_* are read, not: $line" >&2
+		echo "tt: $settings: only PMJS_*, TUXTAVERN_* and SDL_* are read, not: $line" >&2
 	done <"$settings"
 else
 	settings=
@@ -185,7 +185,7 @@ desktop_arg() { printf '"%s"' "$(printf %s "$1" | sed -e 's/\\/\\\\\\\\/g' -e 's
 
 case $mode in
 info)
-	echo "tuxtavern: $VERSION"
+	echo "tt: $VERSION"
 	echo "game:    $game"
 	echo "engine:  ${engine:-not recognized}"
 	[ -z "$settings" ] || echo "settings: $settings"
@@ -204,7 +204,7 @@ info)
 			echo "runtime: $mkxpz${built:+ ($built)}"
 		else echo "runtime: mkxp-z not installed ($(mkxpz_hint) in a TuxTavern checkout)"
 		fi
-		echo "config:  written by tuxtavern to $data/mkxp/$id"
+		echo "config:  written by tt to $data/mkxp/$id"
 		[ -z "$(game_mkxp)" ] || echo "         merged with the game's $(game_mkxp)"
 		rtp_names | while read -r name; do
 			if [ -d "$rtp/$name" ]; then echo "rtp:     $name, installed"; else echo "rtp:     $name, not installed in $rtp/$name"; fi
@@ -249,7 +249,7 @@ ulimit -n "$(ulimit -H -n)" 2>/dev/null || true
 # cache to ours.
 run_pmjs() {
 	[ -n "$pmjs" ] || die "MV/MZ games need pmjs ($(pmjs_hint) in a TuxTavern checkout)"
-	[ -z "$test" ] || echo "tuxtavern: -T works for XP/VX/VX Ace games only" >&2
+	[ -z "$test" ] || echo "tt: -T works for XP/VX/VX Ace games only" >&2
 	dir=$game
 	www=$(find_ci www)
 	[ -z "$www" ] || [ ! -d "$game/$www/js" ] || dir="$game/$www"
@@ -288,7 +288,7 @@ virtual_files() {
 			for (i = 1; i <= n; i++) {
 				r = rules[i]; c = index(r, ":"); e = index(r, "=")
 				if (!c || e < c + 3 || substr(r, c + 1, 1) != "." || e == length(r)) {
-					print "tuxtavern: TUXTAVERN_OVERRIDES: cannot read " r " (use folder:.ext=.new, e.g. data:.json=.pack)" >"/dev/stderr"; bad = 1; continue
+					print "tt: TUXTAVERN_OVERRIDES: cannot read " r " (use folder:.ext=.new, e.g. data:.json=.pack)" >"/dev/stderr"; bad = 1; continue
 				}
 				dir = substr(r, 1, c - 1)
 				if (!(dir in seen)) { seen[dir] = 1; dirs[++count] = dir }
@@ -312,11 +312,11 @@ virtual_files() {
 # loads (a name matches with or without its folder), and the cheat menu.
 pmjs_adapter() {
 	# shellcheck disable=SC2016
-	[ -z "$1" ] || printf 'PMJS.phases.on("beforePlugins", "tuxtavern.skip", function () {\n\tvar skip = [%s];\n\t$plugins.forEach(function (p) {\n\t\tif (p.status && (skip.indexOf(p.name) >= 0 || skip.indexOf(p.name.split("/").pop()) >= 0)) {\n\t\t\tp.status = false;\n\t\t\tconsole.log("tuxtavern: TUXTAVERN_SKIP leaves out " + p.name);\n\t\t}\n\t});\n});\n' "$1"
+	[ -z "$1" ] || printf 'PMJS.phases.on("beforePlugins", "tuxtavern.skip", function () {\n\tvar skip = [%s];\n\t$plugins.forEach(function (p) {\n\t\tif (p.status && (skip.indexOf(p.name) >= 0 || skip.indexOf(p.name.split("/").pop()) >= 0)) {\n\t\t\tp.status = false;\n\t\t\tconsole.log("tt: TUXTAVERN_SKIP leaves out " + p.name);\n\t\t}\n\t});\n});\n' "$1"
 	# User scripts run once the game's plugins have loaded, as plugin scripts do (global scope), and
 	# before the cheat menu hooks in, so they cannot undo it.
 	# shellcheck disable=SC2016
-	[ -z "$user" ] || printf 'PMJS.phases.on("afterGuestPlugins", "tuxtavern.user", function () {\n\t[%s].forEach(function (f) {\n\t\ttry {\n\t\t\t(0, eval)(require("fs").readFileSync(f, "utf8") + "\\n//# sourceURL=" + f);\n\t\t\tconsole.log("tuxtavern: " + f + " ran");\n\t\t} catch (e) {\n\t\t\tconsole.log("tuxtavern: " + f + " failed: " + (e && e.stack || e));\n\t\t}\n\t});\n});\n' "$user"
+	[ -z "$user" ] || printf 'PMJS.phases.on("afterGuestPlugins", "tuxtavern.user", function () {\n\t[%s].forEach(function (f) {\n\t\ttry {\n\t\t\t(0, eval)(require("fs").readFileSync(f, "utf8") + "\\n//# sourceURL=" + f);\n\t\t\tconsole.log("tt: " + f + " ran");\n\t\t} catch (e) {\n\t\t\tconsole.log("tt: " + f + " failed: " + (e && e.stack || e));\n\t\t}\n\t});\n});\n' "$user"
 	[ -z "$cheat" ] || pmjs_cheats
 	[ -z "$shots" ] || pmjs_screenshots
 	[ -z "$keys" ] || pmjs_keys
@@ -377,7 +377,7 @@ rgss)
 	paths=''
 	for name in $(rtp_names); do
 		if [ -d "$rtp/$name" ]; then paths="$paths${paths:+, }$(json "$rtp/$name")"
-		else echo "tuxtavern: the game names the $name RTP; if graphics or sounds are missing, extract it to $rtp/$name" >&2
+		else echo "tt: the game names the $name RTP; if graphics or sounds are missing, extract it to $rtp/$name" >&2
 		fi
 	done
 	stdlib=''
@@ -385,13 +385,13 @@ rgss)
 	keys="\"gameFolder\": $(json "$game"), \"preloadScript\": [$(json "$lib/rgss/all.rb")], \"enableReset\": false, \"RTP\": [$paths], \"rubyLoadpath\": [$stdlib]"
 	if [ -n "${TUXTAVERN_YJIT:-}" ]; then
 		keys="$keys, \"YJITEnable\": true"
-		[ "$(uname -m)" = x86_64 ] || echo "tuxtavern: TUXTAVERN_YJIT needs x86-64; mkxp-z's Ruby 3.1 has no YJIT on $(uname -m)" >&2
+		[ "$(uname -m)" = x86_64 ] || echo "tt: TUXTAVERN_YJIT needs x86-64; mkxp-z's Ruby 3.1 has no YJIT on $(uname -m)" >&2
 	fi
 	own=$(game_mkxp)
 	if [ -n "$own" ] && K="$keys," awk '!done && /^[ \t]*\{/ { i = index($0, "{"); $0 = substr($0, 1, i) " " ENVIRON["K"] substr($0, i + 1); done = 1 } { print } END { exit !done }' "$game/$own" >"$conf/mkxp.json"; then
-		! grep -v '^[[:space:]]*//' "$game/$own" | grep -q '"preloadScript"' || echo "tuxtavern: $own sets its own preloadScript, so TuxTavern's fixes are left out" >&2
+		! grep -v '^[[:space:]]*//' "$game/$own" | grep -q '"preloadScript"' || echo "tt: $own sets its own preloadScript, so TuxTavern's fixes are left out" >&2
 	else
-		[ -z "$own" ] || echo "tuxtavern: cannot read $own; its settings are left out" >&2
+		[ -z "$own" ] || echo "tt: cannot read $own; its settings are left out" >&2
 		printf '{\n\t%s\n}\n' "$keys" >"$conf/mkxp.json" || die "cannot write $conf/mkxp.json"
 	fi
 	cd "$conf"

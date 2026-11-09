@@ -65,9 +65,9 @@ if [ -n "$mkxpz" ]; then
 	for exe in "$WORK/mkxp-z"/mkxp-z.*; do :; done
 	depends="$depends $(ldd "$exe" | awk '$1 ~ /^lib/ && $3 ~ /^\/(usr\/)?lib\// { print "so:" $1 }' | sort -u | tr '\n' ' ')"
 fi
-# bin/tuxtavern and bin/pmjs find their files from their own path, so /usr/bin gets a wrapper, not a link.
-printf '#!/bin/sh\nexec /usr/lib/tuxtavern/bin/tuxtavern "$@"\n' >"$WORK/pkg/usr/bin/tuxtavern"
-chmod 755 "$WORK/pkg/usr/bin/tuxtavern"
+# bin/tt and bin/pmjs find their files from their own path, so /usr/bin gets a wrapper, not a link.
+printf '#!/bin/sh\nexec /usr/lib/tuxtavern/bin/tt "$@"\n' >"$WORK/pkg/usr/bin/tt"
+chmod 755 "$WORK/pkg/usr/bin/tt"
 
 # Not stripped: PMJS checks its installed files against build-info.json.
 rm -f "$REPO"/tuxtavern-[0-9]*.apk
