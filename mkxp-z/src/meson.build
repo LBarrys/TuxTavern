@@ -792,7 +792,9 @@ else
 endif
 global_dependencies += freetype
 
-sdl2_ttf = dependency('sdl2_ttf', allow_fallback: false, required: get_option('sdl_ttf_system').disable_auto_if(default_system_disabled).enable_auto_if(default_system_enabled))
+# TuxTavern: SDL2_ttf.pc and SDL2_image.pc are the pkg-config names. Alpine ships no CMake files,
+# so 'sdl2_ttf' alone missed its sdl2_ttf-dev and the bundled copy was built instead.
+sdl2_ttf = dependency('SDL2_ttf', 'sdl2_ttf', allow_fallback: false, required: get_option('sdl_ttf_system').disable_auto_if(default_system_disabled).enable_auto_if(default_system_enabled))
 if not sdl2_ttf.found()
     sdl2_ttf_internal_cflags = []
     sdl2_ttf_external_cflags = []
@@ -1027,7 +1029,7 @@ if not subproject('theoraplay', default_options: theoraplay_options).get_variabl
 endif
 global_dependencies += theoraplay
 
-sdl2_image = dependency('sdl2_image', allow_fallback: false, required: get_option('sdl_image_system').disable_auto_if(default_system_disabled).enable_auto_if(default_system_enabled))
+sdl2_image = dependency('SDL2_image', 'sdl2_image', allow_fallback: false, required: get_option('sdl_image_system').disable_auto_if(default_system_disabled).enable_auto_if(default_system_enabled))
 if not sdl2_image.found()
     sdl2_image_internal_cflags = []
     sdl2_image_external_cflags = []

@@ -206,6 +206,13 @@ check 'an mkxp-z on PATH (the old build-mkxp-z.sh) is not used' 'runtime: mkxp-z
 out=$(PATH="$fx/pm/apk:$fx/minbin" WAYLAND_DISPLAY=wayland-0 sh ./tt "$fx/inst/xp" 2>&1); check 'on Alpine through the package script' 'XP/VX/VX Ace games need mkxp-z (doas sh tools/apk.sh -m in a TuxTavern checkout)'
 
 echo "== mkxp-z/"
+# Alpine's sdl2_image-dev and sdl2_ttf-dev have only pkg-config files, named SDL2_image.pc and
+# SDL2_ttf.pc; mkxp-z asked for sdl2_image and sdl2_ttf, so it built its own copies.
+for pc in SDL2_image SDL2_ttf; do
+	line=$(grep "^$(printf %s "$pc" | tr 'A-Z' 'a-z') = dependency(" mkxp-z/src/meson.build)
+	case $line in *"dependency('$pc'"*) pass=$((pass + 1)); echo "  ok mkxp-z finds the system's $pc by its pkg-config name" ;;
+	*) fail=$((fail + 1)); echo "FAIL mkxp-z does not ask pkg-config for $pc: $line" ;; esac
+done
 # mkxp-z's src/meson.build names SDL_ttf's font struct by the first check that compiles, and font.h
 # forward-declares `struct MKXPZ_TTF_FONT`, so the name must be the struct tag (SDL_ttf 2.x: _TTF_Font).
 if pkg-config --exists SDL2_ttf 2>/dev/null && command -v cc >/dev/null && command -v c++ >/dev/null; then
