@@ -22,3 +22,8 @@ test('every path REUSE.toml names exists', () => {
     for (const [, name] of list.matchAll(/"([^"]+)"/g))
       assert.ok(fs.existsSync(path.join(root, name.replace(/\/?\*.*$/, ''))), name);
 });
+
+test('the root LICENSE is the GPL-3.0 text, the licence of the whole', () => {
+  assert.equal(fs.readFileSync(path.join(root, 'LICENSE'), 'utf8'),
+    fs.readFileSync(path.join(root, 'LICENSES/GPL-3.0-only.txt'), 'utf8'));
+});
