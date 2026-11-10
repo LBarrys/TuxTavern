@@ -199,7 +199,13 @@ async function prepareMaps({ gameRoot, cacheRoot, native, width = 816, height = 
       release = await acquireLock(root, shouldCancel, () => report('wait', '', 0, 0));
       if (!release) { result.cancelled = true; return result; }
       report('catalog', '', 0, 0);
-      const catalog = await readCatalog(catalogFile, binding, cacheRoot, reason => { result.catalogStatus = reason; });
+      let catalog = await readCatalog(catalogFile, binding, cacheRoot, reason => { result.catalogStatus = reason; });
+      // TuxTavern: an encrypted game's tilesets exist for maps once image preparation has decrypted
+      // them. The catalog must not keep a map unprepared for a tile source that is there now
+      // (Netorare God V0.11, after its image preparation first failed).
+      if (catalog && catalog.maps.some(row => (row.missing || []).some(source => native.assets.sourcePath(source)))) {
+        catalog = null; result.catalogStatus = 'missing-source-appeared';
+      }
       if (catalog && !shouldCancel()) {
         let lease;
         try {
@@ -395,7 +401,10 @@ async function prepareMaps({ gameRoot, cacheRoot, native, width = 816, height = 
           let descriptor, reason;
           const geometryBytes = geometryEstimate(demand, width, height);
           const missing = inputs.filter(input => !input.file);
-          if (missing.length) reason = 'missing tile source '+missing.map(input => input.source).join(', ');
+          if (missing.length) {
+            reason = 'missing tile source '+missing.map(input => input.source).join(', ');
+            row.missing = missing.map(input => input.source);
+          }
           else if (inputs.every(input => !input.rectangles.length)) reason = 'no visual tile demand';
           // Packing cannot pay off when the geometry alone outweighs the ordinary images.
           if (!reason && geometryBytes >= await ordinaryUpperBound(inputs, demand.renderer, files)) {

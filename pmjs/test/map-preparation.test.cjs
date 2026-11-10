@@ -196,6 +196,19 @@ test('missing sources and cancellation report individual failures and never inst
   assert.equal(cancelled.cancelled,true);assert.equal(cancelled.installed,0);
   assert.equal(fs.readdirSync(path.join(g.cacheRoot,'maps/entries')).length,0);
 });
+// TuxTavern: Netorare God V0.11's tilesets are encrypted, and image preparation decrypts them for maps.
+// Its first preparation failed, so every map was refused for missing tile sources; the catalog then
+// kept them all unprepared once the tilesets were there.
+test('the catalog is not reused when a tile source missing from it has appeared',async t=>{
+  const f=fixture(t);f.native.assets.installTileSetCatalog=entries=>entries.length;
+  const tileset=path.join(f.gameRoot,'img/tilesets/C.png'),bytes=fs.readFileSync(tileset);fs.unlinkSync(tileset);
+  const missing=await prepareMaps(f);assert.match(missing.maps[0].reason,/missing tile source/);
+  assert.equal((await prepareMaps(f)).catalogHit,true,'still missing: the catalog is reused');
+  fs.writeFileSync(tileset,bytes);
+  const found=await prepareMaps(f);
+  assert.notEqual(found.catalogHit,true);assert.equal(found.catalogStatus,'missing-source-appeared');
+  assert.equal(found.selected,1);
+});
 test('unprofitable and unsupported decisions are cached without adding source snapshots',async t=>{
   const f=fixture(t);let attempts=0;
   f.native.assets.processTiles=async()=>{attempts++;throw Object.assign(new Error('unsupported rectangle'),{code:'PMJS_TILE_UNSUPPORTED'});};
