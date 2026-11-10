@@ -297,19 +297,24 @@ require('fs').writeFileSync(process.argv[1], evb({ name: '%DEFAULT FOLDER%', chi
 	check 'what the environment sets wins over tuxtavern.env' 'driver=wayland hz=60'
 	out=$(PATH="$fx/bin:$PATH" sh ./tt -i "$fx/mvenv" 2>&1); check '--info names tuxtavern.env' "settings: $fx/mvenv/TuxTavern.env"
 	mkdir -p "$fx/mvuser/www/js" && : >"$fx/mvuser/www/js/rpg_core.js"
-	printf 'var tuxUser = (globalThis.tuxUser || "") + "a";\n' >"$fx/mvuser/a.tuxtavern.js"
+	# shellcheck disable=SC2016
+	printf 'var tuxUser = (globalThis.tuxUser || "") + "a";\r\n// 100%% a "quoted" \\ back\\slash\r\ntuxUser += "\\x62";\n' >"$fx/mvuser/a.tuxtavern.js"
 	printf 'throw new Error("broken fix");\n' >"$fx/mvuser/B.TuxTavern.js"
 	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" sh ./tt -C "$fx/mvuser" 2>&1)
-	check "a game folder's *.tuxtavern.js are found, any case, in name order" "[\"$fx/mvuser/B.TuxTavern.js\", \"$fx/mvuser/a.tuxtavern.js\"]"
+	check "a game folder's *.tuxtavern.js are found, any case, in name order" "[{ file: \"$fx/mvuser/B.TuxTavern.js\", source: \"throw new Error(\\\"broken fix\\\");\\n\" }, { file: \"$fx/mvuser/a.tuxtavern.js\""
 	adapter=$(ls "$fx"/cache/tuxtavern/pmjs/*/tuxtavern.js | while read -r f; do grep -l mvuser "$f"; done | head -n 1)
+	# Sigillum 0.3: PMJS lets the game read only www/, so the scripts beside Game.exe could not be
+	# opened (ENOENT). Their text is in the adapter: it runs with them gone and without require.
+	mv "$fx/mvuser/a.tuxtavern.js" "$fx/mvuser/B.TuxTavern.js" "$fx/"
 	out=$(node -e '
 const vm = require("vm"), hooks = {}, logged = [];
-const ctx = vm.createContext({ require, console: { log: t => logged.push(t) }, PMJS: { phases: { on: (p, id, f) => { hooks[id] = [p, f]; } } } });
+const ctx = vm.createContext({ console: { log: t => logged.push(t) }, PMJS: { phases: { on: (p, id, f) => { hooks[id] = [p, f]; } } } });
 vm.runInContext(require("fs").readFileSync(process.argv[1], "utf8"), ctx);
 const [phase, run] = hooks["tuxtavern.user"]; run();
 console.log(phase, vm.runInContext("typeof tuxUser === \"string\" ? tuxUser : \"none\"", ctx), logged.join(" | "));' "$adapter" 2>&1)
-	check 'they run once the game plugins have loaded, in the global scope as plugin scripts do' 'afterGuestPlugins a '
+	check 'they run once the game plugins have loaded, in the global scope as plugin scripts do' 'afterGuestPlugins ab '
 	check 'one that fails is logged, and the others still run' 'B.TuxTavern.js failed: Error: broken fix'
+	mv "$fx/a.tuxtavern.js" "$fx/B.TuxTavern.js" "$fx/mvuser/"
 	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" sh ./tt -C "$fx/mz" 2>&1)
 	case $out in *tuxtavern.user*) fail=$((fail + 1)); echo "FAIL user scripts are added without any *.tuxtavern.js" ;; *) pass=$((pass + 1)); echo "  ok without them there is nothing to run" ;; esac
 	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" HOME="$fx/home" TUXTAVERN_SCREENSHOTS=1 sh ./tt "$fx/mv" 2>&1)
@@ -335,7 +340,7 @@ console.log(phase, vm.runInContext("typeof tuxUser === \"string\" ? tuxUser : \"
 	: >"$fx/packed/fix.tuxtavern.js"
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" XDG_CACHE_HOME="$fx/cache" sh ./tt "$fx/packed" 2>&1)
 	check 'an Enigma-packed game is unpacked and run on PMJS' "pmjs run --game $fx/data/tuxtavern/unpacked/"
-	check "and a *.tuxtavern.js beside the packed exe is used" "[\"$fx/packed/fix.tuxtavern.js\"]"
+	check "and a *.tuxtavern.js beside the packed exe is used" "{ file: \"$fx/packed/fix.tuxtavern.js\""
 	out=$(cd "$fx/data" && find . -type f | sort); check 'its files are unpacked' 'www/js/rpg_core.js'
 	mkdir -p "$fx/nwexe"
 	node -e "const { zip } = require('./test/launcher/evb-test.js'); require('fs').writeFileSync(process.argv[1], Buffer.concat([Buffer.from('MZ'),

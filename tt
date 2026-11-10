@@ -262,10 +262,11 @@ run_pmjs() {
 	for name in $(printf '%s' "${TUXTAVERN_SKIP:-}" | tr ',' ' '); do skip="$skip${skip:+, }$(json "$name")"; done
 	shots=${TUXTAVERN_SCREENSHOTS:-}
 	[ "$shots" != 1 ] || shots=$HOME/Pictures
-	# The game folder's *.tuxtavern.js: for a packed game, the folder it was unpacked from.
+	# The game folder's *.tuxtavern.js: for a packed game, the folder it was unpacked from. Their
+	# text goes into the adapter, as PMJS lets the game read only its own folder (www/ for MV).
 	user=
 	for f in "${TUXTAVERN_GAME_DIR:-$game}"/$(ci_glob '*.tuxtavern.js'); do
-		[ -f "$f" ] && user="$user${user:+, }$(json "$f")"
+		[ -f "$f" ] && user="$user${user:+, }{ file: $(json "$f"), source: \"$(tr -d '\r' <"$f" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e 's/$/\\n/' | tr -d '\n')\" }"
 	done
 	keys=${TUXTAVERN_KEYS:-}
 	if [ -n "$cheat$skip$shots$user$keys" ]; then
@@ -316,7 +317,7 @@ pmjs_adapter() {
 	# User scripts run once the game's plugins have loaded, as plugin scripts do (global scope), and
 	# before the cheat menu hooks in, so they cannot undo it.
 	# shellcheck disable=SC2016
-	[ -z "$user" ] || printf 'PMJS.phases.on("afterGuestPlugins", "tuxtavern.user", function () {\n\t[%s].forEach(function (f) {\n\t\ttry {\n\t\t\t(0, eval)(require("fs").readFileSync(f, "utf8") + "\\n//# sourceURL=" + f);\n\t\t\tconsole.log("tt: " + f + " ran");\n\t\t} catch (e) {\n\t\t\tconsole.log("tt: " + f + " failed: " + (e && e.stack || e));\n\t\t}\n\t});\n});\n' "$user"
+	[ -z "$user" ] || printf 'PMJS.phases.on("afterGuestPlugins", "tuxtavern.user", function () {\n\t[%s].forEach(function (u) {\n\t\ttry {\n\t\t\t(0, eval)(u.source + "\\n//# sourceURL=" + u.file);\n\t\t\tconsole.log("tt: " + u.file + " ran");\n\t\t} catch (e) {\n\t\t\tconsole.log("tt: " + u.file + " failed: " + (e && e.stack || e));\n\t\t}\n\t});\n});\n' "$user"
 	[ -z "$cheat" ] || pmjs_cheats
 	[ -z "$shots" ] || pmjs_screenshots
 	[ -z "$keys" ] || pmjs_keys
