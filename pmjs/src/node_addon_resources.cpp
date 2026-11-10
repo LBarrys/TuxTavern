@@ -716,7 +716,7 @@ std::array<int, N> preparedArray(napi_env env, napi_value object, const char* ke
     napi_value item;
     check(env, napi_get_element(env, array, i, &item), "invalid prepared image tuple value");
     const auto number = asNumber(env, item);
-    if (!std::isfinite(number) || number != std::floor(number) || number < -1 || number > 8192)
+    if (!std::isfinite(number) || number != std::floor(number) || number < -1 || number > 16384)
       throw InvalidPreparedValue("invalid prepared image integer");
     result[i] = static_cast<int>(number);
   }
@@ -851,9 +851,8 @@ napi_value installPreparedAssetsImpl(napi_env env, napi_callback_info info, bool
     })) ++missingPage;
     else ++invalidEntry;
     } catch (const InvalidPreparedValue& error) {
-      // TuxTavern: images taller than 8192 px are prepared, but their layout is out of the range
-      // installed here (upstream raised it with tall-image support not ported yet). One such image
-      // failed the whole install (Netorare God V0.11), so every image and map loaded unprepared.
+      // TuxTavern: one entry out of range (14175 px battlers when the bound was 8192) failed the whole
+      // install (Netorare God V0.11), so every image and map loaded unprepared.
       if (invalidEntry < 3) std::cerr << "[pmjs] prepared entry left to ordinary loading " << sourceName
         << ": " << error.what() << '\n';
       ++invalidEntry;

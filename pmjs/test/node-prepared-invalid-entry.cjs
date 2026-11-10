@@ -1,7 +1,7 @@
 'use strict';
-// TuxTavern: Netorare God V0.11 has images taller than 8192 px. Their prepared layout is out of
-// range here, and one such entry failed installPrepared for all 2829 images. It is now left to
-// ordinary loading while the others install.
+// TuxTavern: in Netorare God V0.11, one image whose prepared layout was out of range (then 8192 px)
+// failed installPrepared for all 2829 images. Such an entry is now left to ordinary loading while
+// the others install.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -24,7 +24,7 @@ native.initialize({ gameRoot: root, width: 32, height: 32, windowTitle: 'Prepare
       assert.ok(descriptor && Array.isArray(descriptor.cells) && descriptor.cells.length, source);
       entries.push({ source, directory, descriptor, sourceIdentity: native.assets.sourceIdentity(source) });
     }
-    entries[1].descriptor.cells[0].rect = [0, 0, 32, 11200];
+    entries[1].descriptor.cells[0].rect = [0, 0, 32, 20000];
     assert.equal(native.assets.installPrepared(entries), 1, 'the valid image still installs');
     const loaded = native.images.load('tall.png');
     assert.ok(loaded.width === 64 && loaded.height === 64, 'the skipped image loads the ordinary way');
