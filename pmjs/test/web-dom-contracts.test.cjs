@@ -161,3 +161,14 @@ test('plugins can patch Web Audio classes while loading (Carnal Outbreak "Parche
   })();`, c);
   assert.equal(typeof c.AudioBuffer.prototype.start, 'function');
 });
+test('Pixi 5 bitmap-font detection can ask instanceof XMLDocument (Netorare God V0.11)', () => {
+  const { c } = setup();
+  // Pixi 5.3's XMLFormat.test, which BitmapFontLoader.use runs on every resource.
+  const test = vm.runInContext(`(function (data) {
+    return data instanceof XMLDocument && data.getElementsByTagName('page').length &&
+      data.getElementsByTagName('info').length && data.getElementsByTagName('info')[0].getAttribute('face') !== null;
+  })`, c);
+  assert.equal(test({}), false);
+  assert.equal(test(c.document), false);
+  assert.throws(() => vm.runInContext('new XMLDocument()', c), /Illegal constructor/);
+});

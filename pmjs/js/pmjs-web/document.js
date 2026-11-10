@@ -146,6 +146,11 @@ globalThis.CanvasRenderingContext2D = CanvasContext2D;
 if (!globalThis.AudioBuffer) {
   globalThis.AudioBuffer = function AudioBuffer() { throw new TypeError('AudioBuffer is not supported'); };
 }
+// TuxTavern: Pixi 5's BitmapFontLoader runs on every loaded resource and asks
+// `data instanceof XMLDocument` (Netorare God V0.11 threw at each load). Nothing here is one.
+if (!globalThis.XMLDocument) {
+  globalThis.XMLDocument = function XMLDocument() { throw new TypeError('Illegal constructor'); };
+}
 globalThis.addEventListener = EventTarget.prototype.addEventListener.bind(documentTarget);
 globalThis.removeEventListener = EventTarget.prototype.removeEventListener.bind(documentTarget);
 globalThis.dispatchEvent = EventTarget.prototype.dispatchEvent.bind(documentTarget);

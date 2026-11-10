@@ -702,6 +702,9 @@ void registerResourceBindings(napi_env env, napi_value exports) {
 }
 
 namespace {
+// One entry whose layout is out of range is left to ordinary loading; the others still install.
+struct InvalidPreparedValue : std::runtime_error { using std::runtime_error::runtime_error; };
+
 template <std::size_t N>
 std::array<int, N> preparedArray(napi_env env, napi_value object, const char* key) {
   const auto array = property(env, object, key);
@@ -714,7 +717,7 @@ std::array<int, N> preparedArray(napi_env env, napi_value object, const char* ke
     check(env, napi_get_element(env, array, i, &item), "invalid prepared image tuple value");
     const auto number = asNumber(env, item);
     if (!std::isfinite(number) || number != std::floor(number) || number < -1 || number > 8192)
-      throw std::runtime_error("invalid prepared image integer");
+      throw InvalidPreparedValue("invalid prepared image integer");
     result[i] = static_cast<int>(number);
   }
   return result;
@@ -723,7 +726,7 @@ std::array<std::uint8_t, 4> preparedColor(napi_env env, napi_value object, const
   const auto values = preparedArray<4>(env, object, key);
   std::array<std::uint8_t, 4> color{};
   for (std::size_t i = 0; i < 4; ++i) {
-    if (values[i] < 0 || values[i] > 255) throw std::runtime_error("invalid prepared image color");
+    if (values[i] < 0 || values[i] > 255) throw InvalidPreparedValue("invalid prepared image color");
     color[i] = values[i];
   }
   return color;
@@ -742,6 +745,7 @@ napi_value installPreparedAssetsImpl(napi_env env, napi_callback_info info, bool
   for (std::uint32_t i = 0; i < count; ++i) {
     napi_value entry; check(env, napi_get_element(env, args[0], i, &entry), "invalid prepared entry");
     const auto sourceName = asString(env, property(env, entry, "source"));
+    try {
     const auto path = value.vfs.resolve(sourceName);
     if (!path) { ++missingSource; continue; }
     const auto directory = std::filesystem::path(asString(env, property(env, entry, "directory")));
@@ -846,6 +850,14 @@ napi_value installPreparedAssetsImpl(napi_env env, napi_callback_info info, bool
       return !std::filesystem::is_regular_file(file, error);
     })) ++missingPage;
     else ++invalidEntry;
+    } catch (const InvalidPreparedValue& error) {
+      // TuxTavern: images taller than 8192 px are prepared, but their layout is out of the range
+      // installed here (upstream raised it with tall-image support not ported yet). One such image
+      // failed the whole install (Netorare God V0.11), so every image and map loaded unprepared.
+      if (invalidEntry < 3) std::cerr << "[pmjs] prepared entry left to ordinary loading " << sourceName
+        << ": " << error.what() << '\n';
+      ++invalidEntry;
+    }
   }
   if (installed != count)
     std::cerr << "[pmjs] prepared install failures missing_source=" << missingSource
