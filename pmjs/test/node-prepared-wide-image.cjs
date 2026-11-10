@@ -1,19 +1,38 @@
 'use strict';
-// TuxTavern: Netorare God V0.11's side-view battlers are 14175 px wide (9 frames of 1575 px), past
-// the 8192 px PMJS took, so they loaded neither prepared nor ordinarily. Limits are 16384 as upstream
-// (0c3c7a0); its texture artifacts are not ported, and prepared pages draw these.
+// TuxTavern: Netorare God V0.11's side-view battlers are 14175x3864 (9x6 frames), past the 8192 px
+// PMJS took and, at 219 MB as RGBA, past the 128 MiB a prepared image could be. Limits are 16384 px as
+// upstream (0c3c7a0), and a prepared image may be as large as a Chromium canvas; its pages draw it.
+// This sheet is 14175x2400, 136 MB.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { temporaryDirectory } = require('./helpers/temp.cjs');
-const { png } = require('./helpers/png.cjs');
+const zlib = require('node:zlib');
 const { spritePacket, drawPacket } = require('./helpers/sparse-palette.cjs');
 const native = require(path.resolve(process.argv[2]));
 const root = temporaryDirectory('prepared-wide-');
-const width = 14175, height = 384, frameWidth = width / 9, frameHeight = height / 6;
+const width = 14175, height = 2400, frameWidth = width / 9, frameHeight = height / 6;
+// Flat per frame, with a coarse ramp: the PNG stays small, as game art does (PMJS opens up to 64 MiB).
 const pixels = Buffer.alloc(width * height * 4);
-for (let y = 0; y < height; y++) for (let x = 0; x < width; x++)
-  pixels.set([x % 251, y * 3 % 256, (x + y) % 253, 255], (y * width + x) * 4);
+for (let row = 0; row < 6; row++) {
+  const line = Buffer.alloc(width * 4);
+  for (let x = 0; x < width; x++) line.set([(x / frameWidth | 0) * 25, row * 40, x >> 6 & 255, 255], x * 4);
+  for (let y = row * frameHeight; y < (row + 1) * frameHeight; y++) line.copy(pixels, y * width * 4);
+}
+// helpers/png.cjs copies the whole image for each row: minutes at this size, so a row-wise encoder.
+function png(w, h, rgba) {
+  const chunk = (type, data) => {
+    const body = Buffer.concat([Buffer.from(type), data]); let crc = 0xffffffff;
+    for (const byte of body) { crc ^= byte; for (let bit = 0; bit < 8; bit++) crc = (crc >>> 1) ^ ((crc & 1) ? 0xedb88320 : 0); }
+    const out = Buffer.alloc(body.length + 8); out.writeUInt32BE(data.length); body.copy(out, 4);
+    out.writeUInt32BE((crc ^ 0xffffffff) >>> 0, out.length - 4); return out;
+  };
+  const header = Buffer.alloc(13); header.writeUInt32BE(w); header.writeUInt32BE(h, 4); header[8] = 8; header[9] = 6;
+  const rows = Buffer.alloc(h * (w * 4 + 1));
+  for (let y = 0; y < h; y++) rgba.copy(rows, y * (w * 4 + 1) + 1, y * w * 4, (y + 1) * w * 4);
+  return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', header),
+    chunk('IDAT', zlib.deflateSync(rows)), chunk('IEND', Buffer.alloc(0))]);
+}
 const source = 'img/sv_actors/wide.png';
 fs.mkdirSync(path.join(root, 'img/sv_actors'), { recursive: true });
 fs.writeFileSync(path.join(root, source), png(width, height, pixels));

@@ -2035,8 +2035,11 @@ bool ImageStore::installPrepared(const std::filesystem::path& sourcePath,
                                 const std::string& expectedSourceIdentity,
                                 const std::vector<std::string>* pageIdentities, std::vector<std::string>* capturedPages,
                                 const std::string& backingHash, const std::vector<std::string>* pageHashes) {
+  // TuxTavern: a prepared image lives in its pages and is read by region, so its logical size is
+  // bounded as Chromium bounds a canvas (16384x16384); whole-image copies keep 128 MiB (materialize).
+  // Netorare God V0.11's battlers are 14175x3864, 219 MB as RGBA.
   if (descriptor.version != 1 || descriptor.halo < 1 || descriptor.halo > 32 || !checkedImageExtent(descriptor.width, descriptor.height,
-      16384, 128U * 1024U * 1024U)) return false;
+      16384, 1024U * 1024U * 1024U)) return false;
   auto original = pageIdentities ? nullptr : openFile(sourcePath);
   if (pageIdentities ? (expectedSourceIdentity.empty() || pageIdentities->size() != descriptor.pages.size()) :
       (!original || (!expectedSourceIdentity.empty() && original->key() != expectedSourceIdentity &&
