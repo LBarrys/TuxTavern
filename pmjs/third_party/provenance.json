@@ -26,6 +26,12 @@
       "license": "MIT",
       "notice": "LICENSE"
     },
+    "js/pmjs-plugins/eli-book-canvas.js": {
+      "origin": "compatibility",
+      "source": "PMJS",
+      "license": "MIT",
+      "notice": "LICENSE"
+    },
     "js/pmjs-plugins/greenworks-compat.js": {
       "origin": "compatibility",
       "source": "PMJS",

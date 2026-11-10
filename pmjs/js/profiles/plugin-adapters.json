@@ -72,6 +72,14 @@
     },
     {
       "plugins": [
+        "EliMZ_Book"
+      ],
+      "modules": [
+        "js/pmjs-plugins/eli-book-canvas.js"
+      ]
+    },
+    {
+      "plugins": [
         "YEP_QuestJournal"
       ],
       "modules": [
