@@ -72,6 +72,14 @@
     },
     {
       "plugins": [
+        "YEP_QuestJournal"
+      ],
+      "modules": [
+        "js/pmjs-plugins/yanfly-quest-journal.js"
+      ]
+    },
+    {
+      "plugins": [
         "YEP_EventMiniLabel"
       ],
       "modules": [

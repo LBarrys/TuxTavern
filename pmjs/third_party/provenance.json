@@ -402,6 +402,12 @@
       "license": "MIT",
       "notice": "LICENSE"
     },
+    "js/pmjs-plugins/yanfly-quest-journal.js": {
+      "origin": "compatibility",
+      "source": "PMJS",
+      "license": "MIT",
+      "notice": "LICENSE"
+    },
     "js/pmjs-plugins/yanfly-save-core.js": {
       "origin": "compatibility",
       "source": "PMJS",
