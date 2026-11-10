@@ -35,6 +35,7 @@ tt --desktop GAME            # add it to the app launcher
 - **Missing graphics or sounds:** extract the game's [RTP](https://www.rpgmakerweb.com/run-time-package)
   to `~/.local/share/tuxtavern/rtp/` as `Standard`, `RPGVX` or `RPGVXAce`. `--info` names the one needed.
 - **App launcher entry broke after updating:** the command is now `tt`; run `tt --desktop GAME` again.
+- **MV map runs at about 1 frame a second** (e.g. Sigillum): `PMJS_PICTURE_NATIVE_TINT=1` tints pictures on the GPU.
 - **MV/MZ uses too much power:** `PMJS_RENDER_HZ=60 tt GAME` (draws at 60 frames a second, not as fast as it can).
 - **A plugin or script stops a game** (e.g. one that builds HTML): `TUXTAVERN_SKIP=name,...` leaves it out.
 - **Screenshots (MV/MZ):** `TUXTAVERN_SCREENSHOTS=1` makes F12 save one to `~/Pictures` (or give a folder).

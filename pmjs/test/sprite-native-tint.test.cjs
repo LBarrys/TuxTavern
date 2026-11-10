@@ -515,6 +515,40 @@ test('subclasses with non-neutral tone retain CPU tint across tone updates', () 
   assert.match(ctx.warnings[0], /sprite.native-tint refused for this use: sprite subclass requires Canvas tone processing/);
 });
 
+// TuxTavern: Sigillum 0.3 re-tones a full-screen picture every frame on its map.
+function stockPicture(ctx) {
+  ctx.Sprite_Picture = function Sprite_Picture() { ctx.Sprite.apply(this, arguments); };
+  ctx.Sprite_Picture.prototype = Object.create(ctx.Sprite.prototype);
+  ctx.Sprite_Picture.prototype.constructor = ctx.Sprite_Picture;
+}
+
+test('PMJS_PICTURE_NATIVE_TINT=1 tones a stock Sprite_Picture in the shader', () => {
+  const ctx = setupEnvironment({ env: { PMJS_PICTURE_NATIVE_TINT: '1' }, beforeInstall: stockPicture });
+  const bitmap = new ctx.Bitmap(816, 624);
+  const picture = new ctx.Sprite_Picture(bitmap);
+  picture._colorTone = [-68, -68, 0, 68];
+  picture._refresh();
+  assert.equal(picture.executeTintCalls, 0);
+  assert.equal(picture.texture.baseTexture, bitmap.baseTexture);
+  assert.deepEqual(picture._colorTone, [-68, -68, 0, 68], 'the tone stays for the shader');
+  assert.equal(ctx.warnings.length, 0);
+});
+
+test('without it, or for a plugin subclass of Sprite_Picture, the picture keeps the Canvas tint', () => {
+  for (const [env, subclass] of [[{}, false], [{ PMJS_PICTURE_NATIVE_TINT: '1' }, true]]) {
+    const ctx = setupEnvironment({ env, beforeInstall: stockPicture });
+    let Kind = ctx.Sprite_Picture;
+    if (subclass) {
+      Kind = function PluginPicture() { ctx.Sprite_Picture.apply(this, arguments); };
+      Kind.prototype = Object.create(ctx.Sprite_Picture.prototype);
+    }
+    const picture = new Kind(new ctx.Bitmap(32, 32));
+    picture._colorTone = [10, 0, 0, 0];
+    picture._refresh();
+    assert.equal(picture.executeTintCalls, 1);
+  }
+});
+
 for (const method of ['_refresh', '_executeTint', '_needsTint']) {
   test(`subclass overriding ${method} retains CPU tint`, () => {
     const ctx = setupEnvironment();
