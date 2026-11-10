@@ -372,6 +372,18 @@ test('--game composes the MZ profile with authored engine order and terminal boo
   assert.ok(!modules.some(module => module.startsWith('js/pmjs-mv/')));
 });
 
+// TuxTavern: MZ builds take no registry adapters, so the EliMZ_Book adapter (Netorare God V0.11) is
+// in the MZ profile; it installs only when that plugin loads.
+test('an MZ game with EliMZ_Book gets its canvas adapter, before the plugin loader', () => {
+  const root = temporaryDirectory('pmjs-mz-eli-');
+  const game = writeMzGame(root, { plugins: [{ name: 'EliMZ_Book', status: true }] });
+  const modules = JSON.parse(childProcess.execFileSync(process.execPath,
+    [tool, '--game', game, '--print-modules']).toString()).map(entry => entry.module);
+  const adapter = modules.indexOf('js/pmjs-plugins/eli-book-canvas.js');
+  assert.ok(adapter >= 0);
+  assert.ok(adapter < modules.indexOf('js/pmjs-mz/plugin-loader.js'));
+});
+
 test('MV and MZ profiles compose only the shared input bridge', () => {
   for (const profileName of ['mv', 'mz']) {
     const profile = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..',
