@@ -96,7 +96,7 @@ MZ 1.10.0/Pixi 5.3.12; MV on Pixi 7.4.2 (pixi-rpgm, as in Karryn's Prison) is ne
 | `PMJS_EVENT_DIAGNOSTICS=1` | MV event-stall timing and reports |
 | `PMJS_REQUIRE_HARDWARE_GL=1` | Reject software rendering |
 | `PMJS_COMPAT_VERBOSE=1`, `PMJS_STRICT_COMPAT=1` | Log unsupported operations; stop at the first one |
-| `PMJS_PICTURE_NATIVE_TINT=1` | Tone MV pictures (`Sprite_Picture`) in the shader, not on the Canvas; for games that re-tone a large picture every frame (Sigillum) |
+| `PMJS_PICTURE_NATIVE_TINT=0` | Tone MV pictures (`Sprite_Picture`) on the Canvas, as NW.js, not in the shader (the default; a picture re-toned every frame ran at 1 frame a second in Sigillum) |
 | `PMJS_PALETTE_IMAGES` | `0` draws few-colour images as ordinary textures (more GPU memory, faster on software GL); `1` from palettes. Unset: palettes, but not on software GL |
 | `PMJS_TILE_NEAREST_SHADER=0`, `PMJS_FILTER_BOUNDS=0` | Renderer switches, for comparing output |
 | `PMJS_DIALOG_MODE`, `PMJS_DIALOG_HEADLESS` | Tests: `strict` or `headless` browser dialogs; headless answers as JSON |

@@ -102,11 +102,12 @@ PMJS.methods.wrap({
   wrap: function(stockRefresh) {
     var neutralTone = [0, 0, 0, 0];
     var neutralBlend = [0, 0, 0, 0];
-    // TuxTavern: PMJS_PICTURE_NATIVE_TINT=1 also tones stock MV pictures in the shader. A picture
-    // re-toned every frame (Sigillum 0.3's map) took about 0.9 s per Canvas tint pass at 816x624.
-    var pictureTint = typeof NativeHost !== 'undefined' && NativeHost.runtime &&
+    // TuxTavern: stock MV pictures are toned in the shader too; PMJS_PICTURE_NATIVE_TINT=0 keeps the
+    // Canvas tint. A picture re-toned every frame (Sigillum 0.3's intro) took about 0.9 s per Canvas
+    // tint pass at 816x624; the shader's result matched it within 2 of 255 per channel there.
+    var pictureTint = !(typeof NativeHost !== 'undefined' && NativeHost.runtime &&
       typeof NativeHost.runtime.env === 'function' &&
-      NativeHost.runtime.env('PMJS_PICTURE_NATIVE_TINT') === '1';
+      NativeHost.runtime.env('PMJS_PICTURE_NATIVE_TINT') === '0');
     var nativeRefresh = function() {
       if (this instanceof Sprite &&
           this._refresh === Sprite.prototype._refresh &&

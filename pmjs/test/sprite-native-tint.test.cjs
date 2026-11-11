@@ -522,8 +522,8 @@ function stockPicture(ctx) {
   ctx.Sprite_Picture.prototype.constructor = ctx.Sprite_Picture;
 }
 
-test('PMJS_PICTURE_NATIVE_TINT=1 tones a stock Sprite_Picture in the shader', () => {
-  const ctx = setupEnvironment({ env: { PMJS_PICTURE_NATIVE_TINT: '1' }, beforeInstall: stockPicture });
+test('a stock Sprite_Picture is toned in the shader by default', () => {
+  const ctx = setupEnvironment({ beforeInstall: stockPicture });
   const bitmap = new ctx.Bitmap(816, 624);
   const picture = new ctx.Sprite_Picture(bitmap);
   picture._colorTone = [-68, -68, 0, 68];
@@ -534,8 +534,8 @@ test('PMJS_PICTURE_NATIVE_TINT=1 tones a stock Sprite_Picture in the shader', ()
   assert.equal(ctx.warnings.length, 0);
 });
 
-test('without it, or for a plugin subclass of Sprite_Picture, the picture keeps the Canvas tint', () => {
-  for (const [env, subclass] of [[{}, false], [{ PMJS_PICTURE_NATIVE_TINT: '1' }, true]]) {
+test('PMJS_PICTURE_NATIVE_TINT=0, or a plugin subclass of Sprite_Picture, keeps the Canvas tint', () => {
+  for (const [env, subclass] of [[{ PMJS_PICTURE_NATIVE_TINT: '0' }, false], [{}, true]]) {
     const ctx = setupEnvironment({ env, beforeInstall: stockPicture });
     let Kind = ctx.Sprite_Picture;
     if (subclass) {
