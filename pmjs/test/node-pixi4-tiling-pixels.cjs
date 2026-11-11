@@ -1,6 +1,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const { assertFilteredPixels } = require('./helpers/pixel-ties.cjs');
 const path = require('node:path');
 const { makeHarness } = require('./helpers/scene-encoder-harness.cjs');
 const native = require(path.resolve(process.argv[2]));
@@ -260,7 +261,7 @@ try {
     [3, 0, [58, 39, 80, 255]], [3, 2, [108, 21, 56, 255]],
     [22, 13, [154, 32, 70, 255]], [3, 13, [104, 10, 39, 255]]
   ]) {
-    assert.deepEqual(Array.from(canvasAtlas.subarray((y * width + x) * 4, (y * width + x + 1) * 4)),
+    assertFilteredPixels(Array.from(canvasAtlas.subarray((y * width + x) * 4, (y * width + x + 1) * 4)),
       expected, `linear atlas boundary at ${x},${y}`);
   }
   const originalHandle = atlasTexture.baseTexture.source._nativeImage.handle;

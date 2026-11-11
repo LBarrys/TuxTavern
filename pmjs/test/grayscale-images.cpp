@@ -8,6 +8,7 @@
 #include <unistd.h>
 #include <algorithm>
 #include <array>
+#include <cstdlib>
 #include <filesystem>
 #include <iostream>
 #include <stdexcept>
@@ -23,6 +24,15 @@ void writePng(const std::filesystem::path& path, const pmjs::ImagePixels& pixels
   png.width = pixels.width; png.height = pixels.height;
   png.format = PNG_FORMAT_RGBA;
   require(png_image_write_to_file(&png, path.c_str(), 0, pixels.rgba.data(), 0, nullptr), "PNG fixture failed");
+}
+// A filtered sample exactly between two 1/256 weight steps (scale 2, half-texel offsets) goes either
+// way by one level per axis, depending on how the driver rounds interpolated coordinates: Mesa 26
+// differs from older Mesa there. Nearest sampling must match exactly.
+bool samePixels(const std::vector<std::uint8_t>& actual, const std::vector<std::uint8_t>& expected, int variant) {
+  if ((variant & 1) || actual.size() != expected.size()) return actual == expected;
+  for (std::size_t i = 0; i < actual.size(); ++i)
+    if (std::abs(int(actual[i]) - int(expected[i])) > 2) return false;
+  return true;
 }
 std::vector<std::uint8_t> render(pmjs::Renderer& renderer, pmjs::ImageHandle handle,
     int width, int height, int variant, std::array<int, 4> crop = {}) {
@@ -395,11 +405,11 @@ int main() {
         for (int variant : {0, 2, 3, 6, 65, 66, 68, 258, 321}) {
           const auto actual = render(renderer, image->handle, source.width, source.height, variant, crop);
           const auto expected = render(renderer, control->handle, source.width, source.height, variant, crop);
-          if (actual != expected) {
+          if (!samePixels(actual, expected, variant)) {
             const auto at = std::mismatch(actual.begin(), actual.end(), expected.begin()).first - actual.begin();
             std::fprintf(stderr, "page wide=%d side=%d variant=%d byte=%td actual=%u expected=%u\n", wide, side, variant, at, actual[at], expected[at]);
           }
-          require(actual == expected, "prepared palette crop rendering differs");
+          require(samePixels(actual, expected, variant), "prepared palette crop rendering differs");
           ++comparisons;
         }
         const auto region = images.resolveSpriteRegion(image->handle, crop[0], 0, frameWidth, frameHeight, false, true);
@@ -485,8 +495,8 @@ int main() {
         require(sampled.has_value(), "palette sampling fixture failed");
         const auto actual = render(renderer, sampled->handle, width, height, variant);
         const auto expected = render(renderer, control->handle, width, height, variant);
-        if (actual != expected) std::fprintf(stderr, "palette colors=%u opaque=%d variant=%d\n", colorCount, opaque, variant);
-        require(actual == expected, "palette rendering differs from RGBA");
+        if (!samePixels(actual, expected, variant)) std::fprintf(stderr, "palette colors=%u opaque=%d variant=%d\n", colorCount, opaque, variant);
+        require(samePixels(actual, expected, variant), "palette rendering differs from RGBA");
         if (linearTiling) {
           require(!images.resolvePaletteImage(sampled->handle, false),
             "linear tiling retained shader-decoded palette storage");

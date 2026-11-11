@@ -1,6 +1,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const { filteredPixelsMatch } = require('./helpers/pixel-ties.cjs');
 const path = require('node:path');
 const native = require(path.resolve(process.argv[2]));
 native.initialize({ gameRoot: path.resolve(process.argv[3]), width: 816, height: 624,
@@ -44,8 +45,9 @@ try {
     }
     native.canvas.writePremultipliedPixels(image.handle, 0, 0, width, height, flashed);
     for (const nearest of [false, true]) for (const rotation of [0, 0.23, -0.41]) {
-      assert.ok(render(atlas.handle, true, opacity, nearest, rotation).equals(
-        render(image.handle, false, 0, nearest, rotation)),
+      const atlasFlash = render(atlas.handle, true, opacity, nearest, rotation);
+      const storedFlash = render(image.handle, false, 0, nearest, rotation);
+      assert.ok(nearest ? atlasFlash.equals(storedFlash) : filteredPixelsMatch(atlasFlash, storedFlash),
         `stored flash versus atlas flash: opacity ${opacity}, nearest ${nearest}, rotation ${rotation}`);
     }
   }

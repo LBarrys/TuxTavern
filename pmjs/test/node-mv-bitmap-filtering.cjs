@@ -1,6 +1,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const { assertFilteredPixels } = require('./helpers/pixel-ties.cjs');
 const path = require('node:path');
 const native = require(path.resolve(process.argv[2]));
 native.initialize({ gameRoot: path.resolve(process.argv[3]), width: 64, height: 64,
@@ -45,7 +46,7 @@ try {
     }
     native.canvas.writePremultipliedPixels(stored.handle, 0, 0, width, height, flashed);
     for (const nearest of [false, true]) {
-      assert.deepEqual(render(original, opacity, nearest), render(reference, 0, nearest),
+      (nearest ? assert.deepEqual : assertFilteredPixels)(render(original, opacity, nearest), render(reference, 0, nearest),
         `stored versus sampled flash: opacity ${opacity}, nearest ${nearest}`);
     }
   }

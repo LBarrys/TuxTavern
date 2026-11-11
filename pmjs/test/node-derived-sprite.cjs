@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { png } = require('./helpers/png.cjs');
+const { filteredPixelsMatch, assertFilteredPixels } = require('./helpers/pixel-ties.cjs');
 const native = require(path.resolve(process.argv[2]));
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pmjs-derived-sprite-'));
 const fixtures = [];
@@ -143,10 +144,10 @@ async function main() {
     for (const nearest of [true, false]) for (const source of sources) for (const transform of transforms) {
       const control = frame(original, source, transform, nearest, 0.63);
       const candidate = frame(derived, source, transform, nearest, 0.63);
-      if (!candidate.equals(control)) {
+      if (nearest ? !candidate.equals(control) : !filteredPixelsMatch(candidate, control)) {
         const differences = [];
         for (let i = 0; i < candidate.length && differences.length < 12; ++i) {
-          if (candidate[i] !== control[i]) differences.push({ x: Math.floor(i / 4) % 128,
+          if (Math.abs(candidate[i] - control[i]) > (nearest ? 0 : 2)) differences.push({ x: Math.floor(i / 4) % 128,
             y: Math.floor(i / 512), channel: i % 4, candidate: candidate[i], control: control[i] });
         }
         throw new Error(JSON.stringify({ name: fixture.name, nearest, source, transform, differences }));
@@ -157,7 +158,7 @@ async function main() {
       if (nearest) nearestBacking = native.images.memory(100);
     }
     for (const transform of transforms) {
-      assert.deepEqual(frame(derived, sources[0], transform, false, 0.63, 0, 1 << 11),
+      assertFilteredPixels(frame(derived, sources[0], transform, false, 0.63, 0, 1 << 11),
         frame(original, sources[0], transform, false, 0.63, 0, 1 << 11),
         `${fixture.name}: packed UVs changed with prepared backing`);
       ++comparisons;
@@ -175,7 +176,7 @@ async function main() {
         native.render.setClearColor(0.08, 0.15, 0.2, backgroundAlpha);
         for (const flags of [0, 1 << 11]) for (const nearest of [true, false]) {
           for (const alpha of [0, 150 / 255, 0.37, 1]) {
-            assert.deepEqual(frame(derived, source, transform, nearest, alpha, 0, flags),
+            (nearest ? assert.deepEqual : assertFilteredPixels)(frame(derived, source, transform, nearest, alpha, 0, flags),
               frame(original, source, transform, nearest, alpha, 0, flags),
               `${fixture.name}: alpha=${alpha}, background=${backgroundAlpha}, flags=${flags}`);
             ++comparisons;
@@ -194,7 +195,7 @@ async function main() {
       [[0, 0, Math.min(fixture.width, fixture.cw + 7), fixture.ch], 0],
       [[0, 0, fixture.cw, fixture.ch], 1 << 16],
     ]) {
-      assert.deepEqual(frame(derived, source, [1, 0, 0, 1, 8, 8], false, 1, 0, flags),
+      assertFilteredPixels(frame(derived, source, [1, 0, 0, 1, 8, 8], false, 1, 0, flags),
         frame(original, source, [1, 0, 0, 1, 8, 8], false, 1, 0, flags));
       ++comparisons;
     }
