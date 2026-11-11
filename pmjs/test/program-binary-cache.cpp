@@ -18,9 +18,10 @@ const char* vertex = "attribute vec2 position; void main(){gl_Position=vec4(posi
 const char* fragment = "precision mediump float; uniform vec4 tint; void main(){gl_FragColor=tint;}";
 }
 namespace {
-template <typename T> T original(const char* name) {
-  const auto pointer = reinterpret_cast<T>(dlsym(RTLD_NEXT, name)); assert(pointer); return pointer;
-}
+// On musl, SDL3 (under sdl2-compat) dlopens this executable, which loads a second copy whose static
+// initialisers run again; RTLD_NEXT finds no GL library after that copy. Only the copy that runs main
+// needs the real functions, so main checks them.
+template <typename T> T original(const char* name) { return reinterpret_cast<T>(dlsym(RTLD_NEXT, name)); }
 const auto actualCompileShader = original<decltype(&glCompileShader)>("glCompileShader");
 const auto actualLinkProgram = original<decltype(&glLinkProgram)>("glLinkProgram");
 const auto actualProgramBinary = original<decltype(&glProgramBinary)>("glProgramBinary");
@@ -53,6 +54,8 @@ void glDeleteProgram(GLuint program) { rejected.erase(program); actualDeleteProg
 
 int main(int argc, char** argv) {
   assert(argc == 4);
+  assert(actualCompileShader && actualLinkProgram && actualProgramBinary && actualGetProgramiv &&
+    actualGetIntegerv && actualGetString && actualDeleteProgram);
   const std::string mode = argv[2];
   reject = mode == "reject"; unsupported = mode == "unsupported";
   pmjs::Platform platform(8, 8, "Program binary cache");
