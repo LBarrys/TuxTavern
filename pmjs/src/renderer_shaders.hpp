@@ -1151,9 +1151,9 @@ constexpr const char* simpleFragmentSource = R"(#version 300 es
     highp ivec4 b = ivec4(floor(paletteColor((pixel + vec2(1.5, 0.5)) / size) * 255.0 + 0.5));
     highp ivec4 c = ivec4(floor(paletteColor((pixel + vec2(0.5, 1.5)) / size) * 255.0 + 0.5));
     highp ivec4 d = ivec4(floor(paletteColor((pixel + vec2(1.5)) / size) * 255.0 + 0.5));
-    highp ivec4 top = (a * (256 - weights.x) + b * weights.x + 128) / 256;
-    highp ivec4 bottom = (c * (256 - weights.x) + d * weights.x + 128) / 256;
-    return vec4((top * (256 - weights.y) + bottom * weights.y + 128) / 256) / 255.0;
+    highp ivec4 top = a * (256 - weights.x) + b * weights.x;
+    highp ivec4 bottom = c * (256 - weights.x) + d * weights.x;
+    return vec4((top * (256 - weights.y) + bottom * weights.y + 32768) / 65536) / 255.0;
   }
   uniform bool pixiSpritePacking;
   uniform bool texturePremultiplied;
@@ -1392,9 +1392,9 @@ constexpr const char* spriteEffectFragmentSource = R"(#version 300 es
     highp ivec4 b = ivec4(floor(paletteColor((pixel + vec2(1.5, 0.5)) / size) * 255.0 + 0.5));
     highp ivec4 c = ivec4(floor(paletteColor((pixel + vec2(0.5, 1.5)) / size) * 255.0 + 0.5));
     highp ivec4 d = ivec4(floor(paletteColor((pixel + vec2(1.5)) / size) * 255.0 + 0.5));
-    highp ivec4 top = (a * (256 - weights.x) + b * weights.x + 128) / 256;
-    highp ivec4 bottom = (c * (256 - weights.x) + d * weights.x + 128) / 256;
-    return vec4((top * (256 - weights.y) + bottom * weights.y + 128) / 256) / 255.0;
+    highp ivec4 top = a * (256 - weights.x) + b * weights.x;
+    highp ivec4 bottom = c * (256 - weights.x) + d * weights.x;
+    return vec4((top * (256 - weights.y) + bottom * weights.y + 32768) / 65536) / 255.0;
   }
   uniform bool pixiSpritePacking;
   uniform bool texturePremultiplied;
@@ -1469,9 +1469,9 @@ constexpr const char* spriteEffectFragmentSource = R"(#version 300 es
       ivec4 b = ivec4(floor(spriteTexel(pixel + vec2(1, 0)) * 255.0 + 0.5));
       ivec4 c = ivec4(floor(spriteTexel(pixel + vec2(0, 1)) * 255.0 + 0.5));
       ivec4 d = ivec4(floor(spriteTexel(pixel + vec2(1, 1)) * 255.0 + 0.5));
-      ivec4 top = (a * (256 - weights.x) + b * weights.x + 128) / 256;
-      ivec4 bottom = (c * (256 - weights.x) + d * weights.x + 128) / 256;
-      sampled = vec4((top * (256 - weights.y) + bottom * weights.y + 128) / 256) / 255.0;
+      ivec4 top = a * (256 - weights.x) + b * weights.x;
+      ivec4 bottom = c * (256 - weights.x) + d * weights.x;
+      sampled = vec4((top * (256 - weights.y) + bottom * weights.y + 32768) / 65536) / 255.0;
     }
     return vec4(sampled.a > 0.0 ? sampled.rgb / sampled.a : vec3(0.0), sampled.a);
   }
@@ -1636,9 +1636,9 @@ constexpr const char* tileFragmentSource = R"(#version 300 es
         ivec4 b = ivec4(floor(paddedTilePixel(pixel + ivec2(1, 0)) * 255.0 + vec4(0.5)));
         ivec4 c = ivec4(floor(paddedTilePixel(pixel + ivec2(0, 1)) * 255.0 + vec4(0.5)));
         ivec4 d = ivec4(floor(paddedTilePixel(pixel + ivec2(1, 1)) * 255.0 + vec4(0.5)));
-        ivec4 top = (a * (256 - weight.x) + b * weight.x + 128) / 256;
-        ivec4 bottom = (c * (256 - weight.x) + d * weight.x + 128) / 256;
-        return vec4((top * (256 - weight.y) + bottom * weight.y + 128) / 256) / 255.0;
+        ivec4 top = a * (256 - weight.x) + b * weight.x;
+        ivec4 bottom = c * (256 - weight.x) + d * weight.x;
+        return vec4((top * (256 - weight.y) + bottom * weight.y + 32768) / 65536) / 255.0;
       }
       return tileSample(uv);
     }
@@ -1880,9 +1880,9 @@ constexpr const char* tileFragmentSource = R"(#version 300 es
       ivec4 b = ivec4(floor(mvTexel(pixel + vec2(1, 0)) * 255.0 + 0.5));
       ivec4 c = ivec4(floor(mvTexel(pixel + vec2(0, 1)) * 255.0 + 0.5));
       ivec4 d = ivec4(floor(mvTexel(pixel + vec2(1, 1)) * 255.0 + 0.5));
-      ivec4 top = (a * (256 - weights.x) + b * weights.x + 128) / 256;
-      ivec4 bottom = (c * (256 - weights.x) + d * weights.x + 128) / 256;
-      sampled = vec4((top * (256 - weights.y) + bottom * weights.y + 128) / 256) / 255.0;
+      ivec4 top = a * (256 - weights.x) + b * weights.x;
+      ivec4 bottom = c * (256 - weights.x) + d * weights.x;
+      sampled = vec4((top * (256 - weights.y) + bottom * weights.y + 32768) / 65536) / 255.0;
     }
     return sampled;
   }
