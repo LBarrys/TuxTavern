@@ -5,8 +5,10 @@
 #   sh tools/install.sh -u     # into ~/.local
 #   sh tools/install.sh -m     # with mkxp-z too, for XP/VX/VX Ace (-M: with its own libraries; slow)
 #   sh tools/install.sh -r     # -m, with the system's Ruby instead of mkxp-z's own Ruby 3.1
+#   sh tools/install.sh --destdir DIR      # into DIR/usr/local (PREFIX=/usr: DIR/usr), for a package;
+#                                          # apk.sh builds BusyLinux's that way
+#   sh tools/install.sh --packages apk     # the build packages, by apk, apt-get, dnf, zypper or pacman name
 #   sh tools/install.sh --mkxp-z-stage STAGE [--bundled | --system-ruby]   # only mkxp-z, into STAGE
-#                              # (its executable, scripts/preload, Ruby's library, VERSION), for apk.sh
 # Options after -- go to CMake, e.g. -- -DFETCHCONTENT_SOURCE_DIR_PMJS_EFFEKSEER=DIR (DEVELOPING.md).
 set -eu
 
@@ -76,15 +78,18 @@ build_mkxpz() {
 
 if [ "${1:-}" = --mkxp-z-stage ]; then shift; build_mkxpz "$@"; exit; fi
 
-prefix=${PREFIX:-/usr/local} mkxpz='' ruby=''
+prefix=${PREFIX:-/usr/local} mkxpz='' ruby='' destdir='' list=''
+usage="usage: $0 [-u | --user] [-m | --mkxp-z | -M | --mkxp-z-bundled] [-r | --system-ruby] [--destdir DIR | --packages MANAGER] [-- CMAKE_OPTIONS...]"
 while [ $# -gt 0 ]; do
 	case $1 in
 	-u | --user) prefix=$HOME/.local ;;
+	--destdir) [ $# -ge 2 ] && [ -n "$2" ] || die "$usage"; destdir=$2; shift ;;
+	--packages) [ $# -ge 2 ] || die "$usage"; list=$2; shift ;;
 	-m | --mkxp-z) mkxpz=system ;;
 	-M | --mkxp-z-bundled) mkxpz=bundled ;;
 	-r | --system-ruby) ruby=1 ;;
 	--) shift; break ;;
-	*) die "usage: $0 [-u | --user] [-m | --mkxp-z | -M | --mkxp-z-bundled] [-r | --system-ruby] [-- CMAKE_OPTIONS...]" ;;
+	*) die "$usage" ;;
 	esac
 	shift
 done
@@ -128,6 +133,11 @@ mkxpz_packages() {
 	[ -z "$ruby" ] || case $1 in apk | apt-get) printf ' ruby-dev' ;; dnf | zypper) printf ' ruby-devel' ;; esac
 }
 mkxpz_modules() { if [ "$mkxpz" = system ]; then echo "$mkxpz_libs"; else echo "$mkxpz_wayland"; fi; }
+if [ -n "$list" ]; then
+	case $list in apk | apt-get | dnf | zypper | pacman) ;; *) die "$usage" ;; esac
+	packages "$list"; echo
+	exit 0
+fi
 missing=
 for t in c++ cmake pkg-config git node; do have "$t" || missing="$missing $t"; done
 have ninja || have samu || have make || missing="$missing ninja"
@@ -160,7 +170,7 @@ headers${mkxpz:+, Meson, Python 3, bison, Ruby, Perl, bash}, and the development
 fi
 
 as_root=
-if ! { mkdir -p "$prefix" 2>/dev/null && [ -w "$prefix" ]; }; then
+if [ -z "$destdir" ] && ! { mkdir -p "$prefix" 2>/dev/null && [ -w "$prefix" ]; }; then
 	if have doas; then as_root=doas
 	elif have sudo; then as_root=sudo
 	else die "cannot write $prefix: run this as root, or use -u for ~/.local"
@@ -181,17 +191,19 @@ case $mkxpz in
 system) (build_mkxpz "$work/mkxp-z" ${ruby:+--system-ruby}) ;;
 bundled) (build_mkxpz "$work/mkxp-z" --bundled) ;;
 esac
-dest=$prefix/lib/tuxtavern
+# With --destdir, everything goes under DIR, while the wrapper names where it will be installed.
+dest=$destdir$prefix/lib/tuxtavern bin=$destdir$prefix/bin
 $as_root rm -rf "$dest"
 $as_root cmake --install "$work" --prefix "$dest"
 # The launcher finds mkxp-z here, beside its own files, as it finds pmjs.
 [ -z "$mkxpz" ] || { $as_root mkdir -p "$dest/lib" && $as_root cp -R "$work/mkxp-z" "$dest/lib/mkxp-z"; }
 # bin/tt and bin/pmjs find their files from their own path, so bin/ gets a wrapper, not a link.
-$as_root mkdir -p "$prefix/bin"
-printf '#!/bin/sh\nexec "%s/bin/tt" "$@"\n' "$dest" | $as_root tee "$prefix/bin/tt" >/dev/null
-$as_root chmod 755 "$prefix/bin/tt"
+$as_root mkdir -p "$bin"
+printf '#!/bin/sh\nexec "%s/lib/tuxtavern/bin/tt" "$@"\n' "$prefix" | $as_root tee "$bin/tt" >/dev/null
+$as_root chmod 755 "$bin/tt"
+[ -z "$destdir" ] || { echo "Staged in $destdir$prefix."; exit 0; }
 # The command was tuxtavern before; its old wrapper points at a file that is gone now.
-! grep -qs "^exec \"$dest/bin/tuxtavern\"" "$prefix/bin/tuxtavern" || $as_root rm -f "$prefix/bin/tuxtavern"
+! grep -qs "^exec \"$dest/bin/tuxtavern\"" "$bin/tuxtavern" || $as_root rm -f "$bin/tuxtavern"
 
 echo "
 Installed to $dest (command: $prefix/bin/tt). To remove it, delete both."

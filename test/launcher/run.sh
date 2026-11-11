@@ -120,7 +120,15 @@ printf 'someone else'"'"'s\n' >"$fx/is/home/.local/bin/tuxtavern"; PC_MISSING=''
 [ -e "$fx/is/home/.local/bin/tuxtavern" ] && pass=$((pass + 1)) && echo "  ok but not another program by that name" || { fail=$((fail + 1)); echo "FAIL another tuxtavern was removed"; }
 rm -f "$fx/is/home/.local/bin/tuxtavern"
 case $(ls "$fx/is/cache") in *tuxtavern-build*) fail=$((fail + 1)); echo "FAIL the build folder was left behind" ;; *) pass=$((pass + 1)); echo "  ok and removes its build folder" ;; esac
-PC_MISSING='' is "$fx/pm/none" --bogus; check 'an unknown option is refused' 'usage: tools/install.sh [-u | --user] [-m | --mkxp-z | -M | --mkxp-z-bundled] [-r | --system-ruby] [-- CMAKE_OPTIONS...]'
+PC_MISSING='' is "$fx/pm/none" --bogus; check 'an unknown option is refused' 'usage: tools/install.sh [-u | --user] [-m | --mkxp-z | -M | --mkxp-z-bundled] [-r | --system-ruby] [--destdir DIR | --packages MANAGER] [-- CMAKE_OPTIONS...]'
+export PREFIX=/usr; PC_MISSING='' is "$fx/pm/none" --destdir "$fx/dest"; unset PREFIX
+check '--destdir stages the install under DIR, for a package (apk.sh)' "--prefix $fx/dest/usr/lib/tuxtavern"
+check 'saying so' "Staged in $fx/dest/usr."
+out=$(cat "$fx/dest/usr/bin/tt" 2>&1); check 'its wrapper names where the package installs' 'exec "/usr/lib/tuxtavern/bin/tt" "$@"'
+PC_MISSING='' is "$fx/pm/none" -r --packages apk
+check '--packages names the build packages, as apk.sh installs them' 'build-base cmake samurai pkgconf git nodejs-dev linux-headers mesa-dev pc:sdl2'
+check 'with what mkxp-z needs' 'pc:SDL2_image'; check 'and Ruby for -r' 'ruby-dev'
+case $out in *"cmake --build"*) fail=$((fail + 1)); echo "FAIL --packages built something" ;; *) pass=$((pass + 1)); echo "  ok without building" ;; esac
 
 echo "== install.sh --mkxp-z-stage"
 # A stand-in meson that logs what it is asked and installs an executable into its --prefix.

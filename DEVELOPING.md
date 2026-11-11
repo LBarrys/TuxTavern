@@ -9,10 +9,12 @@ Any distribution: `sh tools/install.sh` (`-u` for `~/.local`, `-m` with mkxp-z; 
 `--`) builds a release and installs it under `PREFIX/lib/tuxtavern` with a `PREFIX/bin/tt`
 wrapper (`bin/tt` and `bin/pmjs` find their files from their own path, so not a symlink; do not
 strip them: PMJS checks them against `build-info.json`). Missing build packages stop it with the install
-command for apk, apt-get, dnf, zypper or pacman; the tests also need Xvfb (`xvfb xauth` on Debian).
+command for apk, apt-get, dnf, zypper or pacman (`--packages MANAGER` prints that list); the tests also
+need Xvfb (`xvfb xauth` on Debian). `--destdir DIR` stages the install under `DIR` for a package.
 
 Alpine, as a package rebuilt and upgraded after each `git pull`: `doas sh tools/apk.sh` (installs
-`tuxtavern@busylinux`, signed with `/root/keys/local.rsa`, as BusyLinux's `update.sh` does).
+`tuxtavern@busylinux`, signed with `/root/keys/local.rsa`, as BusyLinux's `update.sh` does). It installs
+`install.sh --packages apk` for the build, and builds with `install.sh --destdir`.
 
 Node.js 18 (Ubuntu 24.04's) is the oldest tested; the suites run on 18 and 22.
 

@@ -11,6 +11,9 @@ const path = require('node:path');
 const test = require('node:test');
 
 const script = path.join(__dirname, '../tools/apk.sh');
+const install = path.join(__dirname, '../tools/install.sh');
+// The build packages apk.sh installs: install.sh's list for apk, by these flags.
+const packages = (...flags) => ` ${execFileSync('sh', [install, ...flags, '--packages', 'apk'], { encoding: 'utf8' }).replace(/\s+/g, ' ')} `;
 // Alpine only: /etc/apk is a mount point here, and creating it elsewhere would touch the host.
 const usable = process.getuid?.() === 0 && fs.existsSync('/etc/apk') &&
   spawnSync('unshare', ['-m', 'true']).status === 0;
@@ -47,10 +50,15 @@ function run(root, installed) {
 }
 
 test('apk.sh asks for SDL2 build files by what they provide, so sdl2-compat systems can build', () => {
+  assert.match(fs.readFileSync(script, 'utf8'), /makedepends="\$\(sh "\$src\/tools\/install\.sh" \$flags --packages apk\) openssl"/);
+  assert.match(packages(), / pc:sdl2 /);
+  assert.doesNotMatch(packages(), /\bsdl2-dev\b/);
+});
+
+test('apk.sh builds and stages through install.sh, with the same flags', () => {
   const text = fs.readFileSync(script, 'utf8');
-  const makedepends = text.match(/makedepends="([^"]*)"/)[1];
-  assert.match(makedepends, / pc:sdl2 /);
-  assert.doesNotMatch(makedepends, /\bsdl2-dev\b/);
+  assert.match(text, /PREFIX=\/usr XDG_CACHE_HOME=\$WORK sh "\$src\/tools\/install\.sh" \$flags --destdir "\$WORK\/pkg"/);
+  assert.doesNotMatch(text, /cmake /, 'the build is install.sh\'s alone');
 });
 
 test('apk.sh packages the checkout and installs it from the local repository', { skip: !usable && 'needs Alpine, root and unshare' }, () => {
@@ -75,7 +83,7 @@ test('apk.sh packages the checkout and installs it from the local repository', {
     'build tools stay until TuxTavern is installed');
   assert.ok(first.calls.includes('openssl genrsa'), 'a missing signing key is created');
   assert.equal(fs.readFileSync(path.join(root, 'state', 'var', 'lib', 'wrapper'), 'utf8'),
-    '#!/bin/sh\nexec /usr/lib/tuxtavern/bin/tt "$@"\n');
+    '#!/bin/sh\nexec "/usr/lib/tuxtavern/bin/tt" "$@"\n', 'the wrapper names where the package installs');
   assert.ok(fs.existsSync(path.join(root, 'state', 'etc', 'apk', 'keys', 'local.rsa.pub')));
   assert.deepEqual(fs.readdirSync(repo), [`tuxtavern-${version}-r0.apk`]);
 
@@ -91,11 +99,11 @@ test('apk.sh packages the checkout and installs it from the local repository', {
 
 test('apk.sh -m builds mkxp-z with Alpine libraries and depends on what it links to', () => {
   const text = fs.readFileSync(script, 'utf8');
-  const system = text.match(/system\) makedepends="([^"]*)"/)[1];
-  for (const pkg of ['meson', 'ruby', 'bison', 'sdl2_image-dev', 'sdl2_ttf-dev', 'openal-soft-dev', 'physfs-dev', 'fluidsynth-dev'])
-    assert.match(system, new RegExp(`(^|\\s)${pkg}(\\s|$)`), pkg);
-  assert.match(text.match(/bundled\) makedepends="([^"]*)"/)[1], / wayland-dev /);
-  assert.match(text, /sh "\$src\/tools\/install.sh" --mkxp-z-stage "\$WORK\/mkxp-z" --bundled/);
+  for (const pkg of ['meson', 'ruby', 'bison', 'pc:SDL2_image', 'pc:SDL2_ttf', 'pc:openal', 'pc:physfs', 'pc:fluidsynth'])
+    assert.ok(packages('-m').includes(` ${pkg} `), pkg);
+  assert.match(packages('-M'), / pc:wayland-client /);
+  assert.match(text, /\[ "\$mkxpz" != bundled \] \|\| flags=-M/);
+  assert.match(text, /for exe in "\$WORK\/pkg\/usr\/lib\/tuxtavern\/lib\/mkxp-z"\/mkxp-z\.\*/);
   assert.match(text, /depends="\$depends \$\(ldd "\$exe"/);
   const usage = spawnSync('sh', [script, '--bogus'], { encoding: 'utf8' });
   assert.equal(usage.status, 1);
@@ -103,9 +111,8 @@ test('apk.sh -m builds mkxp-z with Alpine libraries and depends on what it links
 });
 
 test('apk.sh -r builds mkxp-z with Alpine\'s Ruby, and only with Alpine\'s libraries', () => {
-  const text = fs.readFileSync(script, 'utf8');
-  assert.match(text, /\[ -z "\$ruby" \] \|\| makedepends="\$makedepends ruby-dev"/);
-  assert.match(text, /sh "\$src\/tools\/install.sh" --mkxp-z-stage "\$WORK\/mkxp-z" \$\{ruby:\+--system-ruby\}/);
+  assert.match(packages('-r'), / ruby-dev /);
+  assert.match(fs.readFileSync(script, 'utf8'), /flags=\$\{ruby:\+-r\}/);
   const bundled = spawnSync('sh', [script, '-M', '-r'], { encoding: 'utf8' });
   assert.equal(bundled.status, 1);
   assert.match(bundled.stderr, /-r builds mkxp-z with Alpine's libraries, so not with -M/);

@@ -21,6 +21,8 @@ if [ -n "$ruby" ]; then
 fi
 [ "$(id -u)" = 0 ] || die "run this as root"
 src=$(cd "$(dirname "$0")/.." && pwd -P)
+# The build itself, and the packages it needs, are install.sh's.
+flags=${ruby:+-r}; [ "$mkxpz" != system ] || flags=${flags:--m}; [ "$mkxpz" != bundled ] || flags=-M
 arch=$(apk --print-arch)
 REPO=/var/lib/busylinux/repo/$arch KEY=/root/keys/local.rsa WORK=/var/tmp/tuxtavern-apk
 
@@ -28,17 +30,10 @@ REPO=/var/lib/busylinux/repo/$arch KEY=/root/keys/local.rsa WORK=/var/tmp/tuxtav
 depends="nodejs so:libSDL2-2.0.so.0 so:libEGL.so.1 so:libGLESv2.so.2 so:libpng16.so.16"
 depends="$depends so:libwebp.so.7 so:libjpeg.so.8 so:libfreetype.so.6 so:libharfbuzz.so.0 so:liblz4.so.1"
 depends="$depends ffmpeg-libavformat ffmpeg-libavcodec ffmpeg-libavutil ffmpeg-libswresample ffmpeg-libswscale"
-# SDL2 by what it provides: newer Alpine replaces sdl2 with sdl2-compat, and sdl2-dev would conflict with it.
-makedepends="build-base cmake samurai pkgconf git nodejs-dev linux-headers pc:sdl2 mesa-dev
-  libpng-dev libwebp-dev zlib-dev libjpeg-turbo-dev freetype-dev harfbuzz-dev lz4-dev ffmpeg-dev openssl"
-# mkxp-z: Meson and what its own Ruby 3.1 builds with, and the libraries it uses from Alpine (or,
-# with -M, the Wayland files its own SDL needs). Keep in step with install.sh's mkxpz lists.
-case $mkxpz in
-system) makedepends="$makedepends meson python3 bison ruby perl bash sdl2_image-dev sdl2_ttf-dev openal-soft-dev
-  physfs-dev libogg-dev libvorbis-dev libtheora-dev fluidsynth-dev pixman-dev openssl-dev yaml-dev libffi-dev uchardet-dev" ;;
-bundled) makedepends="$makedepends meson python3 bison ruby perl bash wayland-dev wayland-protocols libxkbcommon-dev" ;;
-esac
-[ -z "$ruby" ] || makedepends="$makedepends ruby-dev"
+# install.sh names SDL2 by what it provides (pc:sdl2): newer Alpine replaces sdl2 with sdl2-compat,
+# and sdl2-dev would conflict with it. openssl signs the package.
+# shellcheck disable=SC2086
+makedepends="$(sh "$src/tools/install.sh" $flags --packages apk) openssl"
 
 # The checkout belongs to a user; without this git refuses it, and build-info.json
 # would not record the commit.
@@ -60,21 +55,14 @@ fi
 grep -q " ${REPO%/*}\$" /etc/apk/repositories || echo "v3 @busylinux ${REPO%/*}" >>/etc/apk/repositories
 
 rm -rf "$WORK"
-mkdir -p "$WORK/pkg/usr/bin" "$REPO"
-cmake -S "$src" -B "$WORK/build" -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
-cmake --build "$WORK/build" --target pmjs_native
-cmake --install "$WORK/build" --prefix "$WORK/pkg/usr/lib/tuxtavern"
+mkdir -p "$REPO"
+# shellcheck disable=SC2086
+PREFIX=/usr XDG_CACHE_HOME=$WORK sh "$src/tools/install.sh" $flags --destdir "$WORK/pkg"
 if [ -n "$mkxpz" ]; then
-	if [ "$mkxpz" = bundled ]; then sh "$src/tools/install.sh" --mkxp-z-stage "$WORK/mkxp-z" --bundled
-	else sh "$src/tools/install.sh" --mkxp-z-stage "$WORK/mkxp-z" ${ruby:+--system-ruby}; fi
-	cp -R "$WORK/mkxp-z" "$WORK/pkg/usr/lib/tuxtavern/lib/mkxp-z"
 	# What mkxp-z links to from Alpine becomes part of the package's dependencies.
-	for exe in "$WORK/mkxp-z"/mkxp-z.*; do :; done
+	for exe in "$WORK/pkg/usr/lib/tuxtavern/lib/mkxp-z"/mkxp-z.*; do :; done
 	depends="$depends $(ldd "$exe" | awk '$1 ~ /^lib/ && $3 ~ /^\/(usr\/)?lib\// { print "so:" $1 }' | sort -u | tr '\n' ' ')"
 fi
-# bin/tt and bin/pmjs find their files from their own path, so /usr/bin gets a wrapper, not a link.
-printf '#!/bin/sh\nexec /usr/lib/tuxtavern/bin/tt "$@"\n' >"$WORK/pkg/usr/bin/tt"
-chmod 755 "$WORK/pkg/usr/bin/tt"
 
 # Not stripped: PMJS checks its installed files against build-info.json.
 rm -f "$REPO"/tuxtavern-[0-9]*.apk
