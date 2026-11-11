@@ -318,37 +318,26 @@ pmjs_adapter() {
 	# before the cheat menu hooks in, so they cannot undo it.
 	# shellcheck disable=SC2016
 	[ -z "$user" ] || printf 'PMJS.phases.on("afterGuestPlugins", "tuxtavern.user", function () {\n\t[%s].forEach(function (u) {\n\t\ttry {\n\t\t\t(0, eval)(u.source + "\\n//# sourceURL=" + u.file);\n\t\t\tconsole.log("tt: " + u.file + " ran");\n\t\t} catch (e) {\n\t\t\tconsole.log("tt: " + u.file + " failed: " + (e && e.stack || e));\n\t\t}\n\t});\n});\n' "$user"
-	[ -z "$cheat" ] || pmjs_cheats
-	[ -z "$shots" ] || pmjs_screenshots
-	[ -z "$keys" ] || pmjs_keys
+	# The cheat menu (editor.js's model and the on-screen menu), TUXTAVERN_KEYS' extra key mappings,
+	# and F12 screenshots to $shots, named after the game.
+	[ -z "$cheat" ] || pmjs_install cheats editor editor=editor.js cheats=pmjs-cheats.js
+	[ -z "$shots" ] || pmjs_install screenshots "$(json "$shots"), $(json "$(game_title | tr '/' '_')")" shots=pmjs-screenshot.js
+	[ -z "$keys" ] || pmjs_install keys "$(json "$keys")" keys=pmjs-keys.js
 }
 
-# The cheat menu: editor.js's model, the on-screen menu, and the hook that installs them
-# once the game's plugins have loaded.
-pmjs_cheats() {
-	printf '(function () {\nvar editor = (function () { var module = { exports: {} };\n'
-	cat "$lib/editor.js"
-	printf '\nreturn module.exports; })();\nvar cheats = (function () { var module = { exports: {} };\n'
-	cat "$lib/pmjs-cheats.js"
-	printf '\nreturn module.exports; })();\n'
-	printf "PMJS.phases.on('afterGuestPlugins', 'tuxtavern.cheats', function () { cheats.install(globalThis, editor); });\n})();\n"
-}
-
-# TUXTAVERN_KEYS: extra key mappings.
-pmjs_keys() {
-	printf '(function () {\nvar keys = (function () { var module = { exports: {} };\n'
-	cat "$lib/pmjs-keys.js"
-	printf '\nreturn module.exports; })();\n'
-	printf "PMJS.phases.on('afterGuestPlugins', 'tuxtavern.keys', function () { keys.install(globalThis, %s); });\n})();\n" "$(json "$keys")"
-}
-
-# F12 saves a screenshot, named after the game, to $shots.
-pmjs_screenshots() {
-	printf '(function () {\nvar shots = (function () { var module = { exports: {} };\n'
-	cat "$lib/pmjs-screenshot.js"
-	printf '\nreturn module.exports; })();\n'
-	printf "PMJS.phases.on('afterGuestPlugins', 'tuxtavern.screenshots', function () { shots.install(globalThis, %s, %s); });\n})();\n" \
-		"$(json "$shots")" "$(json "$(game_title | tr '/' '_')")"
+# Adapter part ID: each NAME=FILE (in lib/) becomes var NAME, its module.exports; once the game's
+# plugins have loaded, the last NAME's install(globalThis, ARGS) runs.
+pmjs_install() {
+	part=$1 part_args=$2 part_last=
+	shift 2
+	printf '(function () {\n'
+	for m; do
+		part_last=${m%%=*}
+		printf 'var %s = (function () { var module = { exports: {} };\n' "$part_last"
+		cat "$lib/${m#*=}"
+		printf '\nreturn module.exports; })();\n'
+	done
+	printf "PMJS.phases.on('afterGuestPlugins', 'tuxtavern.%s', function () { %s.install(globalThis, %s); });\n})();\n" "$part" "$part_last" "$part_args"
 }
 
 case $engine in
