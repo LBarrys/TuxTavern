@@ -1,5 +1,5 @@
 # Ruby 3.2 removed what RPG Maker games' scripts still call. mkxp-z's own Ruby 3.1 has all of it, so
-# this only fills in on the system's Ruby (tools/mkxp-z.sh --system-ruby); each piece is left alone
+# this only fills in on the system's Ruby (tools/install.sh -r); each piece is left alone
 # when the method or constant is there.
 Object.const_set(:Fixnum, Integer) unless Object.const_defined?(:Fixnum)
 Object.const_set(:Bignum, Integer) unless Object.const_defined?(:Bignum)

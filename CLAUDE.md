@@ -30,7 +30,7 @@ Runs Windows RPG Maker XP/VX/VX Ace/MV/MZ games natively on Linux (glibc or musl
   - `sh test/launcher/run.sh`, `busybox sh test/launcher/run.sh` and `dash test/launcher/run.sh` (launcher, `lib/`)
   - `node --test test/*.test.cjs` (install scripts, `REUSE.toml`)
   - in `pmjs/`: `npm test`, `npx eslint js runner tools test`; `ctest` (needs Xvfb)
-- `tt`, `pmjs/tools/pmjs.sh`, `tools/apk.sh`, `tools/install.sh` and `tools/mkxp-z.sh` are POSIX sh: `shellcheck` clean, run under
+- `tt`, `pmjs/tools/pmjs.sh`, `tools/apk.sh` and `tools/install.sh` are POSIX sh: `shellcheck` clean, run under
   bash, dash and BusyBox sh.
 - MV/MZ: behave like NW.js (e.g. `require`/`process` in the page, no `module`/`exports`).
 - RGSS shims loaded before the game's scripts hook with `alias_method`, never `prepend`

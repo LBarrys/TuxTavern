@@ -122,7 +122,7 @@ rm -f "$fx/is/home/.local/bin/tuxtavern"
 case $(ls "$fx/is/cache") in *tuxtavern-build*) fail=$((fail + 1)); echo "FAIL the build folder was left behind" ;; *) pass=$((pass + 1)); echo "  ok and removes its build folder" ;; esac
 PC_MISSING='' is "$fx/pm/none" --bogus; check 'an unknown option is refused' 'usage: tools/install.sh [-u | --user] [-m | --mkxp-z | -M | --mkxp-z-bundled] [-r | --system-ruby] [-- CMAKE_OPTIONS...]'
 
-echo "== tools/mkxp-z.sh"
+echo "== install.sh --mkxp-z-stage"
 # A stand-in meson that logs what it is asked and installs an executable into its --prefix.
 mkdir -p "$fx/mz/bin"
 cat >"$fx/mz/bin/meson" <<'EOF'
@@ -133,9 +133,9 @@ case $1 in setup) for a; do case $a in --prefix) next=1 ;; *) [ -z "${next:-}" ]
 install) st=$(cat "$MZ_LOG.stage"); mkdir -p "$st/scripts/preload"; : >"$st/scripts/preload/win32_wrap.rb"; : >"$st/mkxp-z.x86_64" ;; esac
 EOF
 chmod +x "$fx/mz/bin/meson"
-mz() { : >"$fx/mz/log"; out=$(MZ_LOG="$fx/mz/log" XDG_CACHE_HOME="$fx/mz/cache" PATH="$fx/mz/bin:$PATH" sh tools/mkxp-z.sh "$@" 2>&1; cat "$fx/mz/log"); }
+mz() { : >"$fx/mz/log"; out=$(MZ_LOG="$fx/mz/log" XDG_CACHE_HOME="$fx/mz/cache" PATH="$fx/mz/bin:$PATH" sh tools/install.sh --mkxp-z-stage "$@" 2>&1; cat "$fx/mz/log"); }
 mz "$fx/mz/stage"
-check 'mkxp-z.sh builds mkxp-z/ with the system libraries by default' '-Ddefault_system=auto -Druby_system=disabled build'
+check '--mkxp-z-stage builds mkxp-z/ with the system libraries by default' '-Ddefault_system=auto -Druby_system=disabled build'
 check 'on a copy, as Meson downloads subprojects into its source tree' "pwd=$fx/mz/cache/mkxp-z-build."
 [ -f "$fx/mz/stage/mkxp-z.x86_64" ] && [ ! -e mkxp-z/build ] && pass=$((pass + 1)) && echo "  ok into STAGE, leaving the checkout alone" || { fail=$((fail + 1)); echo "FAIL the stage or checkout is wrong"; }
 out=$(cat "$fx/mz/stage/VERSION"); check 'recording the upstream commit and TuxTavern'"'"'s, for --info' 'f02d586 (TuxTavern '
@@ -145,7 +145,7 @@ case $out in *default_system*) fail=$((fail + 1)); echo "FAIL --bundled still us
 MESON_VERSION=1.3.2 mz "$fx/mz/stage"
 check 'an older Meson than mkxp-z asks for is named, with how to get a newer one' 'mkxp-z needs Meson 1.4.0 or newer, and this system has 1.3.2'
 MESON_VERSION=1.10.1 mz "$fx/mz/stage"; check 'versions compare by number, not as text' 'meson setup --prefix'
-mz "$fx/mz/stage" --bogus; check 'an unknown option is refused' 'usage: tools/mkxp-z.sh STAGE [--bundled | --system-ruby]'
+mz "$fx/mz/stage" --bogus; check 'an unknown option is refused' 'usage: tools/install.sh --mkxp-z-stage STAGE [--bundled | --system-ruby]'
 # A stand-in pkg-config with the development files of Ruby 3.4 and 3.10 (as Alpine's ruby-dev has).
 mkdir -p "$fx/mz/ruby"
 cat >"$fx/mz/ruby/pkg-config" <<'EOF'
@@ -361,7 +361,7 @@ console.log(phase, vm.runInContext("typeof tuxUser === \"string\" ? tuxUser : \"
 	check 'the cheat menu is on by default' 'cheat=1'
 	echo 'dev 1a2b3c4 2026-10-31' >"$fx/ti/lib/mkxp-z/VERSION"
 	out=$(PATH="$fx/bin:$PATH" sh "$tt" -i "$fx/xp" 2>&1)
-	check '--info shows which mkxp-z tools/mkxp-z.sh built' "runtime: $fx/ti/lib/mkxp-z/mkxp-z.x86_64 (dev 1a2b3c4 2026-10-31)"
+	check '--info shows which mkxp-z install.sh built' "runtime: $fx/ti/lib/mkxp-z/mkxp-z.x86_64 (dev 1a2b3c4 2026-10-31)"
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh "$tt" "$fx/xp" 2>&1)
 	check "mkxp-z's Ruby library is passed along" "\"rubyLoadpath\": [\"$fx/ti/lib/mkxp-z/stdlib\"]"
 	mv "$fx/ti/lib/mkxp-z/stdlib" "$fx/ti/stdlib-aside" && printf '/usr/lib/ruby/3.4.0\n/usr/lib/ruby/3.4.0/x86_64-linux\n' >"$fx/ti/lib/mkxp-z/loadpath"

@@ -5,11 +5,76 @@
 #   sh tools/install.sh -u     # into ~/.local
 #   sh tools/install.sh -m     # with mkxp-z too, for XP/VX/VX Ace (-M: with its own libraries; slow)
 #   sh tools/install.sh -r     # -m, with the system's Ruby instead of mkxp-z's own Ruby 3.1
+#   sh tools/install.sh --mkxp-z-stage STAGE [--bundled | --system-ruby]   # only mkxp-z, into STAGE
+#                              # (its executable, scripts/preload, Ruby's library, VERSION), for apk.sh
 # Options after -- go to CMake, e.g. -- -DFETCHCONTENT_SOURCE_DIR_PMJS_EFFEKSEER=DIR (DEVELOPING.md).
 set -eu
 
 die() { printf 'install.sh: %s\n' "$*" >&2; exit 1; }
 have() { command -v "$1" >/dev/null 2>&1; }
+src=$(cd "$(dirname "$0")/.." && pwd -P)
+
+# Builds mkxp-z/ (XP/VX/VX Ace) into STAGE, with the system's libraries (and mkxp-z's own Ruby 3.1),
+# its own copies of every library (--bundled; slow), or the system's Ruby too (--system-ruby;
+# lib/rgss/ruby32.rb fills in). Run in a subshell: it changes directory and sets traps.
+build_mkxpz() {
+	usage="usage: $0 --mkxp-z-stage STAGE [--bundled | --system-ruby]"
+	[ $# -ge 1 ] || die "$usage"
+	stage=$1; shift
+	bundled='' mri=''
+	case ${1:-} in
+	--bundled) bundled=1 ;;
+	--system-ruby)
+		# The newest Ruby whose development files are installed (ruby-3.4.pc for Ruby 3.4).
+		mri=$(pkg-config --list-all | sed -n 's/^ruby-\([0-9][0-9]*\.[0-9][0-9]*\) .*/\1/p' | sort -t . -k 1,1n -k 2,2n | tail -n 1)
+		[ -n "$mri" ] || die "--system-ruby needs Ruby's development files (ruby-dev, or ruby-devel)" ;;
+	'') ;;
+	*) die "$usage" ;;
+	esac
+	[ $# -le 1 ] || die "$usage"
+	# Distributions can ship an older Meson than mkxp-z asks for (Ubuntu 24.04 has 1.3).
+	need=$(sed -n "1s/.*meson_version: *'>= *\([0-9.]*\)'.*/\1/p" "$src/mkxp-z/meson.build")
+	got=$(meson --version)
+	if [ -n "$need" ] && ! printf '%s %s\n' "$got" "$need" | awk '{ split($1, a, "."); split($2, b, ".")
+		for (i = 1; i <= 3; i++) if (a[i] + 0 != b[i] + 0) exit !(a[i] + 0 > b[i] + 0); exit 0 }'; then
+		die "mkxp-z needs Meson $need or newer, and this system has $got: install a newer one
+  (pipx install meson, or pip install --user meson) and run this again"
+	fi
+
+	cache=${XDG_CACHE_HOME:-$HOME/.cache}
+	mkdir -p "$cache"
+	work=$(mktemp -d "$cache/mkxp-z-build.XXXXXX")
+	trap 'rm -rf "$work"' EXIT
+	trap 'exit 1' INT TERM
+	# Meson downloads subprojects into the source tree, so the build works on a copy.
+	cp -R "$src/mkxp-z" "$work/src"
+	cd "$work/src"
+	if [ -n "$bundled" ]; then
+		echo "==> building mkxp-z and its bundled libraries; this takes a long while"
+		set --
+	else
+		echo "==> building mkxp-z with the system's libraries${mri:+ and Ruby $mri}"
+		if [ -n "$mri" ]; then set -- -Ddefault_system=auto -Druby_system=enabled -Dmri_version="$mri"
+		else set -- -Ddefault_system=auto -Druby_system=disabled; fi
+	fi
+	meson setup --prefix "$work/stage" --buildtype release -Dstrip=true -Db_lto=true -Dangle=disabled "$@" build
+	meson compile -C build
+	meson install -C build --no-rebuild --tags mkxp-z >/dev/null
+	exe=
+	for f in "$work/stage"/mkxp-z.*; do [ -f "$f" ] && exe=${f##*/}; done
+	[ -n "$exe" ] || die "the build finished but installed no mkxp-z executable"
+	upstream=$(sed -n 's/^\([0-9a-f]\{7\}\)[0-9a-f]*$/\1/p' git-hash | tail -n 1)
+	printf '%s (TuxTavern %s)%s\n' "${upstream:-unknown}" "$(git -C "$src" log -1 --format=%h 2>/dev/null || echo unknown)" \
+		"${mri:+, system Ruby $mri}" >"$work/stage/VERSION"
+	# mkxp-z replaces Ruby's load path with the launcher's; with the system's Ruby, that is its library
+	# and its extensions (zlib and others), named here for the launcher.
+	[ -z "$mri" ] || for v in rubylibdir rubyarchdir; do pkg-config --variable=$v "ruby-$mri"; done >"$work/stage/loadpath"
+	rm -rf "$stage"
+	mkdir -p "$(dirname "$stage")"
+	cp -R "$work/stage" "$stage"
+}
+
+if [ "${1:-}" = --mkxp-z-stage ]; then shift; build_mkxpz "$@"; exit; fi
 
 prefix=${PREFIX:-/usr/local} mkxpz='' ruby=''
 while [ $# -gt 0 ]; do
@@ -27,7 +92,6 @@ if [ -n "$ruby" ]; then
 	[ "$mkxpz" != bundled ] || die "-r builds mkxp-z with the system's libraries, so not with -M"
 	mkxpz=system
 fi
-src=$(cd "$(dirname "$0")/.." && pwd -P)
 
 # What the build needs, and each package manager's names for it (pkgconfig() and pc: name the
 # libraries by their pkg-config module).
@@ -114,8 +178,8 @@ echo "==> building in $work, removed again when this script ends"
 cmake -S "$src" -B "$work" -G "$generator" -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF "$@"
 cmake --build "$work" --target pmjs_native
 case $mkxpz in
-system) sh "$src/tools/mkxp-z.sh" "$work/mkxp-z" ${ruby:+--system-ruby} ;;
-bundled) sh "$src/tools/mkxp-z.sh" "$work/mkxp-z" --bundled ;;
+system) (build_mkxpz "$work/mkxp-z" ${ruby:+--system-ruby}) ;;
+bundled) (build_mkxpz "$work/mkxp-z" --bundled) ;;
 esac
 dest=$prefix/lib/tuxtavern
 $as_root rm -rf "$dest"

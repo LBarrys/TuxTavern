@@ -32,13 +32,13 @@ node --test test/*.test.cjs
 sh test/launcher/run.sh
 busybox sh test/launcher/run.sh
 dash test/launcher/run.sh
-shellcheck tt pmjs/tools/pmjs.sh tools/apk.sh tools/install.sh tools/mkxp-z.sh
+shellcheck tt pmjs/tools/pmjs.sh tools/apk.sh tools/install.sh
 ```
 
 `mkxp-z/` is mkxp-z's `dev` branch at the commit in `mkxp-z/git-hash`, without `macos/`, `windows/`,
 `tests/` and the CJK font; TuxTavern's changes to it are ordinary commits (Wayland only: see
 `src/meson.build`). Port upstream commits with `git format-patch -1 HASH --stdout | git apply --3way
---directory=mkxp-z`, and move `git-hash` on when catching up. `tools/mkxp-z.sh STAGE` builds it on a copy
+--directory=mkxp-z`, and move `git-hash` on when catching up. `tools/install.sh --mkxp-z-stage STAGE` builds it on a copy
 (Meson downloads subprojects into its source tree); `install.sh -m` and `apk.sh -m` install that as
 `lib/mkxp-z`, where the launcher looks for it. With `--system-ruby` (`-r`) it links the newest Ruby whose
 development files are installed and writes that Ruby's library folders to `loadpath` for the launcher;

@@ -199,7 +199,7 @@ info)
 	nwjs-zip) echo "packed:  $(find_ci package.nw), unpacked on first run to $unpacked" ;;
 	rgss)
 		if [ -n "$mkxpz" ]; then
-			# tools/mkxp-z.sh records what it built beside the preload scripts.
+			# tools/install.sh records the mkxp-z it built beside the preload scripts.
 			built=$(cat "$(mkxp_preload_dir || echo /nonexistent)/../../VERSION" 2>/dev/null || true)
 			echo "runtime: $mkxpz${built:+ ($built)}"
 		else echo "runtime: mkxp-z not installed ($(mkxpz_hint) in a TuxTavern checkout)"
@@ -383,7 +383,7 @@ rgss)
 	done
 	stdlib=''
 	[ -z "$pre" ] || [ ! -d "$pre/../../stdlib" ] || stdlib=$(json "$(cd "$pre/../../stdlib" && pwd -P)")
-	# Built with the system's Ruby (tools/mkxp-z.sh --system-ruby): its library folders.
+	# Built with the system's Ruby (tools/install.sh -r): its library folders.
 	if [ -z "$stdlib" ] && [ -n "$pre" ] && [ -f "$pre/../../loadpath" ]; then
 		while read -r dir; do [ -z "$dir" ] || stdlib="$stdlib${stdlib:+, }$(json "$dir")"; done <"$pre/../../loadpath"
 	fi

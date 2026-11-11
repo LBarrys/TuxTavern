@@ -65,8 +65,8 @@ cmake -S "$src" -B "$WORK/build" -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TES
 cmake --build "$WORK/build" --target pmjs_native
 cmake --install "$WORK/build" --prefix "$WORK/pkg/usr/lib/tuxtavern"
 if [ -n "$mkxpz" ]; then
-	if [ "$mkxpz" = bundled ]; then sh "$src/tools/mkxp-z.sh" "$WORK/mkxp-z" --bundled
-	else sh "$src/tools/mkxp-z.sh" "$WORK/mkxp-z" ${ruby:+--system-ruby}; fi
+	if [ "$mkxpz" = bundled ]; then sh "$src/tools/install.sh" --mkxp-z-stage "$WORK/mkxp-z" --bundled
+	else sh "$src/tools/install.sh" --mkxp-z-stage "$WORK/mkxp-z" ${ruby:+--system-ruby}; fi
 	cp -R "$WORK/mkxp-z" "$WORK/pkg/usr/lib/tuxtavern/lib/mkxp-z"
 	# What mkxp-z links to from Alpine becomes part of the package's dependencies.
 	for exe in "$WORK/mkxp-z"/mkxp-z.*; do :; done

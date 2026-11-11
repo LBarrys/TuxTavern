@@ -95,7 +95,7 @@ test('apk.sh -m builds mkxp-z with Alpine libraries and depends on what it links
   for (const pkg of ['meson', 'ruby', 'bison', 'sdl2_image-dev', 'sdl2_ttf-dev', 'openal-soft-dev', 'physfs-dev', 'fluidsynth-dev'])
     assert.match(system, new RegExp(`(^|\\s)${pkg}(\\s|$)`), pkg);
   assert.match(text.match(/bundled\) makedepends="([^"]*)"/)[1], / wayland-dev /);
-  assert.match(text, /sh "\$src\/tools\/mkxp-z.sh" "\$WORK\/mkxp-z" --bundled/);
+  assert.match(text, /sh "\$src\/tools\/install.sh" --mkxp-z-stage "\$WORK\/mkxp-z" --bundled/);
   assert.match(text, /depends="\$depends \$\(ldd "\$exe"/);
   const usage = spawnSync('sh', [script, '--bogus'], { encoding: 'utf8' });
   assert.equal(usage.status, 1);
@@ -105,7 +105,7 @@ test('apk.sh -m builds mkxp-z with Alpine libraries and depends on what it links
 test('apk.sh -r builds mkxp-z with Alpine\'s Ruby, and only with Alpine\'s libraries', () => {
   const text = fs.readFileSync(script, 'utf8');
   assert.match(text, /\[ -z "\$ruby" \] \|\| makedepends="\$makedepends ruby-dev"/);
-  assert.match(text, /sh "\$src\/tools\/mkxp-z.sh" "\$WORK\/mkxp-z" \$\{ruby:\+--system-ruby\}/);
+  assert.match(text, /sh "\$src\/tools\/install.sh" --mkxp-z-stage "\$WORK\/mkxp-z" \$\{ruby:\+--system-ruby\}/);
   const bundled = spawnSync('sh', [script, '-M', '-r'], { encoding: 'utf8' });
   assert.equal(bundled.status, 1);
   assert.match(bundled.stderr, /-r builds mkxp-z with Alpine's libraries, so not with -M/);
