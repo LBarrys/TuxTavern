@@ -415,6 +415,11 @@ puts [o.id == o.object_id, nil.id, true.id].join(","), [TRUE, FALSE, NIL].inspec
 	check 'TRUE, FALSE and NIL are back' '[true, false, nil]'
 	out=$(TUXTAVERN_RGSS_VERSION=3 ruby -e 'load "lib/rgss/ruby18.rb"; puts [TRUE, 1.respond_to?(:id)].join(",")' 2>&1)
 	check 'VX Ace gets TRUE (Ruby 1.9 had it), but not Ruby 1.8 obj.id' 'true,false'
+	out=$(TUXTAVERN_SHIM_DIR="$PWD/lib/rgss" TUXTAVERN_RGSS_VERSION=1 TUXTAVERN_RGSS_SKIP=casefold,cheats,lenient,patches,raw_bitmap,input_poll,ini_wrap,user32_wrap,dl_wrap,textmode ruby -e 'load "lib/rgss/all.rb"' 2>&1)
+	case $out in *'did not load'*) ;; *'--- exit ---'*) out='loaded; exit reported' ;; esac
+	check 'XP has no msgbox: msgbox_echo.rb loads, and still reports the exit' 'loaded; exit reported'
+	out=$(ruby -e 'module Kernel; def msgbox(*a) = puts("box #{a.join}"); end; load "lib/rgss/msgbox_echo.rb"; msgbox "hi"' 2>&1 | tr "\n" " ")
+	check 'VX and VX Ace: msgbox is echoed, then shown' '--- msgbox --- hi -------------- box hi'
 	mkdir -p "$fx/preload" && printf 'module MKXP; def self.marker; "mkxp_wrap"; end; end\n' >"$fx/preload/mkxp_wrap.rb" && : >"$fx/preload/win32_wrap.rb"
 	out=$(TUXTAVERN_MKXPZ_PRELOAD="$fx/preload" TUXTAVERN_SHIM_DIR="$PWD/lib/rgss" TUXTAVERN_RGSS_SKIP=casefold,cheats,lenient,patches,raw_bitmap,input_poll,ini_wrap,user32_wrap,dl_wrap,textmode,msgbox_echo ruby -e 'load "lib/rgss/all.rb"; puts MKXP.marker' 2>&1)
 	check "mkxp-z's mkxp_wrap.rb is loaded, for mkxp's old MKXP names" 'mkxp_wrap'

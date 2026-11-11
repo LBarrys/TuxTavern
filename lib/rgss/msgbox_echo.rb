@@ -9,13 +9,16 @@ module Kernel
   end
   module_function :msgbox_echo_say
 
-  alias_method :msgbox_without_echo, :msgbox
+  # XP (RGSS1) has no msgbox: only its exit report applies there.
+  if private_method_defined?(:msgbox) || method_defined?(:msgbox)
+    alias_method :msgbox_without_echo, :msgbox
 
-  def msgbox(*args)
-    msgbox_echo_say('msgbox', args.join)
-    msgbox_without_echo(*args)
+    def msgbox(*args)
+      msgbox_echo_say('msgbox', args.join)
+      msgbox_without_echo(*args)
+    end
+    module_function :msgbox
   end
-  module_function :msgbox
 
   if private_method_defined?(:msgbox_p) || method_defined?(:msgbox_p)
     alias_method :msgbox_p_without_echo, :msgbox_p
