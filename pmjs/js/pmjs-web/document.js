@@ -35,7 +35,7 @@ documentTarget.createElement = function(tagName) {
   var name = String(tagName).toLowerCase();
   if (name === 'canvas') return new CanvasElement();
   if (name === 'audio') return new AudioElement();
-  if (name === 'video') return new VideoElement();
+  if (name === 'video') return new PmjsVideoElement();
   if (name === 'script') return new ScriptElement();
   if (name === 'input') return new InputElement();
   var element = new GenericElement(tagName);
@@ -138,7 +138,7 @@ globalThis.getComputedStyle = function(element) {
 
 globalThis.HTMLCanvasElement = CanvasElement;
 globalThis.HTMLImageElement = NativeImage;
-globalThis.HTMLVideoElement = VideoElement;
+globalThis.HTMLVideoElement = PmjsVideoElement;
 globalThis.Image = NativeImage;
 globalThis.CanvasRenderingContext2D = CanvasContext2D;
 // Web Audio is native here, yet plugins patch its classes as they load (Carnal Outbreak's

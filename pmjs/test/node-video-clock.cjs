@@ -48,7 +48,7 @@ async function main() {
   vm.createContext(context);
   vm.runInContext(fs.readFileSync(path.resolve(__dirname,
     '../js/pmjs-web/video-element.js'), 'utf8'), context);
-  const video = new context.VideoElement();
+  const video = new context.PmjsVideoElement();
   video._media = { handle: resource.handle };
   video._audio = { handle: audio.handle };
   video.duration = resource.duration;

@@ -70,7 +70,7 @@ function setup({audioDuration = 4, duration = 6, audio = true} = {}) {
   };
   vm.createContext(context);
   vm.runInContext(source, context);
-  const video = new context.VideoElement();
+  const video = new context.PmjsVideoElement();
   video._media = {handle: 1};
   video._audio = audio ? {handle: 2} : null;
   video.duration = duration;

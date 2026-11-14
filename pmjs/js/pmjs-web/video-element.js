@@ -1,4 +1,6 @@
-var VideoElement = (function() {
+// TuxTavern: not VideoElement, a name NW.js leaves free; DC Quarantine's DK_Video_Player 1.3.3 declares
+// class VideoElement in the page, which a global var of that name would refuse.
+var PmjsVideoElement = (function() {
 var nativeVideos = [];
 var nativeVideoFinalizer = typeof FinalizationRegistry === 'function'
   ? new FinalizationRegistry(function(handles) {
