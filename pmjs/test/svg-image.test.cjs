@@ -9,7 +9,7 @@ const test = require('node:test');
 const vm = require('node:vm');
 
 function harness() {
-  const calls = [], canvases = [], observed = [], tasks = [], events = [];
+  const calls = [], canvases = [], observed = [], tasks = [], events = [], decoded = [], paths = [];
   function CanvasElement() {
     this.width = 0; this.height = 0; canvases.push(this);
     this._ensureNativeCanvas = () => ({ handle: 7 });
@@ -23,11 +23,13 @@ function harness() {
   function GenericElement() {}
   const context = vm.createContext({
     CanvasElement, GenericElement, TextDecoder, Uint8Array, atob, Promise,
-    PMJS: { compat: { observed: (what, detail) => observed.push(detail) }, images: {},
-      tasks: { enqueue: callback => tasks.push(callback) } },
+    PMJS: { compat: { observed: (what, detail) => observed.push(detail) }, images: { shouldRetainPixels: () => false, loadCompleted() {} },
+      tasks: { enqueue: callback => tasks.push(callback), queued: () => false } },
     NativeHost: { fs: { readText: file => (file === 'img/cursor.svg' ? '<svg width="2" height="3"/>' : null) },
-      images: { fallbackImage: () => ({ width: 1, height: 1 }) } },
-    gameReadPath: file => file,
+      images: { fallbackImage: () => ({ width: 1, height: 1 }),
+        loadBytesAsync: buffer => { decoded.push([...new Uint8Array(buffer)]); return Promise.resolve({ width: 8, height: 9 }); },
+        loadAsync: file => { paths.push(file); return Promise.resolve(null); } } },
+    gameReadPath: file => file, decodeResourceUrlPath: url => decodeURIComponent(url),
     trackNativeResource: resource => resource, releaseNativeResource() {},
     pmjsDispatchHostEvent: (target, event) => { events.push(event.type); return Promise.resolve(true); },
     pmjsReportEventError(error) { throw error; },
@@ -35,7 +37,7 @@ function harness() {
   for (const file of ['svg.js', 'image-element.js']) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, '../js/pmjs-web', file), 'utf8'), context);
   }
-  return { context, calls, canvases, observed, tasks, events,
+  return { context, calls, canvases, observed, tasks, events, decoded, paths,
     draw: text => { calls.length = 0; return context.PMJS.web.svg.canvas(text); } };
 }
 
@@ -103,4 +105,24 @@ test('an <img> with an SVG data URL or file loads as a canvas', async () => {
   await h.tasks.shift()();
   assert.equal(h.events.at(-1), 'error');
   assert.equal(broken._pmjsLoadFailed, true);
+});
+
+// The Rain Monster's GOSSSave keeps save thumbnails as JPEG data URLs; read as a game file, the
+// thumbnail failed and loading a save froze on MZ's load error.
+test('an <img> with a JPEG or PNG data URL decodes its bytes', async () => {
+  const h = harness();
+  for (const source of [
+    'data:image/jpeg;base64,' + Buffer.from([0xff, 0xd8, 0x00, 0x80]).toString('base64'),
+    'data:image/png,%FF%D8%00%80',
+  ]) {
+    const image = new h.context.NativeImage();
+    image.src = source;
+    await h.tasks.shift()();
+    await new Promise(resolve => setImmediate(resolve));
+    await h.tasks.shift()();
+    assert.deepEqual(h.decoded.at(-1), [0xff, 0xd8, 0x00, 0x80]);
+    assert.deepEqual([image.width, image.height, image._pmjsLoadFailed], [8, 9, false]);
+    assert.equal(h.events.at(-1), 'load');
+  }
+  assert.deepEqual(h.paths, [], 'no data URL is read as a game file');
 });

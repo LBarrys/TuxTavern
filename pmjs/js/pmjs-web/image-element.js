@@ -55,6 +55,7 @@ function loadSource(url, encryption) {
     }
     var objectUrl = typeof globalThis.pmjsIsObjectURL === 'function' &&
       globalThis.pmjsIsObjectURL(source);
+    var dataUrl = !objectUrl && /^data:/i.test(source);
     var image = this;
     var preparedTileSet = this._pmjsPreparedTileSet;
     image.complete = false;
@@ -75,6 +76,10 @@ function loadSource(url, encryption) {
             if (!current() || PMJS.tasks.stopped) return null;
             return NativeHost.images.loadBytesAsync(buffer, PMJS.images.shouldRetainPixels(source));
           });
+        }
+        if (dataUrl) {
+          return NativeHost.images.loadBytesAsync(dataUrlBytes(source).buffer,
+            PMJS.images.shouldRetainPixels(source));
         }
         var path = decodeResourceUrlPath(source)
           .replace(/^file:\/\/\/game\//, '')
@@ -137,6 +142,17 @@ PMJS.images.loadEncrypted = function(image, url, key, logicalPath) {
 };
 
 // SVG is drawn on a canvas by svg.js, not decoded natively (Karryn's Prison's menu cursor).
+// TuxTavern: GOSSSave keeps save thumbnails as JPEG or PNG data URLs, which NW.js loads like any
+// image; read as a game file they failed and The Rain Monster froze loading a save.
+function dataUrlBytes(source) {
+  var data = /^data:[^,]*?(;base64)?,([\s\S]*)$/i.exec(source);
+  if (!data) throw new Error('malformed data URL');
+  var text = data[1] ? atob(data[2].replace(/\s+/g, '')) : unescape(data[2]);
+  var bytes = new Uint8Array(text.length);
+  for (var i = 0; i < text.length; ++i) bytes[i] = text.charCodeAt(i);
+  return bytes;
+}
+
 function loadSvg(image, source, generation) {
   function current() { return generation === image._loadGeneration; }
   PMJS.tasks.enqueue(function() {
