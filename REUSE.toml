@@ -55,7 +55,7 @@ SPDX-FileCopyrightText = "2013-2017 Mathew Groves, Chad Engler"
 SPDX-License-Identifier = "MIT"
 
 [[annotations]]
-path = ["pmjs/js/pmjs-web/fallback-font.LICENSE", "pmjs/js/pmjs-web/fallback-font.js", "pmjs/test/assets/testfont.LICENSE", "pmjs/test/assets/testfont.ttf"]
+path = ["pmjs/js/pmjs-web/fallback-font.LICENSE", "pmjs/js/pmjs-web/fallback-font.js", "pmjs/src/fallback_font.hpp.in", "pmjs/test/assets/testfont.LICENSE", "pmjs/test/assets/testfont.ttf"]
 precedence = "override"
 SPDX-FileCopyrightText = "2010 Google Corporation; 2012 Red Hat, Inc."
 SPDX-License-Identifier = "OFL-1.1"
