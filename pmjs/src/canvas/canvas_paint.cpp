@@ -126,15 +126,22 @@ std::array<double, 4> samplePaint(const CanvasPaint& paint, double x, double y) 
       amount = (px * dx + py * dy) / length;
     } else {
       const double dr = g[5] - g[2];
-      if (std::abs(dx) < 0.000001 && std::abs(dy) < 0.000001) {
-        amount = dr ? (std::hypot(px, py) - g[2]) / dr : 0;
+      const double a = dx * dx + dy * dy - dr * dr;
+      const double b = -2 * (px * dx + py * dy + g[2] * dr);
+      const double c = px * px + py * py - g[2] * g[2];
+      if (a == 0) {
+        if (b == 0) return {};
+        amount = -c / b;
+        if (g[2] + amount * dr < 0) return {};
       } else {
-        const double a = dx * dx + dy * dy - dr * dr;
-        const double b = -2 * (px * dx + py * dy + g[2] * dr);
-        const double c = px * px + py * py - g[2] * g[2];
         const double discriminant = b * b - 4 * a * c;
-        if (discriminant >= 0) amount = std::abs(a) < 0.000001 ?
-          (std::abs(b) < 0.000001 ? 0 : -c / b) : (-b + std::sqrt(discriminant)) / (2 * a);
+        if (discriminant < 0) return {};
+        const double first = (-b - std::sqrt(discriminant)) / (2 * a);
+        const double second = (-b + std::sqrt(discriminant)) / (2 * a);
+        const bool firstValid = g[2] + first * dr >= 0;
+        const bool secondValid = g[2] + second * dr >= 0;
+        if (!firstValid && !secondValid) return {};
+        amount = firstValid ? (secondValid ? std::max(first, second) : first) : second;
       }
     }
     if (!std::isfinite(amount)) return {};
@@ -151,9 +158,11 @@ std::array<double, 4> samplePaint(const CanvasPaint& paint, double x, double y) 
     }
   }
   const unsigned alpha = color & 255;
-  return {double(importCanvasChannel(color >> 24, alpha)),
-          double(importCanvasChannel((color >> 16) & 255, alpha)),
-          double(importCanvasChannel((color >> 8) & 255, alpha)), double(alpha)};
+  const auto channel = [&](unsigned value) {
+    return double(paint.kind == CanvasPaint::Kind::solid ?
+      paintCanvasChannel(value, alpha) : importCanvasChannel(value, alpha));
+  };
+  return {channel(color >> 24), channel((color >> 16) & 255), channel((color >> 8) & 255), double(alpha)};
 }
 }
 
@@ -324,8 +333,8 @@ bool CanvasStore::paintShadow(CanvasHandle handle, CanvasHandle sourceHandle, do
     const double paintAlpha = !geometryMask ? 1 :
       samplePaint(state.paint, column + 0.5 - x, row + 0.5 - y)[3] / 255;
     compositeCanvasPixel(surface->pixels.data() + offset,
-      {p[2] * state.alpha * paintAlpha, p[1] * state.alpha * paintAlpha,
-       p[0] * state.alpha * paintAlpha, p[3] * state.alpha * paintAlpha}, state.composite, true);
+      {std::round(p[2] * state.alpha * paintAlpha), std::round(p[1] * state.alpha * paintAlpha),
+       std::round(p[0] * state.alpha * paintAlpha), std::round(p[3] * state.alpha * paintAlpha)}, state.composite, true);
     const auto* destination = surface->pixels.data() + offset;
     if (destination[0] > destination[3] || destination[1] > destination[3] || destination[2] > destination[3])
       surface->mayHaveOverAlpha = true;
