@@ -1,6 +1,6 @@
 #pragma once
 
-#include "resources.hpp"
+#include "graphics/resources.hpp"
 
 namespace pmjs {
 std::optional<ImagePixels> decodePsdFromMemory(const void* data, std::size_t size,

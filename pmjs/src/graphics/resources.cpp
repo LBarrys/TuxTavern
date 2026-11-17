@@ -1,12 +1,12 @@
 #include "resources.hpp"
 #include <EGL/egl.h>
-#include "prepared_page.hpp"
-#include "file_identity.hpp"
-#include "checked_bounds.hpp"
-#include "png_recovery.hpp"
-#include "png_color.hpp"
-#include "psd_decoder.hpp"
-#include "avif_decoder.hpp"
+#include "assets/prepared_page.hpp"
+#include "platform/file_identity.hpp"
+#include "core/checked_bounds.hpp"
+#include "assets/png_recovery.hpp"
+#include "assets/png_color.hpp"
+#include "assets/psd_decoder.hpp"
+#include "assets/avif_decoder.hpp"
 
 #include <algorithm>
 #include <array>

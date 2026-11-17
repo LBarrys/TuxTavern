@@ -1,5 +1,5 @@
 // Generate the fallback-display property from a verified Unicode data file:
-//   node tools/generate-default-ignorables.mjs DerivedCoreProperties.txt > src/unicode_default_ignorables.hpp
+//   node tools/generate-default-ignorables.mjs DerivedCoreProperties.txt > src/canvas/unicode_default_ignorables.hpp
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 

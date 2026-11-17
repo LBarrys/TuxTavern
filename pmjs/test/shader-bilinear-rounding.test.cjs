@@ -9,7 +9,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
 
-const shaders = fs.readFileSync(path.join(__dirname, '../src/renderer_shaders.hpp'), 'utf8');
+const shaders = fs.readFileSync(path.join(__dirname, '../src/graphics/renderer_shaders.hpp'), 'utf8');
 
 test('shader bilinear filtering rounds once, after both axes', () => {
   const rows = [...shaders.matchAll(/ivec4 top = ([^;]*);\s*(?:highp )?ivec4 bottom = ([^;]*);\s*[^;]*?\(top \* \(256 - (\w+)\.y\) \+ bottom \* \3\.y([^)]*)\)/g)];

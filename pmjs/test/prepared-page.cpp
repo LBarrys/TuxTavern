@@ -1,4 +1,4 @@
-#include "prepared_page.hpp"
+#include "assets/prepared_page.hpp"
 
 #include <algorithm>
 #include <filesystem>

@@ -1,7 +1,7 @@
 #include "node_addon_internal.hpp"
-#include "asset_processor.hpp"
-#include "prepared_page.hpp"
-#include "tile_assets.hpp"
+#include "assets/asset_processor.hpp"
+#include "assets/prepared_page.hpp"
+#include "assets/tile_assets.hpp"
 
 #include <cmath>
 #include <fcntl.h>

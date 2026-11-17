@@ -1,5 +1,5 @@
 #include "renderer.hpp"
-#include "platform.hpp"
+#include "platform/platform.hpp"
 #include "renderer_shaders.hpp"
 #include "renderer_identity_shader.hpp"
 #include "scene_packet.hpp"

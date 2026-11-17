@@ -1,6 +1,6 @@
-#include "platform.hpp"
-#include "resources.hpp"
-#include "asset_processor.hpp"
+#include "platform/platform.hpp"
+#include "graphics/resources.hpp"
+#include "assets/asset_processor.hpp"
 
 #include <GLES3/gl3.h>
 #include <algorithm>

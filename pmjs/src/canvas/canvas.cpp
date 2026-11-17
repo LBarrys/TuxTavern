@@ -1,5 +1,5 @@
 #include "canvas.hpp"
-#include "checked_bounds.hpp"
+#include "core/checked_bounds.hpp"
 #include "text_layout.hpp"
 #include "unicode_default_ignorables.hpp"
 #include <hb-ft.h>

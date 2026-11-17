@@ -1,6 +1,6 @@
 #pragma once
 
-#include "resources.hpp"
+#include "graphics/resources.hpp"
 
 namespace pmjs {
 // Defined in media_decoder.cpp, which owns the FFmpeg input helpers.

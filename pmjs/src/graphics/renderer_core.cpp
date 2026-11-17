@@ -1,6 +1,6 @@
-#include "canvas_pixels.hpp"
+#include "canvas/canvas_pixels.hpp"
 #include "renderer.hpp"
-#include "checked_bounds.hpp"
+#include "core/checked_bounds.hpp"
 #include <GLES3/gl3.h>
 
 #include <algorithm>

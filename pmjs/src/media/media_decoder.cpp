@@ -1,6 +1,6 @@
 #include "media_decoder.hpp"
-#include "avif_decoder.hpp"
-#include "checked_bounds.hpp"
+#include "assets/avif_decoder.hpp"
+#include "core/checked_bounds.hpp"
 
 extern "C" {
 #include <libavcodec/avcodec.h>

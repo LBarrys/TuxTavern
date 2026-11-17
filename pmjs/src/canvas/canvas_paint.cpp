@@ -1,5 +1,5 @@
 #include "canvas.hpp"
-#include "checked_bounds.hpp"
+#include "core/checked_bounds.hpp"
 #include <algorithm>
 #include <cmath>
 #include <utility>

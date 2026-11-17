@@ -44,31 +44,31 @@ add_library(pmjs_lz4 INTERFACE)
 target_link_libraries(pmjs_lz4 INTERFACE PkgConfig::LZ4)
 set(PMJS_RUNTIME_SOURCES
   src/runtime_core.cpp
-  src/platform.cpp
-  src/dialog.cpp
-  src/renderer_core.cpp
-  src/renderer_draw.cpp
-  src/renderer_custom_filters.cpp
-  src/program_binary_cache.cpp
-  src/renderer_programs.cpp
-  src/renderer_scene.cpp
-  src/resources.cpp
-  src/png_recovery.cpp
-  src/psd_decoder.cpp
-  src/resources_tiles.cpp
-  src/asset_processor.cpp
-  src/prepared_page.cpp
-  src/tile_assets.cpp
-  src/canvas.cpp
-  src/canvas_composite.cpp
-  src/canvas_paint.cpp
-  src/text_layout.cpp
-  src/vfs.cpp
-  src/file_identity.cpp
-  src/media_decoder.cpp
-  src/encrypted_audio_file.cpp
-  src/media_service.cpp
-  src/effects.cpp)
+  src/platform/platform.cpp
+  src/platform/dialog.cpp
+  src/graphics/renderer_core.cpp
+  src/graphics/renderer_draw.cpp
+  src/graphics/renderer_custom_filters.cpp
+  src/graphics/program_binary_cache.cpp
+  src/graphics/renderer_programs.cpp
+  src/graphics/renderer_scene.cpp
+  src/graphics/resources.cpp
+  src/assets/png_recovery.cpp
+  src/assets/psd_decoder.cpp
+  src/graphics/resources_tiles.cpp
+  src/assets/asset_processor.cpp
+  src/assets/prepared_page.cpp
+  src/assets/tile_assets.cpp
+  src/canvas/canvas.cpp
+  src/canvas/canvas_composite.cpp
+  src/canvas/canvas_paint.cpp
+  src/canvas/text_layout.cpp
+  src/platform/vfs.cpp
+  src/platform/file_identity.cpp
+  src/media/media_decoder.cpp
+  src/media/encrypted_audio_file.cpp
+  src/media/media_service.cpp
+  src/effects/effects.cpp)
 
 option(PMJS_ENABLE_WERROR "Treat compiler warnings as errors" OFF)
 option(PMJS_ENABLE_SANITIZERS "Build with AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
@@ -85,24 +85,24 @@ target_link_libraries(pmjs_runtime PUBLIC ${PMJS_PLATFORM_LIBS} PkgConfig::PNG P
   PkgConfig::JPEG PkgConfig::FREETYPE PkgConfig::HARFBUZZ ${PMJS_MEDIA_LIBS} EffekseerRendererGL m dl pthread)
 
 add_library(pmjs_native MODULE
-  src/node_addon.cpp
-  src/node_addon_compression.cpp
-  src/node_addon_canvas.cpp
-  src/node_addon_dialog.cpp
-  src/node_addon_common.cpp
-  src/node_addon_entry.cpp
-  src/node_addon_effects.cpp
-  src/node_addon_graphics.cpp
-  src/node_addon_media.cpp
-  src/node_addon_video.cpp
-  src/node_addon_platform.cpp
-  src/node_addon_resources.cpp
-  src/node_addon_assets.cpp
-  src/node_addon_runtime.cpp)
+  src/node/node_addon.cpp
+  src/node/node_addon_compression.cpp
+  src/node/node_addon_canvas.cpp
+  src/node/node_addon_dialog.cpp
+  src/node/node_addon_common.cpp
+  src/node/node_addon_entry.cpp
+  src/node/node_addon_effects.cpp
+  src/node/node_addon_graphics.cpp
+  src/node/node_addon_media.cpp
+  src/node/node_addon_video.cpp
+  src/node/node_addon_platform.cpp
+  src/node/node_addon_resources.cpp
+  src/node/node_addon_assets.cpp
+  src/node/node_addon_runtime.cpp)
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/third_party/effekseer.LICENSE" PMJS_EFFECTS_LICENSE)
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
   "${CMAKE_CURRENT_SOURCE_DIR}/third_party/effekseer.LICENSE")
-configure_file(src/effects_license.hpp.in generated/effects_license.hpp @ONLY)
+configure_file(src/effects/effects_license.hpp.in generated/effects_license.hpp @ONLY)
 target_include_directories(pmjs_native PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated")
 target_include_directories(pmjs_native PRIVATE src)
 target_include_directories(pmjs_native SYSTEM PRIVATE "${PMJS_NODE_API_HEADERS}")
@@ -132,12 +132,12 @@ if(BUILD_TESTING)
     add_test(NAME ${TEST_NAME} COMMAND $<TARGET_FILE:${TARGET}>)
   endfunction()
 
-  pmjs_add_cpp_test(pmjs-vfs-test native-vfs test/vfs.cpp src/vfs.cpp src/file_identity.cpp)
+  pmjs_add_cpp_test(pmjs-vfs-test native-vfs test/vfs.cpp src/platform/vfs.cpp src/platform/file_identity.cpp)
   target_link_libraries(pmjs-vfs-test PRIVATE PkgConfig::AVUTIL)
-  pmjs_add_cpp_test(pmjs-asset-processor-test native-asset-processor test/asset-processor.cpp src/asset_processor.cpp)
-  pmjs_add_cpp_test(pmjs-prepared-page-test native-prepared-page test/prepared-page.cpp src/prepared_page.cpp)
+  pmjs_add_cpp_test(pmjs-asset-processor-test native-asset-processor test/asset-processor.cpp src/assets/asset_processor.cpp)
+  pmjs_add_cpp_test(pmjs-prepared-page-test native-prepared-page test/prepared-page.cpp src/assets/prepared_page.cpp)
   target_link_libraries(pmjs-prepared-page-test PRIVATE pmjs_lz4 PkgConfig::ZLIB)
-  target_sources(pmjs-asset-processor-test PRIVATE src/prepared_page.cpp)
+  target_sources(pmjs-asset-processor-test PRIVATE src/assets/prepared_page.cpp)
   target_link_libraries(pmjs-asset-processor-test PRIVATE PkgConfig::PNG PkgConfig::ZLIB pmjs_lz4 pthread)
   pmjs_add_cpp_test(pmjs-tile-assets-test native-tile-assets test/tile-assets.cpp)
   target_link_libraries(pmjs-tile-assets-test PRIVATE pmjs_runtime)
@@ -282,7 +282,7 @@ if(BUILD_TESTING)
   target_include_directories(pmjs-media-decoder-test PRIVATE src)
   target_compile_options(pmjs-media-decoder-test PRIVATE ${PMJS_BASE_COMPILE_OPTIONS})
   target_link_libraries(pmjs-media-decoder-test PRIVATE pmjs_runtime)
-  add_executable(pmjs-video-failure-test test/video-failure.cpp src/node_addon_video.cpp)
+  add_executable(pmjs-video-failure-test test/video-failure.cpp src/node/node_addon_video.cpp)
   target_include_directories(pmjs-video-failure-test PRIVATE src)
   target_compile_options(pmjs-video-failure-test PRIVATE ${PMJS_BASE_COMPILE_OPTIONS})
   target_link_options(pmjs-video-failure-test PRIVATE "-Wl,--wrap=sws_scale" "-Wl,--wrap=av_read_frame")
@@ -315,7 +315,7 @@ if(BUILD_TESTING)
   target_include_directories(pmjs-audio-seek-test PRIVATE src)
   target_compile_options(pmjs-audio-seek-test PRIVATE ${PMJS_BASE_COMPILE_OPTIONS})
   target_link_libraries(pmjs-audio-seek-test PRIVATE pmjs_runtime)
-  add_executable(pmjs-platform-input-test test/platform-input.cpp src/platform.cpp)
+  add_executable(pmjs-platform-input-test test/platform-input.cpp src/platform/platform.cpp)
   add_executable(pmjs-dialog-modal-test test/dialog-modal.cpp)
   target_include_directories(pmjs-dialog-modal-test PRIVATE src)
   target_compile_options(pmjs-dialog-modal-test PRIVATE ${PMJS_BASE_COMPILE_OPTIONS})

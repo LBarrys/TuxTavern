@@ -2,7 +2,7 @@
 
 #include <string>
 
-#include "dialog.hpp"
+#include "platform/dialog.hpp"
 
 namespace pmjs::addon {
 
