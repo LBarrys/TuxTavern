@@ -20,7 +20,7 @@ function fixture() {
     _getTextureId() { return 0; }, _getAnimTileId(texture, id) { return id === 0 ? this._animFrame[0] : id; },
     _getPriority() { return 1; }, _getZIndex() { return 3; }, _isPriorityTile() { return false; },
     _updateAnimFrames() { this._animDuration[0] = 2; }, hideOnLevel() {} };
-  return { api: context.PMJS.yedRetainedTiles, map, rect, sprites };
+  return { api: context.PMJS.yedRetainedTiles, map, rect, sprites, context };
 }
 
 test('animation support ownership rejects replaced hooks without invoking accessors', () => {
@@ -35,6 +35,32 @@ test('animation support ownership rejects replaced hooks without invoking access
     get() { reads++; return operation; } });
   assert.equal(api.animationChecksSupport(), false);
   assert.equal(reads, 0);
+});
+
+test('map size validation preserves eager dimension reads before rejecting invalid sizes', () => {
+  const fields = ['_tileWidth', '_tileHeight', '_mapWidth', '_mapHeight', '_width', '_height'];
+  for (const invalid of [{ field: '_tileWidth', value: NaN }, { field: '_height', value: 0 }]) {
+    const { api, map } = fixture();
+    const reads = [];
+    for (const field of fields) {
+      const value = field === invalid.field ? invalid.value : map[field];
+      Object.defineProperty(map, field, { get() { reads.push(field); return value; } });
+    }
+    assert.equal(api.supported(map), false);
+    assert.deepEqual(reads, fields);
+  }
+});
+
+test('tileset size validation preserves eager reads and rejects invalid columns before later metadata', () => {
+  const { api, map } = fixture();
+  const set = map.tiledData.tilesets[0], reads = [];
+  for (const field of ['columns', 'tilewidth', 'tileheight']) {
+    const value = field === 'columns' ? 0 : set[field];
+    Object.defineProperty(set, field, { get() { reads.push(field); return value; } });
+  }
+  Object.defineProperty(set, 'firstgid', { get() { assert.fail('invalid dimensions must reject before firstgid'); } });
+  assert.equal(api.supported(map), false);
+  assert.deepEqual(reads, ['columns', 'tilewidth', 'tileheight']);
 });
 
 test('subcell movement retains submissions and visible mutation rebuilds', () => {
@@ -246,4 +272,14 @@ test('windows over map edges compare the cells they show, with and without wrapp
   map.tiledData.layers[0].data[3] = 1;
   api.prepare(map, -1, 0);
   assert.ok(rect.calls > wrapped);
+});
+
+// Upstream 3bf7d97: support is checked every update, so its size checks build no temporary arrays.
+test('size validation makes no array callbacks of its own', () => {
+  const { api, map, context } = fixture();
+  const every = vm.runInContext('Array.prototype', context).every;
+  let calls = 0;
+  vm.runInContext('Array.prototype', context).every = function(...args) { calls++; return every.apply(this, args); };
+  assert.equal(api.supported(map), true);
+  assert.equal(calls, 0);
 });
