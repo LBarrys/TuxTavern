@@ -1359,7 +1359,7 @@ function nativeTextStyle(context, font) {
 }
 function canvasTextPosition(context, text, x, y) {
   var font = contextFont(context);
-  var width = NativeHost.canvas.measureText(font.paths, String(text), font.size, nativeTextStyle(context, font));
+  var width = measureCanvasTextWidth(font, String(text), nativeTextStyle(context, font));
   if (context.textAlign === 'center') x -= width / 2;
   else if (context.textAlign === 'right' || context.textAlign === 'end') x -= width;
   var baseline = context.textBaseline;
@@ -1746,6 +1746,9 @@ CanvasContext2D.prototype.createPattern = function(source, repetition) {
   if (canvasReferenceEngine() === 'mv') delete pattern.setTransform;
   return pattern;
 };
+function measureCanvasTextWidth(font, text, style) {
+  return NativeHost.canvas.measureText(font.paths, text, font.size, style);
+}
 function measureCanvasText(font, text, style) {
   return NativeHost.canvas.measureTextMetrics(font.paths, text, font.size, style);
 }
@@ -2108,7 +2111,7 @@ Object.assign(PMJS.web.canvas, {
   },
   measureTextWidth: function(text, descriptor) {
     var font = contextFont(descriptor);
-    return NativeHost.canvas.measureText(font.paths, String(text), font.size, nativeTextStyle({}, font));
+    return measureCanvasTextWidth(font, String(text), nativeTextStyle({}, font));
   }
 });
 
