@@ -116,6 +116,8 @@ test('preparation summaries distinguish cache reuse, partial generation, failure
   for (const [result, expected] of [
     [{ generated: 0, hits: 20, catalogHit: true, catalogStatus: 'hit' }, 'status=complete cache=warm catalog_hit=true catalog=hit'],
     [{ generated: 0, hits: 20, catalogStatus: 'binding-mismatch' }, 'status=complete cache=warm catalog_hit=false catalog=binding-mismatch'],
+    [{ generated: 0, hits: 20, catalogStatus: 'binding-mismatch', catalogChanged: ['recipes', 'width'] },
+      'status=complete cache=warm catalog_hit=false catalog=binding-mismatch(recipes,width)'],
     [{ generated: 1, hits: 20 }, 'status=complete cache=mixed'],
     [{ generated: 1, compilationHits: 20 }, 'status=complete cache=mixed'],
     [{ generated: 0 }, 'status=complete cache=empty'],

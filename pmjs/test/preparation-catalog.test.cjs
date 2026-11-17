@@ -100,3 +100,16 @@ test('retention understands version 2, version 3 and legacy index records', asyn
   assert.deepEqual(retainedCatalogKeys(null), []);
   assert.deepEqual(retainedCatalogKeys({ payload: { keys: ['nope'] } }), []);
 });
+
+// Upstream 2a47b85: a changed binding names what changed, so cache invalidations can be explained.
+test('a binding mismatch names the changed parts', async () => {
+  const root = temporaryDirectory('pmjs-catalog-changed-');
+  const { payload } = fixture(root);
+  const file = path.join(root, 'catalog.json'), misses = [];
+  const binding = { processor: 'v1', recipes: [], width: 816 };
+  await publishCatalog(file, binding, root, payload);
+  assert.equal(await readCatalog(file, { processor: 'v1', recipes: [{ source: 'a.png' }], height: 624 }, root,
+    (reason, changed) => misses.push([reason, changed])), null);
+  assert.deepEqual(misses, [['binding-mismatch', ['height', 'recipes', 'width']]]);
+  await fs.rm(root, { recursive: true, force: true });
+});

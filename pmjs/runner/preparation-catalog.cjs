@@ -29,10 +29,15 @@ function paths(payload, root, encode) {
   return { ...payload, entries, ...(decryptedEntries ? { decryptedEntries } : {}) };
 }
 async function readCatalog(file, binding, root, onMiss = () => {}) {
-  const miss = reason => { onMiss(reason); return null; };
+  const miss = (reason, changed) => { onMiss(reason, changed); return null; };
   try {
     const catalog = JSON.parse(await fs.readFile(file, 'utf8'));
-    if (catalog.binding !== checksum(binding)) return miss('binding-mismatch');
+    if (catalog.binding !== checksum(binding)) {
+      // Upstream 2a47b85: name the parts of the binding that changed.
+      const stored = catalog.fields && typeof catalog.fields === 'object' ? catalog.fields : {};
+      return miss('binding-mismatch', [...new Set([...Object.keys(stored), ...Object.keys(binding)])]
+        .filter(key => stored[key] !== (key in binding ? checksum(binding[key]) : undefined)).sort());
+    }
     // Version 3 stores the payload as a string so integrity is verified by
     // hashing the stored bytes: no canonical re-serialization pass is needed.
     // Version 2 (payload object, checksum over re-serialization) stays readable
@@ -61,7 +66,8 @@ async function publishCatalog(file, binding, root, payload) {
   try {
     const handle = await fs.open(stage, 'wx');
     try {
-      await handle.writeFile(JSON.stringify({ version: 3, binding: checksum(binding), checksum: checksumRaw(payload), payload }));
+      const fields = Object.fromEntries(Object.entries(binding).map(([key, value]) => [key, checksum(value)]));
+      await handle.writeFile(JSON.stringify({ version: 3, binding: checksum(binding), fields, checksum: checksumRaw(payload), payload }));
       await handle.sync();
     } finally { await handle.close(); }
     await fs.rename(stage, file);

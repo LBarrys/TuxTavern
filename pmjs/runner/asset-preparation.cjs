@@ -408,7 +408,7 @@ async function prepareAssets({ gameRoot, cacheRoot, recipes = [], native, onProg
     }, logger);
     const automaticRecipes = { version: 1, sideview: [...frames].sort(([a], [b]) => a.localeCompare(b)) };
     const binding = { gameRoot: path.resolve(gameRoot), cacheRoot: path.resolve(cacheRoot), processorIdentity, recipes, automaticRecipes,
-      contentIdentity: 1, failureRecords: 1, ...(audioViewSupport ? { audioViewVersion: 1, audioSettingsHash: audioSettings.hash || null } : {}) };
+      imageFormat: CACHE_VERSION, contentIdentity: 1, failureRecords: 1, ...(audioViewSupport ? { audioViewVersion: 1, audioSettingsHash: audioSettings.hash || null } : {}) };
     const catalogCapable = typeof native.assets.installPreparedCatalog === 'function' &&
       typeof native.assets.installDerivedCatalog === 'function';
     result.catalogStatus = offline ? 'offline' : verifyHashes ? 'verify-hashes' :
@@ -419,7 +419,10 @@ async function prepareAssets({ gameRoot, cacheRoot, recipes = [], native, onProg
       release = await acquireLock(cacheRoot, cancelled, () => report('wait'));
       if (!release) return result;
       report('catalog');
-      let catalog = await readCatalog(catalogFile, binding, cacheRoot, reason => { result.catalogStatus = reason; });
+      let catalog = await readCatalog(catalogFile, binding, cacheRoot, (reason, changed) => {
+        result.catalogStatus = reason;
+        if (changed && changed.length) result.catalogChanged = changed;
+      });
       if (catalog && await failedSourceChanged(native, gameRoot, catalog.failures)) {
         result.catalogStatus = 'failed-source-changed';
         catalog = null;

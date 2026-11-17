@@ -362,7 +362,7 @@ function createPreparationLog(details, { log = message => console.log(message), 
       const cache = status !== 'complete' ? 'incomplete' : result.generated ? (reused ? 'mixed' : 'cold') :
         (reused || result.catalogHit ? 'warm' : 'empty');
       emit('finish', `status=${status} cache=${cache} catalog_hit=${result.catalogHit === true} ` +
-        `catalog=${result.catalogStatus || 'not-checked'} duration_ms=${elapsed(time - started)} ` +
+        `catalog=${result.catalogStatus || 'not-checked'}${result.catalogChanged ? '(' + result.catalogChanged.join(',') + ')' : ''} duration_ms=${elapsed(time - started)} ` +
         `codec=${details.codec} verify_hashes=${details.verifyHashes} cache_root=${JSON.stringify(details.cacheRoot)} ` +
         `generated=${result.generated || 0} hits=${result.hits || 0} fallback=${result.fallback ?? result.refused ?? 0} ` +
         `total=${result.total ?? result.maps?.length ?? 0} prepared=${result.prepared ?? result.selected ?? 0} ` +

@@ -1509,3 +1509,18 @@ test('an undecodable image still lets the warm start reuse the catalog', async (
   assert.equal(repaired.installed, 2);
   for (const result of [cold, warm, repaired]) result.releaseCacheLease();
 });
+
+// Upstream 2a47b85: the image cache format is part of the catalog binding, as the map compiler is.
+test('the image catalog is bound to the cache format', async () => {
+  const f = fixture();
+  f.native.assets.installPrepared = entries => {
+    for (const entry of entries) entry.pageIdentities = entry.descriptor.pages.map(() => 'page-identity');
+    return entries.length;
+  };
+  f.native.assets.installPreparedCatalog = entries => entries.length;
+  f.native.assets.installDerivedCatalog = () => {};
+  const cold = await prepareAssets(f);
+  const file = path.join(f.cacheRoot, fs.readdirSync(f.cacheRoot).find(name => name.startsWith('catalog-')));
+  assert.ok('imageFormat' in JSON.parse(fs.readFileSync(file)).fields);
+  cold.releaseCacheLease();
+});

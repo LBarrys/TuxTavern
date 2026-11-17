@@ -199,7 +199,10 @@ async function prepareMaps({ gameRoot, cacheRoot, native, width = 816, height = 
       release = await acquireLock(root, shouldCancel, () => report('wait', '', 0, 0));
       if (!release) { result.cancelled = true; return result; }
       report('catalog', '', 0, 0);
-      let catalog = await readCatalog(catalogFile, binding, cacheRoot, reason => { result.catalogStatus = reason; });
+      let catalog = await readCatalog(catalogFile, binding, cacheRoot, (reason, changed) => {
+        result.catalogStatus = reason;
+        if (changed && changed.length) result.catalogChanged = changed;
+      });
       // TuxTavern: an encrypted game's tilesets exist for maps once image preparation has decrypted
       // them. The catalog must not keep a map unprepared for a tile source that is there now
       // (Netorare God V0.11, after its image preparation first failed).
