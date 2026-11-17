@@ -306,7 +306,9 @@ class Renderer {
   void render();
   void renderScene();
   void presentToDrawable();
+  void presentModalOverlay(ImageHandle image);
   void drawPresentationOverlay();
+  void drawOverlay(ImageHandle image, const std::array<float, 4>& rect, float opacity);
   void finish();
   std::vector<std::uint8_t> captureSceneRgba(AlphaMode alphaMode = AlphaMode::straight);
   std::vector<std::uint8_t> captureSceneRawPremultiplied();
@@ -320,7 +322,6 @@ class Renderer {
   std::size_t renderTargetBytes() const;
   std::size_t tileGeometryGpuBytes() const;
   std::size_t tileGeometryCpuBytes() const;
-  // Public for the modal overlay: snapshot, draw, discard back.
   std::size_t commandCount() const;
   void discardCommandsFrom(std::size_t first);
 

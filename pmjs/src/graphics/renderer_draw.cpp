@@ -2305,6 +2305,23 @@ void Renderer::renderScene() {
 if (diagnostics_) ++stats_.frames;
 }
 
+void Renderer::presentModalOverlay(ImageHandle image) {
+  auto pendingFrame = std::move(frame_);
+  const bool pendingSubmission = sceneSubmittedThisFrame_;
+  frame_ = {};
+  sceneSubmittedThisFrame_ = false;
+  try {
+    render();
+  } catch (...) {
+    frame_ = std::move(pendingFrame);
+    sceneSubmittedThisFrame_ = pendingSubmission;
+    throw;
+  }
+  frame_ = std::move(pendingFrame);
+  sceneSubmittedThisFrame_ = pendingSubmission;
+  drawOverlay(image, {0, 0, static_cast<float>(width_), static_cast<float>(height_)}, 1);
+}
+
 void Renderer::presentToDrawable() {
   if (offscreenRender_) return;
   const bool hasPresentationLayers = presentationCanvasOpacity_ < 1.0F ||
@@ -2391,8 +2408,12 @@ void Renderer::presentToDrawable() {
 }
 
 void Renderer::drawPresentationOverlay() {
-  if (!presentationOverlay_ || presentationOverlayOpacity_ <= 0.0F) return;
-  const auto image = images_.lookup(presentationOverlay_);
+  drawOverlay(presentationOverlay_, presentationOverlayRect_, presentationOverlayOpacity_);
+}
+
+void Renderer::drawOverlay(ImageHandle handle, const std::array<float, 4>& rect, float opacity) {
+  if (!handle || opacity <= 0.0F) return;
+  const auto image = images_.lookup(handle);
   if (!image) return;
   const int x = presentation_.viewportX;
   const int y = presentation_.drawableHeight - presentation_.viewportY -
@@ -2407,12 +2428,11 @@ void Renderer::drawPresentationOverlay() {
   glActiveTexture(GL_TEXTURE3);
   glBindTexture(GL_TEXTURE_2D, image->texture);
   glUniform1i(presentationUpperCanvasUniform_, 3);
-  glUniform1f(presentationUpperCanvasOpacityUniform_, presentationOverlayOpacity_);
+  glUniform1f(presentationUpperCanvasOpacityUniform_, opacity);
   glUniform1i(presentationUpperCanvasPremultipliedUniform_, image->premultiplied);
   glUniform1i(presentationLayerUniform_, 2);
   glUniform4f(presentationRectUniform_,
-    presentationOverlayRect_[0] / width_, presentationOverlayRect_[1] / height_,
-    presentationOverlayRect_[2] / width_, presentationOverlayRect_[3] / height_);
+    rect[0] / width_, rect[1] / height_, rect[2] / width_, rect[3] / height_);
   glDrawArrays(GL_TRIANGLES, 0, 6);
   if (diagnostics_) ++stats_.drawCalls;
   glActiveTexture(GL_TEXTURE0);
