@@ -17,6 +17,10 @@ async function writeJson(file, value, flush = true) {
   } finally { await handle.close(); }
 }
 
+function fileIdentity(stat) {
+  return [stat.dev, stat.ino, stat.size, stat.mtimeNs, stat.ctimeNs, stat.birthtimeNs].join(':');
+}
+
 async function preparationFiles(directory, verifyHashes = false) {
   const index = path.join(directory, 'verified-files.json');
   let previous = {}, previousHash;
@@ -28,9 +32,7 @@ async function preparationFiles(directory, verifyHashes = false) {
   } catch (_) { /* Missing or interrupted receipts require full verification. */ }
   const files = {}, known = new Map(), jsonValues = new Map(), filesystemTypes = new Map();
   const stats = { hashedFiles: 0, hashedBytes: 0, reusedFiles: 0, jsonReads: 0, jsonReuses: 0 };
-  function identity(stat) {
-    return [stat.dev, stat.ino, stat.size, stat.mtimeNs, stat.ctimeNs, stat.birthtimeNs].join(':');
-  }
+  const identity = fileIdentity;
   // FUSE file systems (sshfs, rclone) may number inodes afresh on each mount; there a receipt
   // still holds when everything but the inode matches.
   function matchesReceipt(receipt, signature, file, stat) {
@@ -106,4 +108,4 @@ async function preparationFiles(directory, verifyHashes = false) {
   return { hash, inspect, validatedJson, save, stats };
 }
 
-module.exports = { preparationFiles, writeJson };
+module.exports = { preparationFiles, writeJson, fileIdentity };

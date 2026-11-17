@@ -1476,3 +1476,36 @@ for (const failure of ['malformed JSON', 'read failure', 'changing source', 'ins
   });
 }
 
+
+// Upstream dd75b1b: an unused image preparation cannot decode does not cost the catalog.
+test('an undecodable image still lets the warm start reuse the catalog', async () => {
+  const f = fixture();
+  const broken = 'img/pictures/unused-broken.png';
+  fs.writeFileSync(path.join(f.gameRoot, broken), PNG.subarray(0, 40));
+  const processImage = f.native.assets.processImage;
+  let brokenCalls = 0;
+  f.native.assets.processImage = async (name, ...rest) => {
+    if (name === broken) { brokenCalls++; throw new Error('decoder rejected truncated PNG'); }
+    return processImage(name, ...rest);
+  };
+  f.native.assets.sourceIdentity = () => 'source-identity';
+  f.native.assets.installPrepared = entries => {
+    for (const entry of entries) entry.pageIdentities = entry.descriptor.pages.map(() => 'page-identity');
+    return entries.length;
+  };
+  f.native.assets.installPreparedCatalog = entries => entries.length;
+  f.native.assets.installDerivedCatalog = () => {};
+  const cold = await prepareAssets(f);
+  assert.equal(cold.installed, 1);
+  assert.equal(cold.fallback, 1);
+  const warm = await prepareAssets(f);
+  assert.equal(warm.catalogHit, true);
+  assert.equal(warm.installed, 1);
+  assert.equal(brokenCalls, 1, 'the broken image is not prepared again');
+  fs.writeFileSync(path.join(f.gameRoot, broken), PNG);
+  f.native.assets.processImage = processImage;
+  const repaired = await prepareAssets(f);
+  assert.equal(repaired.catalogHit, undefined, 'a repaired image rebuilds the catalog');
+  assert.equal(repaired.installed, 2);
+  for (const result of [cold, warm, repaired]) result.releaseCacheLease();
+});

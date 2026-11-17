@@ -6,7 +6,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const { performance } = require('node:perf_hooks');
 const { pipeline } = require('node:stream/promises');
-const { preparationFiles, writeJson } = require('./preparation-files.cjs');
+const { preparationFiles, writeJson, fileIdentity } = require('./preparation-files.cjs');
 const { acquireLock, createLease, retainLeases } = require('./preparation-lifetime.cjs');
 const { catalogInvalidator, readCatalog, publishCatalog, retainedCatalogKeys } = require('./preparation-catalog.cjs');
 const { yedSideviewFrames } = require('./yed-sideview-recipes.cjs');
@@ -279,6 +279,21 @@ async function discover(gameRoot, cacheRoot) {
   await visit('audio');
   return result;
 }
+// Upstream b75279c: a catalog leaves out images preparation could not decode; once one of those
+// files changes (a game update repairs it), the catalog is not reused and the image is prepared.
+async function failedSourceChanged(native, gameRoot, failures = []) {
+  if (!Array.isArray(failures)) return true;
+  for (const failure of failures) {
+    try {
+      const file = sourceFile(native, gameRoot, failure.source);
+      if (fileIdentity(await fsp.stat(file, { bigint: true })) === failure.identity) continue;
+      if (await hashFile(file) === failure.hash) continue;
+    } catch (_) { /* A missing or unsafe source has changed too. */ }
+    return true;
+  }
+  return false;
+}
+
 async function readJson(file) {
   try { return JSON.parse(await fsp.readFile(file, 'utf8')); } catch (_) { return null; }
 }
@@ -393,7 +408,7 @@ async function prepareAssets({ gameRoot, cacheRoot, recipes = [], native, onProg
     }, logger);
     const automaticRecipes = { version: 1, sideview: [...frames].sort(([a], [b]) => a.localeCompare(b)) };
     const binding = { gameRoot: path.resolve(gameRoot), cacheRoot: path.resolve(cacheRoot), processorIdentity, recipes, automaticRecipes,
-      contentIdentity: 1, ...(audioViewSupport ? { audioViewVersion: 1, audioSettingsHash: audioSettings.hash || null } : {}) };
+      contentIdentity: 1, failureRecords: 1, ...(audioViewSupport ? { audioViewVersion: 1, audioSettingsHash: audioSettings.hash || null } : {}) };
     const catalogCapable = typeof native.assets.installPreparedCatalog === 'function' &&
       typeof native.assets.installDerivedCatalog === 'function';
     result.catalogStatus = offline ? 'offline' : verifyHashes ? 'verify-hashes' :
@@ -404,7 +419,11 @@ async function prepareAssets({ gameRoot, cacheRoot, recipes = [], native, onProg
       release = await acquireLock(cacheRoot, cancelled, () => report('wait'));
       if (!release) return result;
       report('catalog');
-      const catalog = await readCatalog(catalogFile, binding, cacheRoot, reason => { result.catalogStatus = reason; });
+      let catalog = await readCatalog(catalogFile, binding, cacheRoot, reason => { result.catalogStatus = reason; });
+      if (catalog && await failedSourceChanged(native, gameRoot, catalog.failures)) {
+        result.catalogStatus = 'failed-source-changed';
+        catalog = null;
+      }
       if (catalog && !cancelled()) {
         let lease;
         try {
@@ -474,7 +493,8 @@ async function prepareAssets({ gameRoot, cacheRoot, recipes = [], native, onProg
     }
     const indexName = 'index-' + identity(path.resolve(gameRoot)) + '.json';
     const recipeMap = new Map(recipes.map(recipe => [recipe.source, recipe]));
-    const keys = [];
+    const keys = [], failures = [];
+    let failuresRecorded = true;
     for (const source of sources) {
       if (cancelled()) break;
       report('validate', source);
@@ -578,6 +598,10 @@ async function prepareAssets({ gameRoot, cacheRoot, recipes = [], native, onProg
         result.fallback += 1;
         result.failedFiles += 1;
         logger.warn(`[pmjs] asset preparation fallback ${source}: ${error.message}`);
+        try {
+          const file = sourceFile(native, gameRoot, source);
+          failures.push({ source, identity: fileIdentity(await fsp.stat(file, { bigint: true })), hash: await hashFile(file) });
+        } catch (_) { failuresRecorded = false; }
       } finally {
         if (stage) await fsp.rm(stage, { recursive: true, force: true });
       }
@@ -636,13 +660,13 @@ async function prepareAssets({ gameRoot, cacheRoot, recipes = [], native, onProg
       if (result.installed < result.prepared) {
         logger.warn(`[pmjs] prepared image index installed ${result.installed}/${result.prepared}; remaining images use ordinary loading`);
       }
-      if (catalogCapable && result.installed === result.entries.length && result.decrypted === result.decryptedEntries.length && result.audioViews === result.audioViewEntries.length) {
+      if (catalogCapable && failuresRecorded && result.installed === result.entries.length && result.decrypted === result.decryptedEntries.length && result.audioViews === result.audioViewEntries.length) {
         report('publish');
         const summary = Object.fromEntries(Object.entries(result).filter(([, value]) => typeof value === 'number'));
         summary.hits = keys.length + result.audioViews;
         summary.negativeHits = catalogNegativeHits;
         await publishCatalog(catalogFile, binding, cacheRoot, { keys, entries: result.entries,
-          decryptedEntries: result.decryptedEntries, audioViewEntries: result.audioViewEntries, summary });
+          decryptedEntries: result.decryptedEntries, audioViewEntries: result.audioViewEntries, failures, summary });
       }
       report('cleanup');
       await files.save();
