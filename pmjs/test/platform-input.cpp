@@ -199,6 +199,35 @@ int main(int argc, char** argv) {
     std::cerr << "controller removal did not preserve remaining actions\n";
     return 1;
   }
+  // Upstream 37b51a4, 4fa9351: the id carries vendor and product as Chromium's does, whatever the name's length.
+  SDL_VirtualJoystickDesc described{};
+  described.version = SDL_VIRTUAL_JOYSTICK_DESC_VERSION;
+  described.type = SDL_JOYSTICK_TYPE_GAMECONTROLLER;
+  described.naxes = SDL_CONTROLLER_AXIS_MAX;
+  described.nbuttons = SDL_CONTROLLER_BUTTON_MAX;
+  described.vendor_id = 0x054c;
+  described.product_id = 0x0ce6;
+  const std::string longName(300, 'p');
+  described.name = longName.c_str();
+  const int describedIndex = SDL_JoystickAttachVirtualEx(&described);
+  if (describedIndex < 0 || !platform.pollEvents()) return 1;
+  SDL_Joystick* describedPad = SDL_JoystickOpen(describedIndex);
+  if (!describedPad || !platform.pollEvents()) return 1;
+  const std::string suffix = " (STANDARD GAMEPAD Vendor: 054c Product: 0ce6)";
+  bool identified = false;
+  for (const auto& pad : platform.gamepads()) {
+    identified = identified || (pad.id.size() > suffix.size() &&
+      pad.id.compare(pad.id.size() - suffix.size(), suffix.size(), suffix) == 0 &&
+      pad.id.find(longName.substr(0, 64)) == 0);
+  }
+  if (!identified) {
+    std::cerr << "gamepad id lacks its vendor and product\n";
+    return 1;
+  }
+  SDL_JoystickClose(describedPad);
+  SDL_JoystickDetachVirtual(describedIndex);
+  if (!platform.pollEvents()) return 1;
+
   const int thirdIndex = SDL_JoystickAttachVirtual(SDL_JOYSTICK_TYPE_GAMECONTROLLER,
     SDL_CONTROLLER_AXIS_MAX, SDL_CONTROLLER_BUTTON_MAX, 0);
   if (thirdIndex < 0 || !platform.pollEvents()) return 1;
