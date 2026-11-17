@@ -283,3 +283,21 @@ test('size validation makes no array callbacks of its own', () => {
   assert.equal(api.supported(map), true);
   assert.equal(calls, 0);
 });
+
+// Upstream 8c0ad01: flushing an animation recaptures the map into its existing value array.
+test('an animation flush recaptures without pushing values', () => {
+  const { api, map, rect, context } = fixture();
+  api.prepare(map, 0, 0);
+  const before = rect.pointsBuf.slice();
+  const prototype = vm.runInContext('Array.prototype', context), push = prototype.push;
+  let values = 0;
+  prototype.push = function(...args) {
+    if (args.length && args.every(value => typeof value === 'number')) values++;
+    return push.apply(this, args);
+  };
+  map._animFrame[0] = 1;
+  assert.equal(api.flushAnimation(map, { 0: true }), true);
+  prototype.push = push;
+  assert.notDeepEqual(rect.pointsBuf, before, 'the flush patched the animated tile');
+  assert.equal(values, 0);
+});
