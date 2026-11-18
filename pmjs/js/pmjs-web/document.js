@@ -97,6 +97,41 @@ CSSStyleSheet.prototype.deleteRule = function(index) {
 };
 globalThis.CSSFontFaceRule = CSSFontFaceRule;
 globalThis.CSSStyleSheet = CSSStyleSheet;
+// MV plugins that carry MZ's FontManager (Alpha_ABSZ in GBCR) load fonts with FontFace.
+function FontFace(family, source, descriptors) {
+  this.family = String(family);
+  this.style = (descriptors && descriptors.style) || 'normal';
+  this.weight = String((descriptors && descriptors.weight) || 'normal');
+  this.status = 'unloaded';
+  var match = typeof source === 'string' && /url\(\s*['"]?([^'")]+)['"]?\s*\)/i.exec(source);
+  this._url = match ? match[1].trim() : '';
+  var face = this;
+  this.loaded = new Promise(function(resolve, reject) { face._settle = [resolve, reject]; });
+  this.loaded.catch(function() {});
+}
+FontFace.prototype.load = function() {
+  if (this.status === 'unloaded') {
+    var ok = this._url && PMJS.fonts.registerFace(this.family, this._url, { fromGame: true }) &&
+      PMJS.fonts.isFamilyLoaded(this.family);
+    this.status = ok ? 'loaded' : 'error';
+    if (ok) this._settle[0](this);
+    else this._settle[1](new DOMException('A network error occurred.', 'NetworkError'));
+  }
+  return this.loaded;
+};
+globalThis.FontFace = FontFace;
+var fontFaces = new Set();
+documentTarget.fonts = {
+  status: 'loaded',
+  ready: Promise.resolve(),
+  get size() { return fontFaces.size; },
+  add: function(face) { fontFaces.add(face); return this; },
+  delete: function(face) { return fontFaces.delete(face); },
+  has: function(face) { return fontFaces.has(face); },
+  forEach: function(callback, thisArg) { fontFaces.forEach(function(face) { callback.call(thisArg, face, face, this); }, this); },
+  check: function() { return true; }
+};
+documentTarget.fonts.ready = Promise.resolve(documentTarget.fonts);
 var registeredStyleSheets = [];
 Object.defineProperty(documentTarget, 'styleSheets', { get: function() {
   var sheets = registeredStyleSheets.slice();

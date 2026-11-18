@@ -113,6 +113,21 @@ test('font stylesheet enumeration preserves rules, paths and prototype extension
   assert.equal(c.PMJS.fonts.getRegisteredFaces().new.path, 'new.ttf');
   style.remove(); assert.equal(c.document.styleSheets.length, 1);
 });
+test('FontFace loads a game font into document.fonts, as GBCR Alpha_ABSZ FontManager needs', async () => {
+  const { c } = setup();
+  c.DOMException = DOMException;
+  c.NativeHost.canvas = Object.assign(c.NativeHost.canvas || {}, { canLoadFont: file => file === 'fonts/abs.ttf' });
+  const face = new c.FontFace('ABS', 'url(fonts/abs.ttf)');
+  assert.equal(face.status, 'unloaded');
+  assert.equal(await face.load(), face);
+  assert.equal(face.status, 'loaded');
+  assert.equal(c.document.fonts.add(face), c.document.fonts);
+  assert.ok(c.document.fonts.has(face));
+  assert.equal(c.PMJS.fonts.getRegisteredFaces().abs.path, 'fonts/abs.ttf');
+  const missing = new c.FontFace('Gone', 'url("fonts/gone.ttf")');
+  await assert.rejects(missing.load(), error => error.name === 'NetworkError');
+  assert.equal(missing.status, 'error');
+});
 test('CSS property recognition and computed reads support transform probes and named colors', () => {
   const { c } = setup();
   const el = c.document.createElement('div');
