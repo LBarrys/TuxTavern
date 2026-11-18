@@ -44,6 +44,24 @@ test('concentric radial gradient fill uses the native canvas fast path', () => {
   assert.equal(calls[1][11], true);
 });
 
+test('a radial fill a rounding error off whole pixels stays native, as Community_Lighting (GBCR) draws', () => {
+  const calls = [];
+  const context = { console, NativeHost: { runtime: { env: () => '' },
+    canvas: { fillRadialGradient() { calls.push(Array.from(arguments)); } } } };
+  vm.createContext(context);
+  vm.runInContext(source, context);
+  const drawing = new context.CanvasContext2D({ width: 1100, height: 80, _ensureNativeCanvas: () => ({ handle: 7 }) });
+  const x = (20 - 0.5) * 48 - 4 + 0.0000000000001;
+  const gradient = drawing.createRadialGradient(x + 40, 40, 0, x + 40, 40, 40);
+  gradient.addColorStop(0, '#ffffff');
+  gradient.addColorStop(1, '#000000');
+  drawing.fillStyle = gradient;
+  drawing.globalCompositeOperation = 'lighter';
+  drawing.fillRect(x, 0, 80, 80);
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0].slice(1, 5), [932, 0, 80, 80]);
+});
+
 test('radial gradients reject negative radii and invalid stops', () => {
   const context = { console, NativeHost: { runtime: { env: function() { return ''; } } } };
   vm.createContext(context);

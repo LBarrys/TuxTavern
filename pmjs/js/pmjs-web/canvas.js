@@ -173,13 +173,20 @@ function multiplyTransform(left, right) {
     left[1] * right[4] + left[3] * right[5] + left[5]];
 }
 
+// Edges a rounding error off a whole pixel cover the same pixels as the whole pixel. Community_Lighting
+// (GBCR) fills lights at x = 932.0000000000001, which missed the native paths and took 2 s a frame.
+function snapCanvasEdge(value) {
+  var whole = Math.round(value);
+  return Math.abs(value - whole) < 1e-6 ? whole : value;
+}
+
 function axisAlignedRect(context, x, y, width, height) {
   var t = context._transform;
   if (t[1] !== 0 || t[2] !== 0) return null;
-  var x0 = t[0] * x + t[4];
-  var y0 = t[3] * y + t[5];
-  var x1 = t[0] * (x + width) + t[4];
-  var y1 = t[3] * (y + height) + t[5];
+  var x0 = snapCanvasEdge(t[0] * x + t[4]);
+  var y0 = snapCanvasEdge(t[3] * y + t[5]);
+  var x1 = snapCanvasEdge(t[0] * (x + width) + t[4]);
+  var y1 = snapCanvasEdge(t[3] * (y + height) + t[5]);
   return { x: Math.min(x0, x1), y: Math.min(y0, y1),
     width: Math.abs(x1 - x0), height: Math.abs(y1 - y0) };
 }
