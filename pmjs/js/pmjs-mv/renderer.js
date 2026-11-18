@@ -16,6 +16,19 @@ function renderNativeMvStage(stage) {
     this.frameCount++;
 }
 
+function renderNativeMvStageUncounted(stage) {
+    var count = this.frameCount;
+    renderNativeMvStage.call(this, stage);
+    this.frameCount = count;
+}
+
+// MAC_High_Hz_Fixes (GBCR) replaces Graphics.render with one that draws but leaves
+// frameCount++ to its updateScene; counting here too ran playtime at double speed.
+function guestRenderCountsElsewhere(guestRender) {
+  var source = typeof guestRender === 'function' ? Function.prototype.toString.call(guestRender) : '';
+  return /_renderer\.render\(/.test(source) && !/frameCount/.test(source);
+}
+
 Graphics._createRenderer = createNativeMvRenderer;
 
 PMJS.methods.wrap({
@@ -42,8 +55,8 @@ PMJS.methods.own({
   },
   method: 'render',
   id: 'pmjs.mv.native-render',
-  replace: function() {
-    return renderNativeMvStage;
+  replace: function(guestRender) {
+    return guestRenderCountsElsewhere(guestRender) ? renderNativeMvStageUncounted : renderNativeMvStage;
   }
 });
 var originalIsOptionValid = Utils.isOptionValid;

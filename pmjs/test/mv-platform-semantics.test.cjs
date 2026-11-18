@@ -1271,6 +1271,31 @@ test('native presentation ownership is restored without discarding guest rendere
     'a loaded playtime frame count must survive the next presentation');
 });
 
+test('MV render leaves frameCount to MAC_High_Hz_Fixes (GBCR), whose render does not count', () => {
+  const source = fs.readFileSync(path.join(jsDir, 'pmjs-mv/renderer.js'), 'utf8');
+  const methodsSource = fs.readFileSync(path.join(jsDir, 'pmjs-core/methods.js'), 'utf8');
+  const context = { console, Graphics: { frameCount: 0 },
+    createNativePixiRenderer() { return { render() {}, gl: null }; } };
+  context.globalThis = context;
+  vm.createContext(context);
+  vm.runInContext(methodsSource, context);
+  markTestRenderers(context);
+  vm.runInContext(source.slice(0, source.indexOf('var originalIsOptionValid')), context);
+  vm.runInContext(`Graphics.render = function(stage) {
+    if (this._skipCount <= 0) {
+      if (stage) this._renderer.render(stage);
+      this._rendered = true;
+    }
+  };
+  SceneManager = { updateScene: function() { Graphics.frameCount++; } };`, context);
+  context.PMJS.methods.install();
+  context.Graphics._createRenderer();
+  context.SceneManager.updateScene();
+  context.Graphics.render({});
+  assert.equal(context.Graphics.frameCount, 1, 'one logic frame and one presentation count once');
+  assert.equal(context.Graphics._rendered, true);
+});
+
 for (const composition of ['alias', 'subclass']) {
   test(`MV renderer preserves ${composition} setup, defaults and post-creation behavior`, () => {
     for (const roundPixels of [false, true]) {
