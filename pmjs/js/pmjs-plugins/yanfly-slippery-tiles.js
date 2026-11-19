@@ -26,6 +26,8 @@ if (typeof PMJS !== 'undefined' && PMJS.plugins &&
     '1f334ac20cce92efda9b5b048d2626146022ac9a64c2c82d016bb4c6d6001481'];
   var KNOWN_TILE_ID = ['2ac59a6abab4d58c850ce7c6875d13a0248b7e888ae81c868bee5f17b8adf753',
     'd58e3d22dc91d361d46e405c8008ae3f19343ebb1030052b5ac85f1dbacd3b33'];
+  var KNOWN_TILESET_FLAGS = ['5d06ceb950ca2bd749025c9bd0f6cedc55303c744b8a647e45bf6c211a834bd6',
+    '7301623daa538327a6dcf52757a380c49816cec111658a97bf39bc8c7cbf739e'];
 
   function install() {
     if (!PMJS.optimizations.isEnabled('plugins.yanfly.slippery-tiles')) {
@@ -56,6 +58,8 @@ if (typeof PMJS !== 'undefined' && PMJS.plugins &&
     var terrainTag = mapProto.terrainTag;
     var layeredTiles = mapProto.layeredTiles;
     var tileId = mapProto.tileId;
+    var tilesetFlags = mapProto.tilesetFlags;
+    var ordinaryFlags = PMJS.methods.matchesSource(tilesetFlags, KNOWN_TILESET_FLAGS);
     var nativePush = Array.prototype.push;
     var inlineTerrain = PMJS.methods.matchesSource(terrainTag, KNOWN_TERRAIN_TAG) &&
       PMJS.methods.matchesSource(layeredTiles, KNOWN_LAYERED_TILES) &&
@@ -68,12 +72,22 @@ if (typeof PMJS !== 'undefined' && PMJS.plugins &&
       return false;
     }
 
+    PMJS.plugins.slipperyTiles = { emptyTerrainQueries: 0 };
     mapProto.isSlippery = function(mx, my) {
       if (inlineTerrain && Yanfly.Param.SlipRegion !== 0) {
         if ($gameParty.inBattle()) return false;
         if (!this.isValid(mx, my) || !this.tileset()) return false;
         if (Yanfly.Param.SlipRegion !== 0 &&
             this.regionId(mx, my) === Yanfly.Param.SlipRegion) return true;
+        var slipTiles = this.tileset().slippery;
+        if (ordinaryFlags && this.tilesetFlags === tilesetFlags &&
+            Array.isArray(slipTiles) && slipTiles.length === 0 &&
+            slipTiles.contains === stockContains && slipTiles.indexOf === nativeIndexOf &&
+            Array.prototype.indexOf === nativeIndexOf && Array.prototype.push === nativePush &&
+            this.terrainTag === terrainTag && this.layeredTiles === layeredTiles && this.tileId === tileId) {
+          PMJS.plugins.slipperyTiles.emptyTerrainQueries++;
+          return false;
+        }
         var tagId;
         if (this.terrainTag === terrainTag) {
           tagId = 0;
