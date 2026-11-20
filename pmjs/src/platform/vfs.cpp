@@ -150,13 +150,12 @@ void Vfs::mountWritableOverlay(const std::filesystem::path& root) {
     const auto key = normalize(contents.str());
     if (key) overlay->deleted.insert(*key);
   }
-  // Async asset decoders retain an immutable view while mutations publish the next one.
-  std::atomic_store(&overlay_, std::shared_ptr<const Overlay>(std::move(overlay)));
+  publish(overlay_, std::shared_ptr<const Overlay>(std::move(overlay)));
 }
 
 void Vfs::updateWritableOverlay(const std::vector<std::string>& paths,
                                const std::vector<std::string>& deletionMarkers) {
-  const auto previous = std::atomic_load(&overlay_);
+  const auto previous = snapshot(overlay_);
   if (!previous) throw std::runtime_error("writable overlay is not mounted");
   auto overlay = std::make_shared<Overlay>(*previous);
   auto files = std::make_shared<Vfs>(*previous->files);
@@ -189,7 +188,7 @@ void Vfs::updateWritableOverlay(const std::vector<std::string>& paths,
     if (const auto key = normalize(contents.str())) overlay->deleted.insert(*key);
   }
   overlay->files = std::move(files);
-  std::atomic_store(&overlay_, std::shared_ptr<const Overlay>(std::move(overlay)));
+  publish(overlay_, std::shared_ptr<const Overlay>(std::move(overlay)));
 }
 
 std::string Vfs::fileIdentity(const std::filesystem::path& path) {
@@ -232,12 +231,12 @@ void Vfs::installDerivedFiles(const std::vector<DerivedFile>& files, bool catalo
     if (!file.fileIdentity.empty() && !index->emplace(*key, std::move(file)).second)
       throw std::runtime_error("duplicate derived file path");
   }
-  std::atomic_store(&derived_, std::shared_ptr<const std::unordered_map<std::string, DerivedFile>>(std::move(index)));
+  publish(derived_, std::shared_ptr<const std::unordered_map<std::string, DerivedFile>>(std::move(index)));
 }
 
 std::string Vfs::derivedIdentity(const std::string& path) const {
   const auto key = normalize(path);
-  const auto index = std::atomic_load(&derived_);
+  const auto index = snapshot(derived_);
   if (!key || !index) return {};
   const auto entry = index->find(*key);
   if (entry == index->end()) return {};
@@ -247,13 +246,13 @@ std::string Vfs::derivedIdentity(const std::string& path) const {
 
 std::optional<std::filesystem::path> Vfs::resolveDerived(const std::string& path) const {
   const auto key = normalize(path);
-  const auto index = std::atomic_load(&derived_);
+  const auto index = snapshot(derived_);
   if (!key || !index) return std::nullopt;
   const auto found = index->find(*key);
   if (found == index->end()) return std::nullopt;
   if (const auto original = resolveOriginal(path)) return original;
   if (isDirectory(path)) return std::nullopt;
-  const auto overlay = std::atomic_load(&overlay_);
+  const auto overlay = snapshot(overlay_);
   if (overlay && overlay->hides(*key)) return std::nullopt;
   if (overlay) {
     auto prefix = *key;
@@ -284,7 +283,7 @@ std::optional<std::filesystem::path> Vfs::resolvePath(const std::string& path) c
   if (const auto file = resolve(path)) return file;
   const auto key = normalize(path);
   if (!key) return std::nullopt;
-  const auto overlay = std::atomic_load(&overlay_);
+  const auto overlay = snapshot(overlay_);
   if (overlay) {
     if (overlay->files->directories_.contains(*key)) return overlay->files->directories_.at(*key);
     if (overlay->hides(*key)) return std::nullopt;
@@ -302,7 +301,7 @@ std::optional<std::filesystem::path> Vfs::resolvePath(const std::string& path) c
 std::optional<std::filesystem::path> Vfs::resolveOriginal(const std::string& path) const {
   const auto key = normalize(path);
   if (!key) return std::nullopt;
-  const auto overlay = std::atomic_load(&overlay_);
+  const auto overlay = snapshot(overlay_);
   if (overlay) {
     auto prefix = *key;
     while (prefix.find('/') != std::string::npos) {
@@ -346,7 +345,7 @@ std::optional<std::vector<std::string>> Vfs::readDirectory(const std::string& pa
   const bool root = path.empty() || path == ".";
   const auto key = root ? std::optional<std::string>("") : normalize(path);
   if (!key || !isDirectory(root ? "." : *key)) return std::nullopt;
-  const auto overlay = std::atomic_load(&overlay_);
+  const auto overlay = snapshot(overlay_);
   std::unordered_map<std::string, std::string> merged;
   auto add = [&](const std::filesystem::path& directory) {
     for (const auto& entry : std::filesystem::directory_iterator(directory)) {
@@ -366,7 +365,7 @@ std::optional<std::vector<std::string>> Vfs::readDirectory(const std::string& pa
     if (root) add(overlay->files->root());
     else if (directory != overlay->files->directories_.end()) add(directory->second);
   }
-  const auto derived = std::atomic_load(&derived_);
+  const auto derived = snapshot(derived_);
   if (derived) {
     for (const auto& [childKey, entry] : *derived) {
       const auto slash = childKey.rfind('/');
@@ -385,7 +384,7 @@ bool Vfs::exists(const std::string& path) const {
   if (path.empty() || path == ".") return true;
   const auto key = normalize(path);
   if (!key) return false;
-  const auto overlay = std::atomic_load(&overlay_);
+  const auto overlay = snapshot(overlay_);
   if (overlay) {
     auto prefix = *key;
     while (prefix.find('/') != std::string::npos) {
@@ -402,7 +401,7 @@ bool Vfs::isDirectory(const std::string& path) const {
   if (path.empty() || path == ".") return true;
   const auto key = normalize(path);
   if (!key) return false;
-  const auto overlay = std::atomic_load(&overlay_);
+  const auto overlay = snapshot(overlay_);
   if (overlay) {
     auto prefix = *key;
     while (prefix.find('/') != std::string::npos) {

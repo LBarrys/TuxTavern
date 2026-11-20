@@ -71,6 +71,17 @@ class Vfs {
     bool hides(const std::string& key) const;
   };
   std::shared_ptr<std::atomic<bool>> derivedInvalidated_ = std::make_shared<std::atomic<bool>>(false);
+  // Async asset decoders keep an immutable view while mutations publish the next one. A mutex,
+  // not std::atomic<std::shared_ptr> (GCC 12+) or the deprecated std::atomic_load/store.
+  template <class T> std::shared_ptr<T> snapshot(const std::shared_ptr<T>& value) const {
+    const std::lock_guard lock(*publishMutex_);
+    return value;
+  }
+  template <class T> void publish(std::shared_ptr<T>& target, std::shared_ptr<T> value) {
+    const std::lock_guard lock(*publishMutex_);
+    target.swap(value);
+  }
+  std::shared_ptr<std::mutex> publishMutex_ = std::make_shared<std::mutex>();
   std::shared_ptr<const Overlay> overlay_;
   std::shared_ptr<const std::unordered_map<std::string, DerivedFile>> derived_;
   std::filesystem::path root_;

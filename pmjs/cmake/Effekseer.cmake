@@ -94,6 +94,9 @@ function(pmjs_build_effekseer)
   target_include_directories(Effekseer SYSTEM PUBLIC "$<BUILD_INTERFACE:${pmjs_effekseer_SOURCE_DIR}/Dev/Cpp/Effekseer>")
   target_include_directories(EffekseerRendererGL SYSTEM PUBLIC "$<BUILD_INTERFACE:${pmjs_effekseer_SOURCE_DIR}/Dev/Cpp/EffekseerRendererGL>")
   target_link_libraries(EffekseerRendererGL PUBLIC PkgConfig::GLES PkgConfig::EGL)
+  # Third-party code: its warnings (an index-offset cast, a GCC false positive in stb_image) are not ours.
+  target_compile_options(Effekseer PRIVATE -w)
+  target_compile_options(EffekseerRendererGL PRIVATE -w)
   # Upstream's Linux ES2 backend omits EGL and the shared ES3 token declarations.
   target_compile_options(EffekseerRendererGL PRIVATE "SHELL:-include EGL/egl.h" "SHELL:-include GLES3/gl3.h")
   # Upstream defines these ES backend tokens only for Windows/Android/Apple.
