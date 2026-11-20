@@ -431,3 +431,12 @@ test('map overrides are prepared from the mod file (upstream PMJS dd3f2f2)', asy
   fs.writeFileSync(path.join(f.gameRoot, 'data/Map001.pack'), JSON.stringify(f.map));
   assert.equal((await prepareMaps(f)).generated, 1, 'the override content is part of the preparation identity');
 });
+test('switching runtime versions keeps the last other version\'s map entries (upstream issue #16)', async t => {
+  const f=fixture(t),version=async processor=>{f.native.assets.tilePreparationVersion=processor;return (await prepareMaps(f)).generated;};
+  assert.equal(await version('a'),1);assert.equal(await version('b'),1);
+  assert.equal(await version('a'),0);assert.equal(await version('b'),0);
+  assert.equal(fs.readdirSync(path.join(f.cacheRoot,'maps/entries')).filter(name=>/^[a-f0-9]{64}$/.test(name)).length,2);
+  assert.equal(await version('c'),1);assert.equal(await version('a'),1);
+  assert.equal(fs.readdirSync(path.join(f.cacheRoot,'maps/entries')).filter(name=>/^[a-f0-9]{64}$/.test(name)).length,2);
+  assert.equal(f.jobs,4);
+});

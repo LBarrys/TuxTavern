@@ -378,7 +378,21 @@ test('source and processor identities invalidate individual entries and remove s
   assert.equal(fs.existsSync(old), false);
   assert.equal((await prepareAssets({ ...f, processorIdentity: { processor: 'next' } })).generated, 1);
   assert.equal(f.jobs, 3);
-  assert.equal(manifests(f).length, 1);
+  assert.equal(manifests(f).length, 2);
+});
+
+test('switching runtime versions keeps the last other version\'s images (upstream issue #16)', async () => {
+  const f = fixture();
+  const version = processor => prepareAssets({ ...f, processorIdentity: { processor } });
+  assert.equal((await version('a')).generated, 1);
+  assert.equal((await version('b')).generated, 1);
+  assert.equal((await version('a')).generated, 0);
+  assert.equal((await version('b')).generated, 0);
+  assert.equal(manifests(f).length, 2);
+  assert.equal((await version('c')).generated, 1);
+  assert.equal(manifests(f).length, 2);
+  assert.equal((await version('a')).generated, 1);
+  assert.equal(f.jobs, 4);
 });
 
 test('recipe changes regenerate; mismatching source hashes fall back without processing', async () => {

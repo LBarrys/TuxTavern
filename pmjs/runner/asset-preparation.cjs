@@ -8,7 +8,7 @@ const { performance } = require('node:perf_hooks');
 const { pipeline } = require('node:stream/promises');
 const { preparationFiles, writeJson, fileIdentity } = require('./preparation-files.cjs');
 const { acquireLock, createLease, retainLeases } = require('./preparation-lifetime.cjs');
-const { catalogInvalidator, readCatalog, publishCatalog, retainedCatalogKeys } = require('./preparation-catalog.cjs');
+const { catalogInvalidator, readCatalog, publishCatalog, retainedCatalogKeys, previousGenerations } = require('./preparation-catalog.cjs');
 const { yedSideviewFrames } = require('./yed-sideview-recipes.cjs');
 
 const CACHE_VERSION = 1;
@@ -674,9 +674,11 @@ async function prepareAssets({ gameRoot, cacheRoot, recipes = [], native, onProg
       report('cleanup');
       await files.save();
       const indexStage = path.join(cacheRoot, '.' + indexName + '-' + crypto.randomBytes(6).toString('hex'));
-      await writeJson(indexStage, { version: CACHE_VERSION, keys });
+      const generation = identity({ version: CACHE_VERSION, processorIdentity });
+      const previous = previousGenerations(await readJson(path.join(cacheRoot, indexName)).catch(() => null), generation);
+      await writeJson(indexStage, { version: CACHE_VERSION, generation, keys, previous });
       await fsp.rename(indexStage, path.join(cacheRoot, indexName));
-      const retained = new Set(keys);
+      const retained = new Set([...keys, ...retainedCatalogKeys({ previous })]);
       for (const filename of await fsp.readdir(cacheRoot)) {
         if (!/^(index|catalog)-/.test(filename) || !filename.endsWith('.json') || filename === indexName) continue;
         const other = await readJson(path.join(cacheRoot, filename));

@@ -95,6 +95,10 @@ function retainedCatalogKeys(record) {
   if (!record || typeof record !== 'object') return keys;
   collect(record.keys);
   collect(record.snapshots);
+  if (Array.isArray(record.previous)) for (const older of record.previous) if (older && typeof older === 'object') {
+    collect(older.keys);
+    collect(older.snapshots);
+  }
   let payload = record.payload;
   // Version 3 stores the payload as a string; retention only needs its keys,
   // so a damaged payload degrades to retaining nothing extra instead of failing.
@@ -105,4 +109,15 @@ function retainedCatalogKeys(record) {
   return keys;
 }
 
-module.exports = { checksum, readCatalog, publishCatalog, catalogInvalidator, retainedCatalogKeys };
+// Upstream issue #16: an index also keeps the keys of the last other runtime version (generation),
+// so cleanup doesn't delete them and switching back doesn't prepare the whole cache again.
+function previousGenerations(index, generation) {
+  if (!index || typeof index !== 'object') return [];
+  const older = Array.isArray(index.previous)
+    ? index.previous.filter(item => item && typeof item === 'object' && item.generation !== generation) : [];
+  if (typeof index.generation === 'string' && index.generation !== generation)
+    older.unshift({ generation: index.generation, keys: index.keys, ...(index.snapshots ? { snapshots: index.snapshots } : {}) });
+  return older.slice(0, 1);
+}
+
+module.exports = { checksum, readCatalog, publishCatalog, catalogInvalidator, retainedCatalogKeys, previousGenerations };

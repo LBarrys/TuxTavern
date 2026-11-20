@@ -9,7 +9,7 @@ const { performance } = require('node:perf_hooks');
 const { acquireLock, createLease, retainLeases } = require('./preparation-lifetime.cjs');
 const { preparationFiles, writeJson } = require('./preparation-files.cjs');
 const { resolveFileOverride } = require('./file-overrides.cjs');
-const { catalogInvalidator, readCatalog, publishCatalog, checksum, retainedCatalogKeys } = require('./preparation-catalog.cjs');
+const { catalogInvalidator, readCatalog, publishCatalog, checksum, retainedCatalogKeys, previousGenerations } = require('./preparation-catalog.cjs');
 const { COMPILER_VERSION, mapContract, geometryEstimate, engineTilemap, compileRpgMap, compileTiledMap } = require('./map-demand.cjs');
 const hash = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
 const identity = object => hash(JSON.stringify(object));
@@ -499,20 +499,23 @@ async function prepareMaps({ gameRoot, cacheRoot, native, width = 816, height = 
         if (previousLease) previousLease();
       }
       report('cleanup', '', data.length, data.length);
-      const nextIndex = { keys, snapshots: [...snapshots.keys()],
+      const generation = identity({ compiler: COMPILER_VERSION, processor: native.assets.tilePreparationVersion });
+      const previous = previousGenerations(previousIndex, generation);
+      const nextIndex = { generation, keys, snapshots: [...snapshots.keys()], previous,
         compilations, compilationsHash: identity(compilations), mapInputs, mapInputsHash: identity(mapInputs) };
       result.compilations = compilations;
       result.mapInputs = mapInputs;
       if (previousCompilations !== previousIndex?.compilations || previousInputs !== previousIndex?.mapInputs ||
           previousIndex?.compilationsHash !== nextIndex.compilationsHash ||
           previousIndex?.mapInputsHash !== nextIndex.mapInputsHash ||
-          identity(previousIndex.keys || []) !== identity(keys) || identity(previousIndex.snapshots || []) !== identity(nextIndex.snapshots)) {
+          identity(previousIndex.keys || []) !== identity(keys) || identity(previousIndex.snapshots || []) !== identity(nextIndex.snapshots) ||
+          previousIndex.generation !== generation || identity(previousIndex.previous || []) !== identity(previous)) {
         const stagedIndex = indexFile+'.stage-'+process.pid;
         await fsp.rm(stagedIndex, { force: true });
         await writeJson(stagedIndex, nextIndex);
         await fsp.rename(stagedIndex, indexFile);
       }
-      const retained = new Set([...keys, ...snapshots.keys()]);
+      const retained = new Set([...keys, ...snapshots.keys(), ...retainedCatalogKeys({ previous })]);
       for (const file of await fsp.readdir(root)) if (/^(index|catalog)-[a-f0-9]{64}\.json$/.test(file) && file !== path.basename(indexFile)) {
         const index = await readJson(path.join(root, file)).catch(() => null);
         for (const key of retainedCatalogKeys(index)) retained.add(key);

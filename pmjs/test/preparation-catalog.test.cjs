@@ -5,7 +5,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const test = require('node:test');
 const { temporaryDirectory } = require('./helpers/temp.cjs');
-const { checksum, publishCatalog, readCatalog, retainedCatalogKeys } = require('../runner/preparation-catalog.cjs');
+const { checksum, publishCatalog, readCatalog, retainedCatalogKeys, previousGenerations } = require('../runner/preparation-catalog.cjs');
 
 const rawChecksum = value => crypto.createHash('sha256').update(value, 'utf8').digest('hex');
 
@@ -99,6 +99,17 @@ test('retention understands version 2, version 3 and legacy index records', asyn
   assert.deepEqual(retainedCatalogKeys({ payload: '{damaged' }), []);
   assert.deepEqual(retainedCatalogKeys(null), []);
   assert.deepEqual(retainedCatalogKeys({ payload: { keys: ['nope'] } }), []);
+});
+
+test('an index keeps one other runtime version, and none for unversioned indexes (upstream issue #16)', () => {
+  const a = 'a'.repeat(64), b = 'b'.repeat(64), c = 'c'.repeat(64);
+  assert.deepEqual(previousGenerations({ keys: [a] }, 'v2'), []);
+  assert.deepEqual(previousGenerations({ generation: 'v2', keys: [b], previous: [{ generation: 'v1', keys: [a] }] }, 'v2'),
+    [{ generation: 'v1', keys: [a] }]);
+  const previous = previousGenerations({ generation: 'v2', keys: [b], snapshots: [c], previous: [{ generation: 'v1', keys: [a] }] }, 'v3');
+  assert.deepEqual(previous, [{ generation: 'v2', keys: [b], snapshots: [c] }]);
+  assert.deepEqual(retainedCatalogKeys({ keys: [a], previous }), [a, b, c]);
+  assert.deepEqual(retainedCatalogKeys({ previous: [null, { keys: ['nope'] }] }), []);
 });
 
 // Upstream 2a47b85: a changed binding names what changed, so cache invalidations can be explained.
