@@ -500,3 +500,21 @@ test('case-only directory rename recovers after destination installation', t => 
   assert.equal(host.readText('data/original.txt'), 'original');
   assert.equal(fs.existsSync(path.join(overlay, 'rename.json')), false);
 });
+
+test('file descriptors on game files append through the overlay, as DKTools\' error log (Karryn\'s Prison) does', t => {
+  const { guest, host, gameRoot } = fixture(t);
+  const fd = guest.openSync('data/Original.txt', 'a');
+  assert.equal(guest.writeSync(fd, ' + log'), 6);
+  guest.closeSync(fd);
+  assert.equal(host.readText('data/Original.txt'), 'original + log');
+  assert.equal(fs.readFileSync(path.join(gameRoot, 'data/Original.txt'), 'utf8'), 'original');
+  const created = guest.openSync('errors_log.txt', 'a');
+  guest.writeSync(created, 'Error'); guest.closeSync(created);
+  assert.equal(guest.readFileSync('errors_log.txt', 'utf8'), 'Error');
+  assert.equal(fs.existsSync(path.join(gameRoot, 'errors_log.txt')), false);
+  const reader = guest.openSync('data/Keep.txt', 'r'), bytes = Buffer.alloc(4);
+  assert.equal(guest.readSync(reader, bytes, 0, 4, 0), 4);
+  assert.equal(bytes.toString(), 'keep');
+  guest.closeSync(reader);
+  assert.throws(() => guest.openSync('data/Missing.txt', 'r+'), { code: 'ENOENT' });
+});

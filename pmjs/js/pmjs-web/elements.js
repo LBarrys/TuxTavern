@@ -208,16 +208,38 @@ Object.defineProperties(CanvasElement.prototype, {
   offsetTop: { get: function() { return this.getBoundingClientRect().top; } }
 });
 
-// Simple selectors only (tag, #id, .class), as Karryn's Prison's sweetalert uses.
+// Compound selectors without combinators (tag, #id, .class, [attribute], [attribute=|^=|$=|*=value])
+// and comma groups, as upstream b8ebaf3. Karryn's Prison's sweetalert uses the simple ones.
+function matchesElementSelector(element, selector) {
+  var rest = selector, tag = rest.match(/^(\*|[a-z][\w-]*)/i);
+  if (tag) {
+    if (tag[1] !== '*' && String(element.tagName || '') !== tag[1].toUpperCase()) return false;
+    rest = rest.slice(tag[0].length);
+  }
+  while (rest) {
+    var token = rest.match(/^([#.])([\w-]+)/);
+    if (token) {
+      if (token[1] === '#' ? element.id !== token[2] : String(element.className || '').split(/\s+/).indexOf(token[2]) < 0) return false;
+    } else {
+      token = rest.match(/^\[([\w-]+)(?:\s*(=|\^=|\$=|\*=)\s*(?:"([^"]*)"|'([^']*)'|([^\]\s]+)))?\s*\]/);
+      // Unsupported syntax (combinators, pseudo-classes) matches nothing rather than throwing.
+      if (!token) return false;
+      var actual = element.getAttribute(token[1]);
+      var expected = token[3] !== undefined ? token[3] : token[4] !== undefined ? token[4] : token[5];
+      if (actual === null || token[2] === '=' && actual !== expected || token[2] === '^=' && !actual.startsWith(expected) ||
+          token[2] === '$=' && !actual.endsWith(expected) || token[2] === '*=' && !actual.includes(expected)) return false;
+    }
+    rest = rest.slice(token[0].length);
+  }
+  return true;
+}
 GenericElement.prototype.querySelectorAll = function(selector) {
-  var match = /^(#|\.)?([\w-]+)$/.exec(String(selector).trim());
+  var groups = String(selector).split(',').map(function(group) { return group.trim(); });
+  if (groups.some(function(group) { return !group; })) throw new SyntaxError('empty selector');
   var found = [];
-  if (!match) return found;
   (function walk(node) {
     (node.children || []).forEach(function(child) {
-      var classes = String(child.className || '').split(/\s+/);
-      if (match[1] === '#' ? child.id === match[2] : match[1] === '.' ? classes.indexOf(match[2]) >= 0 :
-        String(child.tagName || '').toLowerCase() === match[2].toLowerCase()) found.push(child);
+      if (child.nodeType !== 3 && child.tagName !== '#TEXT' && groups.some(function(group) { return matchesElementSelector(child, group); })) found.push(child);
       walk(child);
     });
   })(this);
@@ -358,6 +380,8 @@ function parseElementHtml(parent, html) {
       }
     } else if (match[2]) {
       var element = documentTarget.createElement(match[2]);
+      // As in NW.js, a script inserted through innerHTML never runs.
+      if (element instanceof ScriptElement) element._started = true;
       var attribute = /([^\s=>/]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g, pair;
       while ((pair = attribute.exec(match[3]))) {
         var value = pair[2] !== undefined ? pair[2] : pair[3] !== undefined ? pair[3] : pair[4];

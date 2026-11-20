@@ -187,3 +187,31 @@ test('Pixi 5 bitmap-font detection can ask instanceof XMLDocument (Netorare God 
   assert.equal(test(c.document), false);
   assert.throws(() => vm.runInContext('new XMLDocument()', c), /Illegal constructor/);
 });
+test('querySelector matches compound, attribute and grouped selectors over parsed HTML (upstream b8ebaf3)', () => {
+  const { c } = setup();
+  const parent = c.document.createElement('div');
+  parent.innerHTML = '<section class="panel wide"><h2 data-ol="status">Hello &amp; goodbye</h2><input id="value" data-mode="hello"></section>';
+  c.document.body.appendChild(parent);
+  assert.equal(parent.querySelector('[data-ol=status]').textContent, 'Hello & goodbye');
+  assert.equal(parent.querySelector('section.panel.wide').tagName, 'SECTION');
+  assert.equal(c.document.querySelector('input#value[data-mode="hello"]').id, 'value');
+  assert.equal(parent.querySelectorAll('[data-mode^="he"]').length, 1);
+  assert.equal(parent.querySelectorAll('[data-mode$=lo], [data-ol*=tat]').length, 2);
+  assert.deepEqual([...parent.querySelectorAll('h2, input')].map(element => element.tagName), ['H2', 'INPUT']);
+  assert.equal(parent.querySelectorAll('section h2').length, 0);
+  assert.throws(() => parent.querySelectorAll('h2,'), { name: 'SyntaxError' });
+});
+test('a script inserted through innerHTML never runs, as in NW.js', () => {
+  const { c } = setup();
+  const ran = [];
+  c.pmjsExecuteScriptElement = script => ran.push(script.textContent);
+  c.pmjsLoadScriptElement = script => ran.push(script.src);
+  const parent = c.document.createElement('div');
+  c.document.body.appendChild(parent);
+  parent.innerHTML = '<script>inline()</script><script src="js/extra.js"></script>';
+  assert.deepEqual([...parent.children].map(child => child.tagName), ['SCRIPT', 'SCRIPT']);
+  const script = c.document.createElement('script');
+  script.textContent = 'appended()';
+  parent.appendChild(script);
+  assert.deepEqual(ran, ['appended()']);
+});

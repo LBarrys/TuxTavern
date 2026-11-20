@@ -217,3 +217,33 @@ test('empty fetch returns a complete empty response without reading the filesyst
   assert.equal((await response.arrayBuffer()).byteLength, 0);
   await assert.rejects(response.json(), { name: 'SyntaxError' });
 });
+
+test('file descriptors preserve positions, buffer views and closed-handle errors', async t => {
+  const { guest, storage, context } = fixture();
+  Object.assign(context, { performance });
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '../js/pmjs-web/scheduler.js'), 'utf8'), context);
+  t.after(() => context.PMJS.tasks.stop());
+  const before = storage.generation();
+  const fd = guest.openSync('/save/descriptor', 'w+');
+  assert.ok(storage.generation() > before);
+  assert.equal(guest.writeSync(fd, 'abcdef'), 6);
+  const bytes = Buffer.alloc(5, 255);
+  assert.equal(guest.readSync(fd, bytes, 1, 3, 2), 3);
+  assert.deepEqual([...bytes], [255, 99, 100, 101, 255]);
+  assert.equal(guest.writeSync(fd, Buffer.from('XY'), 0, 2, 1), 2);
+  assert.equal(guest.fstatSync(fd).size, 6);
+  guest.fsyncSync(fd);
+  guest.closeSync(fd);
+  assert.equal(storage.readText('descriptor'), 'aXYdef');
+  assert.throws(() => guest.readSync(fd, bytes, 0, 1, 0), { code: 'EBADF' });
+  assert.throws(() => guest.closeSync(fd), { code: 'EBADF' });
+  await new Promise((resolve, reject) => guest.open('/save/descriptor', 'a', (error, append) => {
+    if (error) return reject(error);
+    guest.write(append, '!', (error, count, value) => {
+      if (error) return reject(error);
+      try { assert.equal(count, 1); assert.equal(value, '!'); guest.closeSync(append); resolve(); }
+      catch (error) { reject(error); }
+    });
+  }));
+  assert.equal(storage.readText('descriptor'), 'aXYdef!');
+});
