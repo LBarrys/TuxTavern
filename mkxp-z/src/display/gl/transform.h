@@ -203,7 +203,7 @@ static inline Vec2 rotate_point(const Vec2 &origin, const float &angle, Vec2 poi
 }
 
 // Returns the rect that contains the source rect after rotating it around a point
-static FloatRect rotate_rect(const Vec2i &origin, float rotation, const IntRect &sourceRect)
+static inline FloatRect rotate_rect(const Vec2i &origin, float rotation, const IntRect &sourceRect)
 {
 	// We use a "left-handed" coordinate system, with positive y values being below the x-axis,
 	// so we need to use the negative of the angle to get the proper y values.

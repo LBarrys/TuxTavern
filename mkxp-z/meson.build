@@ -76,7 +76,9 @@ endif
 # ====================
 
 # Suppress warnings
-global_args += ['-Wno-non-virtual-dtor', '-Wno-reorder', '-Wno-uninitialized', '-Wno-unknown-pragmas', '-Wno-stringop-truncation']
+global_args += ['-Wno-uninitialized', '-Wno-unknown-pragmas', '-Wno-stringop-truncation']
+# TuxTavern: C++-only warnings, which the C compiler warns about.
+global_cpp_args += ['-Wno-non-virtual-dtor', '-Wno-reorder']
 if compilers['cpp'].get_id() == 'clang'
     global_args += ['-Wno-undefined-var-template', '-Wno-delete-non-abstract-non-virtual-dtor']
 endif
@@ -185,7 +187,8 @@ libmkxp = static_library(
 executable(
     exe_name,
     sources: [
-        git_hash_file, # Dummy source file just so that Meson doesn't complain about the executable not having any sources
+        git_hash_file,
+        files('src/executable.cpp'),
         windows_resources,
     ],
     link_with: libmkxp,
@@ -263,7 +266,8 @@ if host_system == 'darwin'
     executable(
         'bundle_' + meson.project_name(),
         sources: [
-            git_hash_file, # Dummy source file just so that Meson doesn't complain about the executable not having any sources
+            git_hash_file,
+            files('src/executable.cpp'),
             windows_resources,
         ],
         link_with: libmkxp,

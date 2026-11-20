@@ -61,7 +61,7 @@ static std::string convertString(std::string &str, const char *charset) {
     return buf;
 }
 
-static std::string convertString(std::string &str) {
+static inline std::string convertString(std::string &str) {
     return convertString(str, getCharset(str).c_str());
 }
 }

@@ -4,15 +4,28 @@ python = import('python').find_installation(required: true)
 
 install_directory = [python, files('install-directory.py')[0]]
 
-ar = meson.version().version_compare('>=1.10.0') ? find_program('ar').cmd_array() : [find_program('ar')]
+# TuxTavern: an if block, not ?:, so Meson does not count cmd_array as needed by older versions.
+if meson.version().version_compare('>=1.10.0')
+    ar = find_program('ar').cmd_array()
+else
+    ar = [find_program('ar')]
+endif
 ranlib = ar + 's'
 if host_machine.system() in ['windows', 'cygwin']
-    windres = meson.version().version_compare('>=1.10.0') ? find_program('windres').cmd_array() : [find_program('windres')]
+    if meson.version().version_compare('>=1.10.0')
+        windres = find_program('windres').cmd_array()
+    else
+        windres = [find_program('windres')]
+    endif
 else
     windres = [python, files('windres-dummy.py')[0]]
 endif
 if build_machine.system() in ['windows', 'cygwin']
-    cygpath = meson.version().version_compare('>=1.10.0') ? find_program('cygpath').cmd_array() : [find_program('cygpath')]
+    if meson.version().version_compare('>=1.10.0')
+        cygpath = find_program('cygpath').cmd_array()
+    else
+        cygpath = [find_program('cygpath')]
+    endif
 else
     cygpath = [python, files('cygpath-dummy.py')[0]]
 endif

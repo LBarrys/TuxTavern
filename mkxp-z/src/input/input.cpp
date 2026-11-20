@@ -893,8 +893,8 @@ struct InputPrivate
     
     void clearBuffer()
     {
-        const size_t size = sizeof(ButtonState) * BUTTON_CODE_COUNT;
-        memset(states, 0, size);
+        for (int i = 0; i < BUTTON_CODE_COUNT; ++i)
+            states[i] = ButtonState();
         
         memset(rawStates, 0, SDL_NUM_SCANCODES);
         

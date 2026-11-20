@@ -1656,8 +1656,8 @@ static bool shrinkRects(float &sourcePos, float &sourceLen, const int &sBitmapLe
     else
     {
         // Ensure the source rect has positive dimensions, for blitting from mega surfaces
-        destPos = (destLen > 0 == sourceLen > 0) ? dStart : dEnd;
-        destLen = (destLen > 0 == sourceLen > 0) ? dLength : -dLength;
+        destPos = ((destLen > 0) == (sourceLen > 0)) ? dStart : dEnd;
+        destLen = ((destLen > 0) == (sourceLen > 0)) ? dLength : -dLength;
         sourcePos = sStart;
         sourceLen = sLength;
     }
@@ -1698,6 +1698,7 @@ static float bltNormOpacity(enum Bitmap::BitmapBltMode mode, int opacity)
         case Bitmap::KGL_SUBTRACT:
             return opacity >= 255 ? 1.0f : (float)opacity / 256.0f;
     }
+    return (float)opacity / 255.0f;
 }
 
 static void bltFilter(enum Bitmap::BitmapBltMode mode, uint32_t &dst_pixel, uint32_t src_pixel, float norm_opacity)
@@ -3261,7 +3262,7 @@ void Bitmap::drawText(const IntRect &rect, const char *str, int align)
     float squeezeLimit = 0.5f;
     if (TTF_MeasureUTF8(sdlFont, str, std::min(width() - rect.x, rect.w) / squeezeLimit, nullptr, &charLimit) == 0)
     {
-        if (charLimit != fixed.size())
+        if ((size_t)charLimit != fixed.size())
         {
             /* TTF_MeasureUTF8 returns the charLimit in codepoints, not bytes,
              * so we have to calculate where that limit is ourselves.

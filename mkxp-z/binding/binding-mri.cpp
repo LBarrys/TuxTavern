@@ -715,9 +715,9 @@ RB_METHOD_GUARD(mkxpParseCSV) {
     std::stringstream stream(RSTRING_PTR(str));
     try {
         rapidcsv::Document doc(stream, rapidcsv::LabelParams(-1,-1), rapidcsv::SeparatorParams(',', false, true, true, true));
-        for (int r = 0; r < doc.GetRowCount(); r++) {
+        for (size_t r = 0; r < doc.GetRowCount(); r++) {
             VALUE col = rb_ary_new();
-            for (int c = 0; c < doc.GetColumnCount(); c++) {
+            for (size_t c = 0; c < doc.GetColumnCount(); c++) {
                 std::string str = doc.GetCell<std::string>(c, r);
                 rb_ary_push(col, rb_utf8_str_new(str.c_str(), str.length()));
             }

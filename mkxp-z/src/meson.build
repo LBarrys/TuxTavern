@@ -47,6 +47,8 @@ endforeach
 
 cmake_base_options = {
     'CMAKE_POLICY_VERSION_MINIMUM': '3.10',
+    # TuxTavern: keep CMake 3.29+'s link de-duplication off, as before, without SDL_sound's policy warning.
+    'CMAKE_POLICY_DEFAULT_CMP0156': 'OLD',
     'CMAKE_OSX_SYSROOT': '/nonexistent',
     'CMAKE_C_STANDARD': common.get_variable('c_std').replace('-std=c', '').replace('-std=gnu', ''),
     'CMAKE_CXX_STANDARD': common.get_variable('cpp_std').replace('-std=c++', '').replace('-std=gnu++', ''),

@@ -166,7 +166,7 @@ SharedFontState::~SharedFontState()
 	BoostHash<FontPPEMKey, std::array<TTF_Font*, 2>>::const_iterator iter;
 	for (iter = p->ppem_to_font.cbegin(); iter != p->ppem_to_font.cend(); ++iter)
 	{
-		for (int i=0; i < iter->second.size(); i++)
+		for (size_t i=0; i < iter->second.size(); i++)
 			if (iter->second[i] != 0)
 				TTF_CloseFont(iter->second[i]);
 	}
@@ -401,7 +401,7 @@ static int load_VDMX(Font_Container *font, int height)
 		}
 	}
 
-	if(offset == -1) return 0;
+	if(offset == (unsigned int)-1) return 0;
 
 	if(freetype_get_font_data(font, MS_VDMX_TAG, offset, &group, sizeof(group)) != GDI_ERROR) {
 		uint16_t recs;
