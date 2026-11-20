@@ -1498,3 +1498,38 @@ test('Graphics._createRenderer uses the game-authored logical dimensions', () =>
   context.Graphics._createRenderer();
   assert.deepEqual(createdSizes, [{ w: 960, h: 720 }]);
 });
+
+function mvBoot(main) {
+  const context = { window: { dispatchEvent() {} } };
+  context.NativeHost = { runtime: { loadScript(file) { assert.equal(file, 'js/main.js'); main(context.window); } } };
+  vm.createContext(context);
+  vm.runInContext(readPluginInfra(), context);
+  vm.runInContext(fs.readFileSync(path.join(jsDir, 'pmjs-mv/boot.js'), 'utf8'), context);
+  return context;
+}
+
+test('a plugin wrapping window.onload before main.js still runs, as DKTools in Karryn\'s Prison', () => {
+  const events = [];
+  // main.js, as RPG Maker MV ships it, runs after the plugins in PMJS.
+  const context = mvBoot(window => { window.onload = function() { events.push('main'); }; });
+  // DKTools.js: const DKTools_window_onload = window.onload; window.onload = function() { ... }
+  const pluginOnload = context.window.onload;
+  context.window.onload = function() { events.push('plugin'); pluginOnload.call(this); };
+  context.pmjsMvLoadEntrypoint();
+  context.pmjsMvStart();
+  assert.deepEqual(events, ['plugin', 'main']);
+});
+
+test('main.js sees no window.onload while it loads, as in NW.js, where plugins load after it', () => {
+  const events = [];
+  const context = mvBoot(window => {
+    const previous = window.onload;
+    events.push('previous ' + previous);
+    window.onload = function() { if (previous) previous.call(this); events.push('main'); };
+  });
+  const pluginOnload = context.window.onload;
+  context.window.onload = function() { events.push('plugin'); pluginOnload.call(this); };
+  context.pmjsMvLoadEntrypoint();
+  context.pmjsMvStart();
+  assert.deepEqual(events, ['previous null', 'plugin', 'main']);
+});

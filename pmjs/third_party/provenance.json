@@ -8,6 +8,12 @@
       "license": "MIT",
       "notice": "LICENSE"
     },
+    "js/pmjs-plugins/dktools-local-files.js": {
+      "origin": "compatibility",
+      "source": "PMJS",
+      "license": "MIT",
+      "notice": "LICENSE"
+    },
     "js/pmjs-plugins/dreamx-damage-popup-retirement.js": {
       "origin": "compatibility",
       "source": "PMJS",

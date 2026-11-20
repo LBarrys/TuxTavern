@@ -122,6 +122,14 @@
     },
     {
       "plugins": [
+        "DKTools"
+      ],
+      "modules": [
+        "js/pmjs-plugins/dktools-local-files.js"
+      ]
+    },
+    {
+      "plugins": [
         "StartUpFullScreen"
       ],
       "modules": [
