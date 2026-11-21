@@ -23,7 +23,7 @@ class Container {
   constructor() { this.transform = { worldTransform: { identity() {} } }; }
 }
 const context = vm.createContext({ PIXI: { Container }, PMJS: {
-  optimizations: { register() {}, isEnabled() { return true; } }
+  optimizations: { register() {}, refuse() {}, isEnabled() { return true; } }
 }, NativeHost: { render: {
   createTileLayer(points, handles) {
     const begin = performance.now();

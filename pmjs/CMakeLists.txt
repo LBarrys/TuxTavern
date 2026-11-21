@@ -208,6 +208,12 @@ if(BUILD_TESTING)
       "-Wl,--wrap=glCreateProgram" "-Wl,--wrap=glDeleteProgram")
     add_test(NAME native-renderer-shader-cache COMMAND ${XVFB_RUN} -a $<TARGET_FILE:pmjs-renderer-shader-cache-test>)
     set_tests_properties(native-renderer-shader-cache PROPERTIES ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;SDL_AUDIODRIVER=dummy")
+    add_executable(pmjs-renderer-duplicate-sprites-test test/renderer-duplicate-sprites.cpp)
+    target_link_libraries(pmjs-renderer-duplicate-sprites-test PRIVATE pmjs_runtime)
+    target_compile_options(pmjs-renderer-duplicate-sprites-test PRIVATE -UNDEBUG)
+    target_link_options(pmjs-renderer-duplicate-sprites-test PRIVATE "-Wl,--wrap=glReadPixels")
+    add_test(NAME native-renderer-duplicate-sprites COMMAND ${XVFB_RUN} -a $<TARGET_FILE:pmjs-renderer-duplicate-sprites-test>)
+    set_tests_properties(native-renderer-duplicate-sprites PROPERTIES ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;SDL_AUDIODRIVER=dummy;PMJS_GRAPHICS_DIAGNOSTICS=1")
     add_executable(pmjs-renderer-precision-test test/renderer-precision.cpp)
     target_link_libraries(pmjs-renderer-precision-test PRIVATE pmjs_runtime)
     target_compile_options(pmjs-renderer-precision-test PRIVATE -UNDEBUG)
@@ -475,6 +481,11 @@ if(BUILD_TESTING)
       "${CMAKE_CURRENT_SOURCE_DIR}/test/assets" "${PMJS_TEST_PIXI4_SOURCE}")
     set_tests_properties(node-pixi4-render-texture PROPERTIES ENVIRONMENT
       "LIBGL_ALWAYS_SOFTWARE=1;SDL_AUDIODRIVER=dummy;PMJS_WINDOW_SIZE=32x24")
+    add_test(NAME node-duplicate-sprites COMMAND ${XVFB_RUN} -a ${NODE_EXECUTABLE}
+      "${CMAKE_CURRENT_SOURCE_DIR}/test/node-duplicate-sprites.cjs" $<TARGET_FILE:pmjs_native>
+      "${CMAKE_CURRENT_SOURCE_DIR}/test/assets" "${PMJS_TEST_PIXI4_SOURCE}")
+    set_tests_properties(node-duplicate-sprites PROPERTIES ENVIRONMENT
+      "LIBGL_ALWAYS_SOFTWARE=1;SDL_AUDIODRIVER=dummy;PMJS_WINDOW_SIZE=32x24;PMJS_GRAPHICS_DIAGNOSTICS=1")
   endif()
   add_test(NAME node-block-sprite-disabled COMMAND ${XVFB_RUN} -a ${NODE_EXECUTABLE}
     "${CMAKE_CURRENT_SOURCE_DIR}/test/node-block-sprite.cjs" $<TARGET_FILE:pmjs_native> --disabled)
