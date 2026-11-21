@@ -91,8 +91,11 @@ function imageHeader(bytes) {
 }
 function mediaHeader(bytes, extension) {
   if (extension === '.png') return imageHeader(bytes);
+  // MP3 data (ID3 tag or MPEG frame sync) in an .ogg, as upstream 36ef06f; the audio decoder plays it.
   if (extension === '.ogg') return bytes.subarray(0, 4).toString() === 'OggS' ||
-    (bytes.subarray(0, 4).toString() === 'RIFF' && bytes.subarray(8, 12).toString() === 'WAVE');
+    (bytes.subarray(0, 4).toString() === 'RIFF' && bytes.subarray(8, 12).toString() === 'WAVE') ||
+    bytes.subarray(0, 3).toString() === 'ID3' ||
+    bytes.length >= 4 && bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0 && (bytes[1] & 0x06) !== 0;
   return extension === '.m4a' && bytes.subarray(4, 8).toString() === 'ftyp';
 }
 function pageHeaderMatches(header, page, size) {
