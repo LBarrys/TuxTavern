@@ -345,6 +345,9 @@ var fsModule = {
     deliverNodeCallback(function() { if (callback) return callback(error); });
   },
   appendFileSync: function(path, contents, options) {
+    // As Node: an explicit flag other than 'a' (w, wx, ax...) is honoured (upstream 2f1c0ff).
+    var flag = typeof options === 'object' && options && options.flag !== undefined ? options.flag : 'a';
+    if (flag !== 'a') return fsModule.writeFileSync(path, contents, options);
     var encoding = typeof options === 'string' ? options : options && options.encoding;
     var bytes = ArrayBuffer.isView(contents)
       ? Buffer.from(contents.buffer, contents.byteOffset, contents.byteLength)

@@ -35,6 +35,7 @@ void Video::resetForSeek() {
   ++playbackGeneration;
   finishedAt.reset();
   requested.reset();
+  completedTarget.reset();
   if (ready) {
     if (ready->rgba.capacity() > recycledRgba.capacity())
       recycledRgba = std::move(ready->rgba);
@@ -42,9 +43,10 @@ void Video::resetForSeek() {
   }
 }
 
-std::optional<pmjs::VideoFrame> Video::take() {
+std::optional<pmjs::VideoFrame> Video::take(double targetTime, bool& completed) {
   std::lock_guard lock(mutex);
   if (failure) std::rethrow_exception(failure);
+  completed = completedTarget == targetTime;
   if (!ready) return std::nullopt;
   auto result = std::move(ready); ready.reset(); return result;
 }
@@ -89,8 +91,10 @@ void Video::run() {
       if (!error.empty()) throw std::runtime_error(error);
       recycle(std::move(rgba));
       std::lock_guard lock(mutex);
-      if (generation == playbackGeneration && decoder->exhausted() && !decoder->queuedFrames())
-        finishedAt = decoder->endTime();
+      if (generation == playbackGeneration) {
+        completedTarget = frameTimestamp;
+        if (decoder->exhausted() && !decoder->queuedFrames()) finishedAt = decoder->endTime();
+      }
       continue;
     }
     std::lock_guard lock(mutex);
@@ -102,6 +106,7 @@ void Video::run() {
     if (ready && ready->rgba.capacity() > recycledRgba.capacity())
       recycledRgba = std::move(ready->rgba);
     ready = std::move(frame);
+    completedTarget = frameTimestamp;
     if (decoder->exhausted() && !decoder->queuedFrames()) finishedAt = decoder->endTime();
   }
 }

@@ -464,11 +464,14 @@ napi_value loadVideo(napi_env env, napi_callback_info info) try {
 }
 
 napi_value updateVideo(napi_env env, napi_callback_info info) try {
-  auto a = arguments(env, info, 2); State& value = host(env);
+  auto a = arguments(env, info, 3); State& value = host(env);
   const auto found = value.videos.find(asUint32(env, a.at(0)));
   if (found == value.videos.end()) throw std::runtime_error("invalid video handle");
   const double timestamp = asNumber(env, a.at(1));
+  // A paused seek waits for the frame at its target, then reports whether it arrived.
+  const bool waitForFrame = a.size() > 2 && asBoolean(env, a[2]);
   auto& video = *found->second;
+  const bool newTarget = timestamp != video.lastRequestedTimestamp;
   if (video.lastRequestedTimestamp >= 0.0 &&
       (timestamp + 0.000001 < video.lastRequestedTimestamp ||
        timestamp > video.lastRequestedTimestamp + 2.0)) {
@@ -476,7 +479,8 @@ napi_value updateVideo(napi_env env, napi_callback_info info) try {
     video.timestamp = -1.0;
   }
   video.lastRequestedTimestamp = timestamp;
-  if (auto frame = video.take()) {
+  bool completed = false;
+  if (auto frame = video.take(timestamp, completed)) {
     if (frame->timestamp > video.timestamp + 0.000001) {
       const auto image = value.images.inspect(video.image);
       if (!image || frame->width != image->width || frame->height != image->height ||
@@ -499,7 +503,8 @@ napi_value updateVideo(napi_env env, napi_callback_info info) try {
     }
     video.recycle(std::move(frame->rgba));
   }
-  video.request(timestamp);
+  if (!waitForFrame || newTarget) video.request(timestamp);
+  if (waitForFrame) return boolean(env, completed && !newTarget);
   return number(env, video.timestamp);
 } catch (const std::exception& error) {
   napi_throw_error(env, nullptr, error.what()); return nullptr;

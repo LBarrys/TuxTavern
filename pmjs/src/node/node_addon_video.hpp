@@ -15,7 +15,8 @@ struct Video {
   ~Video();
   void request(double targetTime);
   void resetForSeek();
-  std::optional<pmjs::VideoFrame> take();
+  // completed: the decoder has finished the request for targetTime (upstream 2f1c0ff, paused seeks).
+  std::optional<pmjs::VideoFrame> take(double targetTime, bool& completed);
   bool ended(double timestamp);
   void recycle(std::vector<std::uint8_t> rgba);
   const pmjs::MediaInfo& info() const;
@@ -29,6 +30,7 @@ struct Video {
   std::optional<pmjs::VideoFrame> ready;
   std::exception_ptr failure;
   std::optional<double> finishedAt;
+  std::optional<double> completedTarget;
   std::vector<std::uint8_t> recycledRgba;
   std::uint64_t playbackGeneration = 0;
   std::thread worker;

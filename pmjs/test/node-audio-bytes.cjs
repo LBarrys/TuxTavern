@@ -80,6 +80,15 @@ assert.equal(fromBytes.duration, fromFile.duration);
 for (const handle of [fromFile.handle, fromBytes.handle]) native.media.releaseAudio(handle);
 assert.equal(native.media.audioStats().sampleVoices, 0);
 async function contextContracts() {
+  // Upstream 2f1c0ff: a stop-when-finished fade of a voice already at its target stops it at once.
+  const mutedLoop = native.media.loadAudioBytes(wavBytes());
+  try {
+    assert.equal(native.media.playAudio(mutedLoop.handle, true, 0), true);
+    assert.equal(native.media.fadeAudio(mutedLoop.handle, 0, 0, 0, false), true);
+    assert.equal(native.media.fadeAudio(mutedLoop.handle, -1, 0, 0.01, true), true);
+    await new Promise(resolve => setTimeout(resolve, 80));
+    assert.equal(native.media.audioIsPlaying(mutedLoop.handle), false);
+  } finally { native.media.releaseAudio(mutedLoop.handle); }
   native.media.setAudioContextSuspended(true);
   const time = native.media.audioContextTime();
   const intrinsic = native.media.createAudioGain(1);
