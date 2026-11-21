@@ -263,3 +263,31 @@ for (const engine of ['mv', 'mz']) {
       [entry.name, i < 3, i < 3 ? 'loaded' : 'disabled']));
   });
 }
+
+test('source transforms compose from the inner loader outward (upstream a4fc1cf)', () => {
+  for (const failure of [null, 'transform', 'guest']) {
+    const ctx = loadPmjsRuntime({ console: { error() {} } }), plugins = ctx.PMJS.plugins;
+    const calls = [], error = Error('failed');
+    plugins.interceptLoad('Guest', 'outer', next => next(source => {
+      calls.push('outer:' + source);
+      if (failure === 'transform') throw error;
+      return source + '-outer';
+    }));
+    plugins.interceptLoad('Guest', 'inner', next => next(source => {
+      calls.push('inner:' + source);
+      return source + '-inner';
+    }));
+    let loaded;
+    const load = () => plugins.execute('Guest', () => plugins.loadScript('Guest', 'Guest.js', transform => {
+      loaded = transform('effective');
+      if (failure === 'guest') throw error;
+      return loaded;
+    }));
+    if (failure) assert.throws(load, value => value === error);
+    else { load(); assert.equal(loaded, 'effective-inner-outer'); }
+    assert.deepEqual(calls, ['inner:effective', 'outer:effective-inner']);
+  }
+  const ctx = loadPmjsRuntime({ console: { error() {} } });
+  ctx.PMJS.plugins.interceptLoad('Other', 'bad', next => next('not a function'));
+  assert.throws(() => ctx.PMJS.plugins.loadScript('Other', 'Other.js', () => {}), /must be a function/);
+});

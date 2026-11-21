@@ -46,6 +46,28 @@ function writeAddon(root, polls = [true, false]) {
   return addon;
 }
 
+test('script transforms apply to the loaded source and keep the script filename (upstream a4fc1cf)', async () => {
+  const options = fixture(`
+    (function() {
+    const assert = __pmjsBuiltinRequire('node:assert/strict');
+    NativeHost.fs.readText = name => name === 'virtual-plugin.js' ? 'throw new Error("before transform");' : null;
+    assert.throws(() => NativeHost.runtime.loadScript('virtual-plugin.js', source =>
+      source.replace('before transform', 'after transform')), error => {
+      assert.equal(error.message, 'after transform');
+      assert.ok(error.stack.includes('virtual-plugin.js'));
+      return true;
+    });
+    assert.throws(() => NativeHost.runtime.loadScript('missing.js', () => {
+      assert.fail('missing source must not be transformed');
+    }), /cannot load script: missing.js/);
+    globalThis.__pmjsTick = () => {};
+    globalThis.__pmjsRender = () => {};
+    })();
+  `);
+  options.assetPreparation = 'off'; options.mapPreparation = 'off';
+  await run(options);
+});
+
 test('filesystem replacements retain identity and restore host-scoped methods', async t => {
   const previous = globalThis.PMJS;
   t.after(() => { globalThis.PMJS = previous; });

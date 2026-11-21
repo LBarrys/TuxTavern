@@ -54,14 +54,14 @@
         script.dispatchEvent({ type: 'load', target: script });
       });
     };
-    NativeHost.runtime.loadScript = function(path) {
+    NativeHost.runtime.loadScript = function(path, transformSource) {
       if (typeof gameReadPath === 'function') path = gameReadPath(path);
       var script = {
         src: resolveScriptVirtualSrc(path)
       };
       currentScriptStack.push(script);
       try {
-        return rawLoadScript.call(NativeHost.runtime, path);
+        return rawLoadScript.call(NativeHost.runtime, path, transformSource);
       } finally {
         currentScriptStack.pop();
       }

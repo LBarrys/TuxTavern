@@ -8,7 +8,8 @@ const vm = require('node:vm');
 function adapter(module, globals) {
   const loaded = new Map(), phases = new Map();
   const context = vm.createContext({ ...globals, PMJS: {
-    plugins: { onLoaded(name, owner, callback) { loaded.set(name, callback); } },
+    plugins: { onLoaded(name, owner, callback) { loaded.set(name, callback); },
+      registerOptimization() {}, interceptLoad() {} },
     phases: { on(name, owner, callback) { phases.set(name, callback); } }
   } });
   vm.runInContext(fs.readFileSync(require.resolve('../js/pmjs-plugins/' + module + '.js'), 'utf8'), context);
