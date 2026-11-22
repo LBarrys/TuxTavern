@@ -1,6 +1,6 @@
 'use strict';
 const editor = require('../../lib/editor.js');
-const { install } = require('../../lib/pmjs-cheats.js');
+const { install, karrynHooks } = require('../../lib/pmjs-cheats.js');
 
 let failed = 0;
 function is(desc, got, want) {
@@ -185,6 +185,7 @@ class Karryn extends Actor {
   setAsp(n) { this.asp = n; }
 }
 const karryn = new Karryn();
+const RIOT_NAMES = ['One', 'Two', 'Three'];
 const scope = { ACTOR_KARRYN_ID: 1, PRISON_ORDER_MAX: 100 };
 w.eval = code => new Function(...Object.keys(scope), 'return ' + code)(...Object.values(scope));
 w.$gameActors = { actor: id => (id === 1 ? karryn : null) };
@@ -206,8 +207,7 @@ is('Karryn\'s page has her vitals, condition, desires, clothing, levels and edic
   'Stamina (max 900)', 'Energy (max 80)', 'Willpower (max 120)', 'Pleasure (max 100)', 'Fatigue % (max 100)',
   'Sleep quality % (max 100)', 'Cockiness % (max 100)', 'Cock desire (max 100)', 'Mouth desire (max 100)',
   'Boobs desire (max 100)', 'Pussy desire (max 100)', 'Butt desire (max 100)', 'Clothing durability (max 200)',
-  'Clothing stage (max 5)', 'Panties', 'Warden level (max 30)', 'Max stamina level', 'Max energy level',
-  'Strength level', 'Endurance level', 'Dexterity level', 'Mind level', 'Agility level', 'Charm level', 'Edict points']);
+  'Clothing stage (max 5)', 'Panties', 'Warden level (max 30)', 'Edict points']);
 to('Fatigue % (max 100)');
 shifted('left', 10);
 is('fatigue is set through the game, not below 0', karryn._fatigue, 0);
@@ -223,12 +223,15 @@ is('mended clothing is whole again: durability at its maximum, stage 1', [karryn
 to('Panties');
 frame('ok');
 is('panties are put on', karryn.panties, true);
-to('Strength level');
-frame('right');
-is('a stat level is raised', karryn._paramLvl[2], 4);
 to('Edict points');
 frame('right');
 is('edict points are stored and set as the game does', [karryn._storedEdictPoints, karryn.asp], [3, 3]);
+frame('cancel');
+open('Stats');
+is('the stats page has each stat\'s level', rowsOf().slice(0, 3), ['Max stamina level', 'Max energy level', 'Strength level']);
+to('Strength level');
+frame('right');
+is('a stat level is raised', karryn._paramLvl[2], 4);
 frame('cancel');
 open('Prison');
 is('the prison page has order, corruption, guard aggression and riot build-up where the game has it',
@@ -251,7 +254,6 @@ frame('cancel');
 Object.assign(karryn, {
   _liquidSwallow: 5, increaseLiquidSwallow(n) { this._liquidSwallow += n; }, setCacheChanged() { this.redrawn = true; },
   titles: new Set([2]), hasThisTitle(id) { return this.titles.has(id); },
-  gainTitle(id) { this.titles.add(id); }, removeTitle(id) { this.titles.delete(id); },
   passives: new Set(), hasPassive(id) { return this.passives.has(id); },
   learnNewPassive(id) { this.passives.add(id); }, forgetPassive(id) { this.passives.delete(id); },
   learned: new Set([600]), points: 0,
@@ -271,6 +273,8 @@ Object.assign(w.$dataSkills, { 400: { name: 'Kissing Lover' }, 401: { name: '' }
 w.$dataWeapons = [];
 w.$dataWeapons[61] = { name: 'Prison' };
 w.$gameParty.isAnyMemberEquipped = armor => armor === w.$dataArmors[31];
+// As in the game, the party gains and removes titles, which Karryn then has.
+Object.assign(w.$gameParty, { gainTitle: id => karryn.titles.add(id), removeTitle: id => karryn.titles.delete(id) });
 karryn.titles.add(31);
 f8();
 f8();
@@ -325,10 +329,123 @@ to('Karryn: full willpower');
 karryn._will = 1;
 frame('ok');
 is('Karryn\'s willpower is filled', karryn._will, 120);
+Object.assign(karryn, {
+  maxstamina: 900, getAlcoholRate() {}, arousalPoint: () => 40,
+  setPleasure(n) { this._tp = n; }, setPleasureToArousalPoint() { this.setPleasure(40); }, setPleasureToOrgasmPoint() { this.setPleasure(100); },
+});
+Object.assign(w.$gameParty, { isInWaitressBattle: true, _waitressBattle_currentTimeInSeconds: 100, _waitressBattle_timeLimit: 900 });
+Object.defineProperty(enemy, 'hp', { get() { return this._hp; } });
+Object.assign(enemy, { name: () => 'Thug A', mhp: 300, pleasure: 0, orgasmPoint: () => 50, setPleasure(n) { this.pleasure = n; } });
+const broken = { isDead: () => false, name() { throw new Error('gone'); } };
+w.$gameTroop = { members: () => [enemy, dead, broken] };
+frame('cancel');
+open('Battle');
+to('Karryn: orgasm');
+frame('ok');
+is('Karryn\'s pleasure is raised to orgasm through the game', karryn._tp, 100);
+to('Karryn: pleasure 0');
+frame('ok');
+to('Karryn: desires full');
+frame('ok');
+is('her pleasure is emptied and her desires filled', [karryn._tp, karryn.cockDesire, karryn.buttDesire], [0, 100, 100]);
+to('Karryn: drunkenness (max 900)');
+shifted('right', 1);
+is('at the bar her drunkenness can be set', karryn._alcoholDamage, 100);
+to('Side job time (s) (max 900)');
+shifted('right', 2);
+is('and the side job\'s clock', w.$gameParty._waitressBattle_currentTimeInSeconds, 300);
+is('each standing enemy gets its own rows; one that cannot be read is left out',
+  rowsOf().filter(t => /^[^:]+: (stamina|pleasure) \(/.test(t)), ['Thug A: stamina (max 300)', 'Thug A: pleasure (max 50)']);
+to('Thug A: pleasure (max 50)');
+shifted('right', 1);
+is('an enemy\'s pleasure is set through the game, up to its orgasm point', enemy.pleasure, 50);
+w.$gameParty.isInWaitressBattle = false;
 w.$gameParty.inBattle = () => false;
 frame('cancel');
 f8();
 f8();
+
+// Stats, sex levels, the lasting rules and riots.
+Object.assign(karryn, {
+  _paramExp: [0, 0, 0, 0, 0, 0, 0, 0], _paramPlus: [0, 0, 0, 0, 0, 0, 0, 0], addParam(i, n) { this._paramPlus[i] += n; },
+  _slutLvl: 3, setSlutLvl(n) { this._slutLvl = n; }, _baseKissLvl: 2, maxwill: 120,
+  _cooldowns: {}, _clothingDurability: 200,
+});
+Object.assign(Karryn.prototype, {
+  kissLvl() { return this._baseKissLvl; },
+  suckFingersMouthDesireRequirement() { return 10; },
+  kissingMouthDesireRequirement() { return 30; },
+  damageClothing(damage) { this._clothingDurability -= damage; return damage; },
+  setCooldown(id, turns) { this._cooldowns[id] = turns; },
+});
+w.Game_Actor = Karryn;
+w.Game_BattlerBase = Karryn;
+karrynHooks(w);
+open('Stats');
+to('Mind exp');
+shifted('right', 1);
+to('Mind bonus');
+frame('left');
+is('a stat\'s exp is set, and its bonus through the game, below 0 too', [karryn._paramExp[5], karryn._paramPlus[5]], [100, -1]);
+frame('cancel');
+open('Sex levels');
+is('sex levels are listed where the game has them', rowsOf(), ['Slut level', 'Kissing level']);
+to('Kissing level');
+shifted('right', 1);
+karryn._baseKissLvl = 3;
+is('a sex level change lasts when the game works the level out again', karryn.kissLvl(), 13);
+is('and is saved with the game', w.$gamePlayer._rpgmCheats.karryn, { sexLevels: { kissLvl: 10 } });
+shifted('left', 2);
+is('it never goes below 0', karryn.kissLvl(), 0);
+to('Slut level');
+frame('right');
+is('the slut level is set through the game', karryn._slutLvl, 4);
+frame('cancel');
+open('Karryn');
+for (const rule of ['No clothing damage', 'No skill cooldowns', 'No desire requirements']) { to(rule); frame('ok'); }
+karryn.damageClothing(50);
+karryn.setCooldown(7, 3);
+is('the rules stop clothing damage, cooldowns and desire requirements',
+  [karryn._clothingDurability, karryn._cooldowns[7], karryn.kissingMouthDesireRequirement()], [200, 0, 0]);
+is('for Karryn alone', new Actor(2, 'Guard') instanceof Karryn, false);
+to('No clothing damage');
+frame('ok');
+karryn.damageClothing(50);
+is('a rule switched off counts again', karryn._clothingDurability, 150);
+frame('cancel');
+editor.model(w).setGod(1, true);
+karryn.setWill(5);
+is('god mode keeps her willpower full', karryn._will, 120);
+editor.model(w).setGod(1, false);
+karryn.setWill(5);
+is('and not without it', karryn._will, 5);
+const prison = w.$gameParty;
+Object.assign(prison, {
+  _orderChangePerDay: 2, setOrderChangePerDay(n) { this._orderChangePerDay = n; },
+  status: ['subjugated', 'rioting', 'anarchy'], refreshed: 0,
+  _prisonLevelTwo_classroomRioting: true, _prisonLevelTwo_riotingDays: 3, _prisonLevelTwoRiotCount: 1,
+  riotOutbreakPrisonLevelOne() { this.status[0] = 'rioting'; },
+});
+RIOT_NAMES.forEach((l, i) => Object.assign(prison, {
+  [`prisonLevel${l}IsRioting`]() { return this.status[i] === 'rioting'; },
+  [`prisonLevel${l}IsSubjugated`]() { return this.status[i] === 'subjugated'; },
+  [`setPrisonLevel${l}Subjugated`]() { this.status[i] = 'subjugated'; },
+}));
+w.$gameScreen = { setMapInfoRefreshNeeded() { prison.refreshed++; } };
+open('Prison');
+is('riots can be started on subdued levels and ended on rioting ones, not on unconquered ones',
+  rowsOf().filter(t => / riot$/.test(t)), ['Level 1 riot', 'Level 2 riot']);
+to('Base control (order per day)');
+shifted('left', 1);
+is('control can go below 0', prison._orderChangePerDay, -8);
+to('Level 1 riot');
+frame('ok');
+to('Level 2 riot');
+frame('ok');
+is('a riot breaks out through the game, and one ends with its rooms retaken',
+  [prison.status, prison._prisonLevelTwo_classroomRioting, prison._prisonLevelTwo_riotingDays, prison._prisonLevelTwoRiotCount, prison.refreshed],
+  [['rioting', 'subjugated', 'anarchy'], false, -1, 1, 2]);
+frame('cancel');
 
 karryn.setFatigue = undefined;
 open('Karryn');
