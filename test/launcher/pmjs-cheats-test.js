@@ -189,7 +189,11 @@ const RIOT_NAMES = ['One', 'Two', 'Three'];
 const scope = { ACTOR_KARRYN_ID: 1, PRISON_ORDER_MAX: 100 };
 w.eval = code => new Function(...Object.keys(scope), 'return ' + code)(...Object.values(scope));
 w.$gameActors = { actor: id => (id === 1 ? karryn : null) };
-w.TextManager = { param: i => ['Max stamina', 'Max energy', 'Strength', 'Endurance', 'Dexterity', 'Mind', 'Agility', 'Charm'][i] };
+// Karryn's Prison names skills with a token its windows look up in the language files.
+w.TextManager = {
+  skillName: id => (id === 2117 ? '\\REM_DESC[skill_2117_name]' : w.$dataSkills[id].name),
+  remMiscDescriptionText: key => ({ skill_2117_name: 'Sudden Unidentified Foreign Object' })[key],
+  param: i => ['Max stamina', 'Max energy', 'Strength', 'Endurance', 'Dexterity', 'Mind', 'Agility', 'Charm'][i] };
 Object.assign(w.$gameParty, {
   order: 50, setOrder(n) { this.order = n; }, _corruption: 3, setCorruption(n) { this._corruption = n; },
   guardAggression: 7, setGuardAggression(n) { this.guardAggression = n; }, _prisonLevelTwoRiotBuildup: 40,
@@ -256,6 +260,7 @@ Object.assign(karryn, {
   titles: new Set([2]), hasThisTitle(id) { return this.titles.has(id); },
   passives: new Set(), hasPassive(id) { return this.passives.has(id); },
   learnNewPassive(id) { this.passives.add(id); }, forgetPassive(id) { this.passives.delete(id); },
+  setCharacterCreatorPassive(id) { this.passives.add(id); this.created = id; },
   learned: new Set([600]), points: 0,
   getTreeTypes() { return [61]; },
   getTreeDatas() { return [{ id: 600 }, { id: 601 }, { id: 602 }]; },
@@ -265,11 +270,17 @@ Object.assign(karryn, {
   stsLearnSkill(id) { this.learned.add(id); this.points--; },
   setWillToMax() { this._will = this.maxWill(); },
 });
-Object.assign(scope, { TITLE_LIST_START_ID: 30, TITLE_LIST_END_ID: 31, PASSIVES_LIST_ONE_START_ID: 400, PASSIVES_LIST_ONE_END_ID: 401 });
+Object.assign(scope, { TITLE_LIST_START_ID: 30, TITLE_LIST_END_ID: 31, SKILLTYPE_PASSIVES_ID: 7, CHARA_CREATE_THREE_MOUTH_ID: 980 });
 w.$dataArmors = [];
 Object.assign(w.$dataArmors, { 2: { name: 'Warden' }, 30: { name: 'Iron Will' }, 31: { name: 'Equipped One' } });
 w.$dataSkills = [];
-Object.assign(w.$dataSkills, { 400: { name: 'Kissing Lover' }, 401: { name: '' }, 600: { name: 'Office' }, 601: { name: 'Guards' }, 602: { name: 'Riot Gear' } });
+// Passives are skills of the passive type, wherever their ids are: the character creator's
+// (980) and those CC_Mod adds at run time (1370) too. 112 is the game's unused placeholder.
+const passive = (id, name, note = '') => ({ id, name, stypeId: 7, note });
+Object.assign(w.$dataSkills, {
+  112: passive(112, "Karryn's Passive List", 'unused'), 400: passive(400, 'Kissing Lover'), 401: passive(401, ''),
+  980: passive(980, '♥Dormant Desire'), 1370: passive(1370, 'Streaking Habit'), 2117: passive(2117, 'stray 1'),
+  599: { id: 599, name: 'Attack', stypeId: 1, note: '' }, 600: { name: 'Office' }, 601: { name: 'Guards' }, 602: { name: 'Riot Gear' } });
 w.$dataWeapons = [];
 w.$dataWeapons[61] = { name: 'Prison' };
 w.$gameParty.isAnyMemberEquipped = armor => armor === w.$dataArmors[31];
@@ -295,12 +306,16 @@ is('an equipped title is not removed', karryn.titles.has(31), true);
 is('and that is said', texts().includes('Unequip that title first.'), true);
 frame('cancel');
 open('Passives');
-is('passives list the earnable ones that have names', rowsOf(), ['Kissing Lover']);
+is('passives list every named passive skill, as the game names them, the character creator\'s by area',
+  rowsOf(), ['Kissing Lover', '♥Dormant Desire (mouth)', 'Streaking Habit', 'Sudden Unidentified Foreign Object']);
 to('Kissing Lover');
 frame('ok');
 is('a passive is learned through the game', karryn.passives.has(400), true);
 frame('ok');
 is('and forgotten', karryn.passives.has(400), false);
+to('♥Dormant Desire (mouth)');
+frame('ok');
+is('a character creator passive is given as the game gives it', [karryn.passives.has(980), karryn.created], [true, 980]);
 frame('cancel');
 open('Edicts');
 is('edicts show which are learned, can be bought or are locked',
