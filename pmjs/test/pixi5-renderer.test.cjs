@@ -878,3 +878,25 @@ test('a nested scene render leaves the outer packet and state intact, also when 
     assert.equal(fixture.submissions.at(-1).count, 4);
   }
 });
+
+// Pixi's renderer is an EventEmitter (eventemitter3, whose listener table its constructor makes).
+// Plugins listen for prerender and postrender around each frame (upstream 565fd14).
+test('the native renderer emits prerender and postrender as Pixi does', () => {
+  const fixture = createContext(), c = fixture.context;
+  function EventEmitter() { this._events = Object.create(null); }
+  EventEmitter.prototype.on = function(name, fn) { (this._events[name] ||= []).push(fn); return this; };
+  EventEmitter.prototype.emit = function(name) {
+    for (const fn of this._events[name] || []) fn.call(this);
+    return !!this._events[name];
+  };
+  c.PIXI.utils = Object.assign(c.PIXI.utils || {}, { EventEmitter });
+  Object.setPrototypeOf(c.PIXI.Renderer.prototype, EventEmitter.prototype);
+  runModule(c, 'js/pmjs-pixi5/scene.js');
+  runModule(c, 'js/pmjs-pixi5/renderer.js');
+  const app = new c.PIXI.Application({ width: 32, height: 24 });
+  const events = [];
+  app.renderer.on('prerender', function() { events.push(['pre', this.renderingToScreen, fixture.submissions.length]); });
+  app.renderer.on('postrender', function() { events.push(['post', fixture.submissions.length]); });
+  app.render();
+  assert.deepEqual(events, [['pre', true, 0], ['post', 1]]);
+});

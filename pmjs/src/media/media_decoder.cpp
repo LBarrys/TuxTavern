@@ -9,6 +9,7 @@ extern "C" {
 #include <libavutil/cpu.h>
 #include <libavutil/error.h>
 #include <libavutil/imgutils.h>
+#include <libavutil/pixdesc.h>
 #include <libavutil/log.h>
 #include <libswresample/swresample.h>
 #include <libswscale/swscale.h>
@@ -34,6 +35,15 @@ std::string ffError(int code) {
 
 void fail(std::string* error, const std::string& message) {
   if (error) *error = message;
+}
+
+bool decodedFrameOpaque(const AVFrame& frame, const std::vector<std::uint8_t>& rgba) {
+  const auto* desc = av_pix_fmt_desc_get(static_cast<AVPixelFormat>(frame.format));
+  if (desc && !(desc->flags & (AV_PIX_FMT_FLAG_ALPHA | AV_PIX_FMT_FLAG_PAL))) return true;
+  for (std::size_t i = 3; i < rgba.size(); i += 4) {
+    if (rgba[i] != 255) return false;
+  }
+  return true;
 }
 
 struct FormatDeleter { void operator()(AVFormatContext* value) const { avformat_close_input(&value); } };
@@ -568,6 +578,7 @@ struct VideoDecoderSession::Impl {
       }
       backing->convert(output.rgba, false);
       output.browser420 = std::move(backing);
+      output.opaque = true;
     } else {
       if (!scaler || scalerWidth != width || scalerHeight != height ||
           scalerFormat != decoded->format || scalerColorspace != decoded->colorspace ||
@@ -592,6 +603,7 @@ struct VideoDecoderSession::Impl {
                              : "video conversion produced an incomplete frame");
         return std::nullopt;
       }
+      output.opaque = decodedFrameOpaque(*decoded, output.rgba);
     }
     av_frame_unref(decoded.get());
     ++stats.convertedFrames;
@@ -956,6 +968,7 @@ std::optional<VideoFrame> MediaDecoder::decodeVideoFrame(
                                  : "video conversion produced an incomplete frame");
             return std::nullopt;
           }
+          output.opaque = decodedFrameOpaque(*frame, output.rgba);
           return output;
         }
       }

@@ -92,6 +92,9 @@
           transform = renderOptions.transform;
           skipUpdateTransform = renderOptions.skipUpdateTransform;
         }
+        // Pixi's render events, which plugins listen for (upstream 565fd14).
+        this.renderingToScreen = !renderTexture;
+        if (typeof this.emit === 'function') this.emit('prerender');
         if (!renderTexture) PMJS.pixi5.cacheBitmaps(this);
         var prepared = PMJS.pixi5.prepareRender(this, stage,
           !!(renderTexture || transform || skipUpdateTransform));
@@ -119,6 +122,7 @@
           } finally {
             NativeHost.render.setScreenRenderSize(this.width, this.height);
           }
+          if (typeof this.emit === 'function') this.emit('postrender');
           return;
         }
         NativeHost.render.setScreenRenderSize(this.width, this.height);
@@ -131,6 +135,7 @@
         globalThis.pmjsPixi5RenderScene(stage, background, this.resolution, this.screen, this,
           skipUpdateTransform, projection, prepared);
         NativeHost.render.setClearBeforeRender(shouldClear);
+        if (typeof this.emit === 'function') this.emit('postrender');
       },
       resize: function(width, height) {
         this.screen.width = Math.max(0, Number(width) || 0);
@@ -218,6 +223,14 @@
       get clearBeforeRender() { return renderer.clearBeforeRender; },
       set clearBeforeRender(value) { renderer.clearBeforeRender = !!value; }
     };
+    // Pixi's renderer is an EventEmitter that plugins subscribe to (prerender, postrender). Its
+    // listener table is made by its constructor, which this object never ran (upstream 565fd14).
+    if (PIXI.utils && typeof PIXI.utils.EventEmitter === 'function') {
+      PIXI.utils.EventEmitter.call(renderer);
+      if (Object.setPrototypeOf && OriginalRenderer && OriginalRenderer.prototype) {
+        Object.setPrototypeOf(renderer, NativeRenderer.prototype);
+      }
+    }
     renderer.resize(options.width, options.height);
     return renderer;
   }

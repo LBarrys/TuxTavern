@@ -253,7 +253,7 @@ class ImageStore {
   std::optional<ImageInfo> installPreparedLoad(const ImageFileSource& source,
       std::shared_ptr<PreparedLoad> load, bool retainCpuPixels);
   std::optional<ImageInfo> inspect(ImageHandle handle) const;
-  std::optional<bool> isOpaque(ImageHandle handle);
+  std::optional<bool> isOpaque(ImageHandle handle, bool allowExternalStorage = true);
   std::optional<bool> hasBinaryAlpha(ImageHandle handle);
   bool hasCpuPixels(ImageHandle handle) const;
   std::optional<SpriteImageRegion> resolveSpriteRegion(
@@ -335,7 +335,9 @@ class ImageStore {
     return deferMode_ == DeferMode::always || (deferMode_ == DeferMode::bursts && burst);
   }
   std::optional<ImageInfo> installDeferred(std::shared_ptr<ImageFileSource> source, int width, int height);
-  std::optional<ImageInfo> createRgba(int width, int height, const void* pixels, bool premultiplied = false);
+  // knownOpaque: the caller knows whether every pixel is opaque (a decoded video frame).
+  std::optional<ImageInfo> createRgba(int width, int height, const void* pixels, bool premultiplied = false,
+      std::optional<bool> knownOpaque = std::nullopt);
   // GPU-only image storage. readPixels() intentionally returns no CPU copy.
   std::optional<ImageInfo> createRenderTarget(int width, int height,
                                              bool premultiplied = false);
@@ -344,7 +346,7 @@ class ImageStore {
   std::uint64_t textureEpoch() const { return textureEpoch_; }
   bool ensureMipmaps(ImageHandle handle, bool premultiplied);
   const ImagePixels* readPixels(ImageHandle handle) const;
-  bool updateRgba(ImageHandle handle, const void* pixels);
+  bool updateRgba(ImageHandle handle, const void* pixels, std::optional<bool> knownOpaque = std::nullopt);
   // wholeImageZero: the caller knows every pixel outside the region is also zero.
   bool updateRgbaRegion(ImageHandle handle, int x, int y, int width, int height,
                         const void* pixels, int sourceRowPixels, bool wholeImageZero = false);
@@ -597,7 +599,8 @@ class ImageStore {
       const ImageStorageDecision* decision = nullptr);
   std::optional<ImageInfo> createImage(int width, int height, const void* pixels,
                                      bool premultiplied, ImageChannelStorage storage, bool deferred = false,
-      std::shared_ptr<PaletteBacking> palette = {}, const ImageStorageDecision* decision = nullptr);
+      std::shared_ptr<PaletteBacking> palette = {}, const ImageStorageDecision* decision = nullptr,
+      std::optional<bool> knownOpaque = std::nullopt);
   bool detachSharedTexture(Slot& slot);
   bool promoteToRgba(Slot& slot, const void* replacement = nullptr);
   std::deque<Slot> slots_;
