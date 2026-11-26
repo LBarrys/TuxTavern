@@ -92,6 +92,38 @@ async function preparationFiles(directory, verifyHashes = false) {
     return { hash: checksum, reused, size: Number(before.size), header };
   }
   async function hash(file) { return (await inspect(file)).hash; }
+  // Writes a new file from chunks and hashes it in the same pass, so it need not be read back
+  // (upstream 0a1ec50). A failed write, size or close removes the file and records nothing.
+  async function writeVerified(target, chunks, { expectedSize } = {}) {
+    target = path.resolve(target);
+    let output, created = false;
+    try {
+      output = await fsp.open(target, 'wx'); created = true;
+      const hasher = crypto.createHash('sha256');
+      let header = Buffer.alloc(0), size = 0;
+      for await (const chunk of chunks) {
+        size += chunk.length;
+        if (expectedSize !== undefined && size > expectedSize) throw new Error('output size differs');
+        hasher.update(chunk);
+        if (header.length < 32) header = Buffer.concat([header, chunk.subarray(0, 32 - header.length)]);
+        await output.writeFile(chunk);
+      }
+      if (expectedSize !== undefined && size !== expectedSize) throw new Error('output size differs');
+      const checksum = hasher.digest('hex');
+      ++stats.hashedFiles; stats.hashedBytes += size;
+      const written = await output.stat({ bigint: true });
+      await output.close(); output = undefined;
+      const signature = identity(written);
+      if (!written.isFile() || Number(written.size) !== size || signature !== identity(await fsp.lstat(target, { bigint: true })))
+        throw new Error('output changed while writing');
+      files[target] = { identity: signature, hash: checksum };
+      known.set(signature, { hash: checksum, header });
+      return { hash: checksum, header, size };
+    } catch (error) {
+      if (created) await fsp.rm(target, { force: true });
+      throw error;
+    } finally { await output?.close(); }
+  }
   async function validatedJson(file, validate) {
     file = path.resolve(file);
     const before = await fsp.lstat(file, { bigint: true });
@@ -120,7 +152,7 @@ async function preparationFiles(directory, verifyHashes = false) {
       await fsp.rename(temporary, index);
     } finally { await fsp.rm(temporary, { force: true }); }
   }
-  return { hash, inspect, validatedJson, save, stats };
+  return { hash, inspect, writeVerified, validatedJson, save, stats };
 }
 
 module.exports = { preparationFiles, writeJson, fileIdentity };

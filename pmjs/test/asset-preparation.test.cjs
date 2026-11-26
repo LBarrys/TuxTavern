@@ -1024,6 +1024,24 @@ test('MV encryption flags gate preparation and existing plaintext images take pr
   assert.deepEqual(fs.readFileSync(f.native.assets.sourcePath(f.source)), PNG);
 });
 
+test('a decrypted image is hashed as it is written, not read back (upstream 0a1ec50)', async t => {
+  const f = encryptedFixture('MZ'), open = fs.promises.open, hashReads = [];
+  t.mock.method(fs.promises, 'open', async function(file, flags, ...args) {
+    const handle = await open.call(this, file, flags, ...args), read = handle.read.bind(handle);
+    handle.read = async (buffer, ...rest) => {
+      if (buffer?.length === 256 * 1024) hashReads.push(path.basename(String(file)));
+      return read(buffer, ...rest);
+    };
+    return handle;
+  });
+  const result = await prepareAssets(f);
+  assert.equal(result.decrypted, 2, 'the image and the sound');
+  assert.deepEqual(hashReads.filter(name => /^source\./.test(name)), []);
+  assert.equal(result.decryptedEntries.length, 2);
+  for (const entry of result.decryptedEntries)
+    assert.equal(entry.fileHash, crypto.createHash('sha256').update(fs.readFileSync(entry.file)).digest('hex'));
+});
+
 test('automatic character grids retain ordinary and single-character logical layouts', async () => {
   for (const [name, width, height, grid] of [['ordinary.png', 12, 8, [12, 8]], ['!$single.png', 3, 4, [3, 4]]]) {
     const f = fixture();

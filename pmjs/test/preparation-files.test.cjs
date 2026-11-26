@@ -11,6 +11,63 @@ const { preparationFiles } = require('../runner/preparation-files.cjs');
 const FUSE = 0x65735546, EXT4 = 0xef53;
 const hash = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
 
+// A file written through writeVerified is hashed as it is written (upstream 0a1ec50).
+const receipts = root => JSON.parse(fs.readFileSync(path.join(root, 'verified-files.json'))).files;
+test('verified writes hash streamed bytes once, keep an owned header and are reused', async () => {
+  const root = temporaryDirectory('verified-write-'), file = path.join(root, 'output');
+  const files = await preparationFiles(root), chunk = Buffer.alloc(300 * 1024, 73);
+  const expected = Buffer.concat([chunk, Buffer.alloc(chunk.length, 84)]);
+  async function* chunks() { yield chunk; chunk.fill(84); yield chunk; chunk.fill(0); }
+  const checked = await files.writeVerified(file, chunks(), { expectedSize: expected.length });
+  assert.equal(checked.hash, hash(expected));
+  assert.deepEqual(fs.readFileSync(file), expected);
+  assert.deepEqual(checked.header, Buffer.alloc(32, 73));
+  assert.equal((await files.inspect(file)).reused, true);
+  assert.equal(files.stats.hashedBytes, expected.length);
+  fs.appendFileSync(file, 'changed');
+  assert.notEqual(await files.hash(file), checked.hash);
+});
+
+for (const mode of ['producer', 'size', 'close', 'replacement'])
+test('a verified write refuses a ' + mode + ' failure without leaving a file or receipt', async t => {
+  const root = temporaryDirectory('failed-verified-write-'), file = path.join(root, 'output');
+  const files = await preparationFiles(root), open = fs.promises.open;
+  if (mode === 'close' || mode === 'replacement') t.mock.method(fs.promises, 'open', async (...args) => {
+    const handle = await open(...args);
+    if (args[0] !== file || args[1] !== 'wx') return handle;
+    if (mode === 'close') {
+      const close = handle.close.bind(handle);
+      let fail = true;
+      handle.close = async () => { await close(); if (fail) { fail = false; throw new Error('close interrupted'); } };
+    } else {
+      const write = handle.writeFile.bind(handle);
+      handle.writeFile = async (...values) => {
+        await write(...values);
+        fs.writeFileSync(file + '.replacement', 'replacement');
+        fs.renameSync(file + '.replacement', file);
+      };
+    }
+    return handle;
+  });
+  async function* chunks() {
+    yield Buffer.from('original');
+    if (mode === 'producer') throw new Error('producer interrupted');
+  }
+  await assert.rejects(files.writeVerified(file, chunks(), { expectedSize: mode === 'size' ? 7 : 8 }),
+    /interrupted|differs|changed/);
+  assert.equal(fs.existsSync(file), false);
+  await files.save();
+  assert.equal(receipts(root)[file], undefined);
+});
+
+test('a verified write keeps an existing destination', async () => {
+  const root = temporaryDirectory('existing-verified-write-'), file = path.join(root, 'output');
+  fs.writeFileSync(file, 'original');
+  const files = await preparationFiles(root);
+  await assert.rejects(files.writeVerified(file, [Buffer.from('replacement')]), /EEXIST/);
+  assert.equal(fs.readFileSync(file, 'utf8'), 'original');
+});
+
 // Files are hashed through one reused 256 KiB buffer (upstream 7782821).
 test('a file is hashed in 256 KiB reads, and concurrent hashes keep their own buffers and headers', async t => {
   const root = temporaryDirectory('concurrent-verification-'), files = await preparationFiles(root);
