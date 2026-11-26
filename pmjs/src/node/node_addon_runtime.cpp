@@ -180,6 +180,8 @@ napi_value windowState(napi_env env, napi_callback_info) try {
   napi_set_named_property(env, result, "y", number(env, y));
   napi_set_named_property(env, result, "fullscreen", boolean(env, platform.fullscreen()));
   napi_set_named_property(env, result, "refreshRate", number(env, platform.refreshRate()));
+  napi_set_named_property(env, result, "vsync", boolean(env,
+    platform.swapIntervalAccepted() && platform.swapInterval() != 0));
   napi_set_named_property(env, result, "width", number(env, platform.windowWidth()));
   napi_set_named_property(env, result, "height", number(env, platform.windowHeight()));
   return result;

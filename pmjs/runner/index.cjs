@@ -137,7 +137,7 @@ function assertDisableOptimizationsShape(value, configPath) {
 const PMJS_MV_LOGIC_HZ = 60;
 const PMJS_SUPPORTED_RENDER_HZ = [30, 60, 120];
 
-function parseTimingConfig(env, refreshRate = 0) {
+function parseTimingConfig(env, refreshRate = 0, vsync = true) {
   const source = env || {};
   if (source.PMJS_LOGIC_HZ !== undefined && source.PMJS_LOGIC_HZ !== '' &&
       Number(source.PMJS_LOGIC_HZ) !== PMJS_MV_LOGIC_HZ) {
@@ -155,12 +155,17 @@ function parseTimingConfig(env, refreshRate = 0) {
   }
   const uncappedFlag = source.PMJS_UNCAPPED === '1';
   const raw = source.PMJS_RENDER_HZ;
-  // Unset draws as fast as it can above 60 Hz: 60 frames shown on a 144/165 Hz screen judder
-  // (Karryn's Prison on a 165 Hz display). At 60 Hz or less it is paced to 60, which looks
-  // the same and saves power; an unknown rate counts as fast.
+  // Unset draws once a refresh above 60 Hz, vsync pacing it: 60 frames shown on a 144/165 Hz
+  // screen judder (Karryn's Prison on a 165 Hz display). At 60 Hz or less it is paced to 60, which
+  // looks the same; an unknown rate counts as fast. Without vsync the timer paces it to the
+  // refresh rate (60 when unknown), not as fast as it can.
   if (raw === undefined || raw === '') {
     if (!uncappedFlag && refreshRate > 0 && refreshRate <= 61) {
       return { logicHz: PMJS_MV_LOGIC_HZ, renderHz: 60, uncapped: false, renderPeriod: 1000 / 60, catchupMode };
+    }
+    if (!uncappedFlag && !vsync) {
+      const hz = refreshRate > 0 ? refreshRate : 60;
+      return { logicHz: PMJS_MV_LOGIC_HZ, renderHz: hz, uncapped: false, renderPeriod: 1000 / hz, catchupMode };
     }
     return { logicHz: PMJS_MV_LOGIC_HZ, renderHz: 0, uncapped: true, renderPeriod: Infinity, catchupMode };
   }
@@ -182,11 +187,11 @@ function parseTimingConfig(env, refreshRate = 0) {
     renderPeriod: 1000 / renderHz, catchupMode };
 }
 
-// With neither set, the native side picks from the display's refresh rate, as parseTimingConfig does.
+// With neither set: vsync, the draw rate then following the display (parseTimingConfig).
 function resolveSwapDefault(env, timing) {
   const source = env || {};
   if (source.PMJS_SWAP_INTERVAL !== undefined && source.PMJS_SWAP_INTERVAL !== '') return null;
-  if ((source.PMJS_RENDER_HZ === undefined || source.PMJS_RENDER_HZ === '') && source.PMJS_UNCAPPED !== '1') return 'auto';
+  if ((source.PMJS_RENDER_HZ === undefined || source.PMJS_RENDER_HZ === '') && source.PMJS_UNCAPPED !== '1') return '1';
   return timing.uncapped ? '0' : null;
 }
 
@@ -531,11 +536,11 @@ async function run(input) {
   const memoryReclaimer = createMemoryReclaimer({ native, readMemory: () => memoryState(),
     readRss: () => process.memoryUsage.rss(), now: () => performance.now() });
   console.log(`[pmjs] startup stage=host-initialized elapsed_ms=${(performance.now() - startupStarted).toFixed(1)}`);
-  if (swapDefault === 'auto') {
-    const refreshRate = native.runtime.windowState ? native.runtime.windowState().refreshRate : 0;
-    timing = parseTimingConfig(hostProcess.env, refreshRate);
-    console.log(`[pmjs] display_hz=${refreshRate || 'unknown'}: ` +
-      (timing.uncapped ? 'drawing uncapped, no vsync' : 'drawing at 60 with vsync'));
+  if (swapDefault === '1') {
+    const state = native.runtime.windowState ? native.runtime.windowState() : {};
+    timing = parseTimingConfig(hostProcess.env, state.refreshRate || 0, state.vsync !== false);
+    console.log(`[pmjs] display_hz=${state.refreshRate || 'unknown'}: ` + (timing.uncapped ?
+      'drawing once a refresh, with vsync' : `drawing at ${timing.renderHz}` + (state.vsync === false ? ', no vsync' : ' with vsync')));
   }
   let pendingInvalidations = 0, retryInvalidationAt = 0;
   let invalidateImages, invalidateMaps;

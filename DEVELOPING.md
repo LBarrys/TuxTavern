@@ -80,9 +80,9 @@ MZ 1.10.0/Pixi 5.3.12; MV on Pixi 7.4.2 (pixi-rpgm, as in Karryn's Prison) is ne
 
 | Variable | Effect |
 |---|---|
-| `PMJS_RENDER_HZ` | `30`, `60`, `120` or `0` (uncapped). Unset: 60 on screens up to 60 Hz, as fast as it can above |
+| `PMJS_RENDER_HZ` | `30`, `60`, `120` or `0` (uncapped, no vsync). Unset: 60 on screens up to 60 Hz, once a refresh (vsync) above |
 | `PMJS_UNCAPPED=1` | Draw uncapped |
-| `PMJS_SWAP_INTERVAL` | `-1`, `0`, `1` or `auto` (vsync) |
+| `PMJS_SWAP_INTERVAL` | `-1`, `0`, `1` or `auto` (vsync; unset: `1`) |
 | `PMJS_CATCHUP_MODE` | MV catch-up after a slow frame: `smooth` or `burst` |
 | `PMJS_LOGIC_HZ` | Only `60` is accepted: MV logic runs at its authored rate |
 | `PMJS_WINDOW_SIZE` | Window size, e.g. `1280x720` |

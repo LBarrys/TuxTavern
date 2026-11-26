@@ -626,17 +626,28 @@ test('timing config pins MV logic at 60 Hz and validates render rates', () => {
   assert.throws(() => parseTimingConfig({ PMJS_LOGIC_HZ: '30' }), /PMJS_LOGIC_HZ/);
   assert.deepEqual(parseTimingConfig({ PMJS_LOGIC_HZ: '60' }).logicHz, 60);
 });
-// Uncapped drawing only pays above 60 Hz (Karryn's Prison on a 165 Hz screen); at 60 Hz it is
-// paced with vsync, as before, to save power. An unknown rate counts as fast.
-test('unset render rate follows the display: uncapped above 60 Hz, paced at 60 Hz', () => {
+// Drawing every refresh only pays above 60 Hz (Karryn's Prison on a 165 Hz screen); at 60 Hz it is
+// paced, as before. An unknown rate counts as fast.
+test('unset render rate follows the display: every refresh above 60 Hz, paced at 60 Hz', () => {
   assert.equal(parseTimingConfig({}, 165).uncapped, true);
   assert.equal(parseTimingConfig({}, 0).uncapped, true);
   assert.deepEqual(parseTimingConfig({}, 60), { logicHz: 60, renderHz: 60,
     uncapped: false, renderPeriod: 1000 / 60, catchupMode: 'burst' });
   assert.equal(parseTimingConfig({}, 59).renderHz, 60);
   assert.equal(parseTimingConfig({ PMJS_RENDER_HZ: '0' }, 60).uncapped, true, 'a set rate wins');
-  assert.equal(resolveSwapDefault({}, parseTimingConfig({})), 'auto', 'the native side picks vsync');
   assert.equal(resolveSwapDefault({ PMJS_SWAP_INTERVAL: '1' }, parseTimingConfig({})), null);
+});
+// Without vsync, drawing as fast as it can redrew Karryn's Prison's title with a whole core; vsync
+// paces it to the screen (2%), and where vsync is refused the timer does.
+test('unset render rate draws with vsync, or paced to the screen without it', () => {
+  assert.equal(resolveSwapDefault({}, parseTimingConfig({})), '1');
+  assert.equal(resolveSwapDefault({ PMJS_SWAP_INTERVAL: 'auto' }, parseTimingConfig({})), null);
+  assert.deepEqual(parseTimingConfig({}, 165, false), { logicHz: 60, renderHz: 165,
+    uncapped: false, renderPeriod: 1000 / 165, catchupMode: 'burst' });
+  assert.equal(parseTimingConfig({}, 0, false).renderHz, 60, 'an unknown rate without vsync: 60');
+  assert.equal(parseTimingConfig({}, 60, false).renderHz, 60);
+  assert.equal(parseTimingConfig({ PMJS_UNCAPPED: '1' }, 165, false).uncapped, true, 'asked for');
+  assert.equal(parseTimingConfig({ PMJS_RENDER_HZ: '0' }, 165, false).uncapped, true, 'asked for');
 });
 test('uncapped render defaults the swap interval to 0 unless set', () => {
   const swap = env => resolveSwapDefault(env, parseTimingConfig(env));

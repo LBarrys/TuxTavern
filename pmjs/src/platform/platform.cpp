@@ -62,12 +62,12 @@ void printLoadedLibraries() {
   std::cout.flush();
 }
 
-// auto: no vsync above 60 Hz (or when the rate is unknown), where uncapped drawing is
-// smoother; vsync at 60 Hz or less, where it gains nothing and costs power.
-int swapIntervalFromEnvironment(int refreshRate) {
+// Unset or auto: vsync. Drawing faster than the screen refreshes shows nothing; without vsync a game
+// redraws as fast as it can, also while its window is hidden (Karryn's Prison's title took a whole
+// core, 2% with vsync). SDL's Wayland swap also drops a hidden window to a few frames a second.
+int swapIntervalFromEnvironment() {
   const char* value = std::getenv("PMJS_SWAP_INTERVAL");
-  if (!value || !*value) return 1;
-  if (std::string(value) == "auto") return refreshRate > 0 && refreshRate <= 61 ? 1 : 0;
+  if (!value || !*value || std::string(value) == "auto") return 1;
   char* end = nullptr;
   const long parsed = std::strtol(value, &end, 10);
   if (!end || *end != '\0' || parsed < -1 || parsed > 1) {
@@ -450,7 +450,7 @@ Platform::Platform(int width, int height, std::string title) {
   SDL_DisplayMode mode{};
   const int displayIndex = SDL_GetWindowDisplayIndex(window_);
   if (displayIndex >= 0 && SDL_GetCurrentDisplayMode(displayIndex, &mode) == 0) refreshRate_ = mode.refresh_rate;
-  requestedSwapInterval_ = swapIntervalFromEnvironment(refreshRate_);
+  requestedSwapInterval_ = swapIntervalFromEnvironment();
   const int swapResult = SDL_GL_SetSwapInterval(requestedSwapInterval_);
   swapIntervalAccepted_ = swapResult == 0;
   swapInterval_ = SDL_GL_GetSwapInterval();
