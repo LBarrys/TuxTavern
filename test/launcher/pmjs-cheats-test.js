@@ -423,6 +423,20 @@ karryn.setCooldown(7, 3);
 is('the rules stop clothing damage, cooldowns and desire requirements',
   [karryn._clothingDurability, karryn._cooldowns[7], karryn.kissingMouthDesireRequirement()], [200, 0, 0]);
 is('for Karryn alone', new Actor(2, 'Guard') instanceof Karryn, false);
+// RemtairyKarryn.js: tear her clothes and look again, until they are ruined.
+Object.assign(karryn, { _todayTriggeredNightMode: true, nightModeOff: 0 });
+Karryn.prototype.refreshNightModeSettings = function () {
+  if (this._todayTriggeredNightMode) { this.damageClothing(300); this.refreshNightModeSettings(); } else this.nightModeOff++;
+};
+karrynHooks(w);
+karryn.refreshNightModeSettings();
+is('night mode ends for the day with her clothes whole, instead of recursing (Karryn\'s Prison)',
+  [karryn.nightModeOff, karryn._clothingDurability], [1, 200]);
+karryn._todayTriggeredNightMode = true;
+karryn.damageClothing(50);
+is('and clothing damage outside it leaves the day alone',
+  [karryn._clothingDurability, karryn._todayTriggeredNightMode], [200, true]);
+karryn._todayTriggeredNightMode = false;
 to('No clothing damage');
 frame('ok');
 karryn.damageClothing(50);
