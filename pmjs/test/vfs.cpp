@@ -262,6 +262,29 @@ int main() try {
   require(index < walk * 4.5, "indexing took " + std::to_string(index) + " ms against a " +
           std::to_string(walk) + " ms walk");
 #endif
+
+  // Files are read in one sized read (upstream 9c389ec). Empty, large and missing files read as
+  // before; an indexed file since replaced by a directory reads as missing, not as the empty
+  // text ifstream gave.
+  TemporaryDirectory bulkFixture("bulk");
+  write(bulkFixture.path() / "empty.bin", "");
+  std::string largeText(300U * 1024U, 0);
+  for (std::size_t i = 0; i < largeText.size(); ++i) largeText[i] = static_cast<char>((i * 131U + 17U) & 0xffU);
+  write(bulkFixture.path() / "large.bin", largeText);
+  write(bulkFixture.path() / "folder", "was a file");
+  pmjs::Vfs bulkVfs(bulkFixture.path());
+  std::filesystem::remove(bulkFixture.path() / "folder");
+  std::filesystem::create_directory(bulkFixture.path() / "folder");
+  require(!bulkVfs.readBytes("missing.bin") && !bulkVfs.readText("missing.bin"), "a missing file must read as missing");
+  const auto emptyBytes = bulkVfs.readBytes("empty.bin");
+  const auto emptyText = bulkVfs.readText("empty.bin");
+  require(emptyBytes && emptyBytes->empty() && emptyText && emptyText->empty(), "an empty file must read as empty");
+  const auto largeBytes = bulkVfs.readBytes("large.bin");
+  const auto largeRead = bulkVfs.readText("large.bin");
+  require(largeBytes && largeBytes->size() == largeText.size() &&
+          std::equal(largeBytes->begin(), largeBytes->end(), reinterpret_cast<const std::uint8_t*>(largeText.data())) &&
+          largeRead && *largeRead == largeText, "a large binary file must read whole");
+  require(!bulkVfs.readText("folder") && !bulkVfs.readBytes("folder"), "a directory must not read as a file");
   return 0;
 } catch (const std::exception& error) {
   std::cerr << error.what() << '\n';
