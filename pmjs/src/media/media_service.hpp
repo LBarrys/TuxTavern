@@ -32,7 +32,7 @@ struct AudioCacheStats {
   std::uint64_t encryptedLoads = 0;
   std::uint64_t preparations = 0, admissions = 0, evictions = 0, rejections = 0;
   std::uint64_t sampleLoads = 0, streamLoads = 0, prepareUs = 0, decoderOpenUs = 0;
-  std::uint64_t workerDecodeCalls = 0, workerDecodeUs = 0, workerCpuUs = 0;
+  std::uint64_t workerDecodeCalls = 0, workerDecodeUs = 0, workerCpuUs = 0, workerPasses = 0;
   std::size_t peakCacheBytes = 0, peakLivePcmBytes = 0;
 };
 

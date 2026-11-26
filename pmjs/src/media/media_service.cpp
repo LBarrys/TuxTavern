@@ -3,6 +3,7 @@
 #include <SDL.h>
 #include <algorithm>
 #include <atomic>
+#include <condition_variable>
 #include <chrono>
 #include <cmath>
 #include <deque>
@@ -68,7 +69,7 @@ struct MediaService::Impl {
     bool contextOwned = false;
     std::uint64_t producerFrame = 0, generation = 0;
     std::optional<double> requestedSeek;
-    bool decoding = false, emptyLoopRestart = false;
+    bool decoding = false, emptyLoopRestart = false, refilling = false;
     std::exception_ptr failure;
   };
 
@@ -106,6 +107,7 @@ struct MediaService::Impl {
   }
   ~Impl() {
     shuttingDown = true;
+    notifyWorker();
     if (worker.joinable()) worker.join();
     if (device) SDL_CloseAudioDevice(device);
   }
@@ -157,8 +159,10 @@ struct MediaService::Impl {
     }
   }
 
-  void fill(const std::shared_ptr<Voice>& voice) {
-    if (!voice->decoder) return;
+  // Whether it decoded. A stream is topped up once it is a chunk short, then filled to a second
+  // ahead, so steady playback decodes a few chunks a second instead of every callback's worth.
+  bool fill(const std::shared_ptr<Voice>& voice) {
+    if (!voice->decoder) return false;
     std::optional<double> seek;
     std::uint64_t generation;
     std::size_t wanted;
@@ -166,8 +170,10 @@ struct MediaService::Impl {
       std::lock_guard lock(voice->mutex);
       // Reclaim inactive stream storage on the worker, including fade-completed voices.
       if (!voice->mix.playing) voice->mix.samples.clear();
-      if (!voice->mix.playing || voice->mix.eof || voice->decoding ||
-          voice->mix.samples.size() / 2 >= bufferFrames) return;
+      const std::size_t buffered = voice->mix.samples.size() / 2;
+      if (buffered >= bufferFrames) voice->refilling = false;
+      else if (buffered + decodeFrames <= bufferFrames) voice->refilling = true;
+      if (!voice->mix.playing || voice->mix.eof || voice->decoding || !voice->refilling) return false;
       voice->decoding = true; generation = voice->generation;
       seek = voice->requestedSeek; voice->requestedSeek.reset();
       wanted = std::min(decodeFrames, bufferFrames - voice->mix.samples.size() / 2);
@@ -187,7 +193,7 @@ struct MediaService::Impl {
       {
         std::lock_guard lock(voice->mutex);
         voice->decoding = false;
-        if (generation != voice->generation || !voice->mix.playing) return;
+        if (generation != voice->generation || !voice->mix.playing) return true;
         if (!seeked || !error.empty()) throw std::runtime_error(
           error.empty() ? "audio seek failed" : error);
         std::size_t count = decoded.size() / 2;
@@ -215,22 +221,34 @@ struct MediaService::Impl {
       const auto failure = std::current_exception();
       std::lock_guard lock(voice->mutex);
       voice->decoding = false;
-      if (generation != voice->generation) return;
+      if (generation != voice->generation) return true;
       voice->failure = failure;
       voice->mix.playing = false;
       voice->mix.eof = true;
       voice->mix.samples.clear();
       voice->requestedSeek.reset();
     }
+    return true;
   }
+  // With nothing to decode the worker sleeps until play() wakes it, or 50 ms (a twentieth of the
+  // buffer); it polled every 2 ms, 500 wakeups a second with no sound playing.
   void decodeLoop() {
     std::vector<std::shared_ptr<Voice>> workerVoices;
     while (!shuttingDown && !serviceFailed) {
       snapshot(workerVoices, true);
-      for (const auto& voice : workerVoices) fill(voice);
+      bool decoded = false;
+      for (const auto& voice : workerVoices) decoded = fill(voice) || decoded;
       workerVoices.clear();
-      std::this_thread::sleep_for(std::chrono::milliseconds(2));
+      workerPasses.fetch_add(1, std::memory_order_relaxed);
+      std::unique_lock lock(wakeMutex);
+      wake.wait_for(lock, std::chrono::milliseconds(decoded ? 2 : 50),
+                    [this] { return woken || shuttingDown; });
+      woken = false;
     }
+  }
+  void notifyWorker() {
+    { std::lock_guard lock(wakeMutex); woken = true; }
+    wake.notify_one();
   }
   struct CachedAsset {
     std::shared_ptr<const PreparedAudioAsset> asset;
@@ -360,6 +378,10 @@ struct MediaService::Impl {
   std::vector<std::shared_ptr<Voice>> callbackVoices;
   std::uint32_t nextHandle = 1;
   std::atomic<bool> shuttingDown{false}, serviceFailed{false};
+  std::mutex wakeMutex;
+  std::condition_variable wake;
+  bool woken = false;
+  std::atomic<std::uint64_t> workerPasses{0};
   std::exception_ptr serviceFailure;
   std::atomic<float> masterVolume{1.0F};
   std::thread worker;
@@ -445,6 +467,7 @@ AudioCacheStats MediaService::audioCacheStats() const {
   stats.workerDecodeCalls = impl_->workerDecodeCalls.load(std::memory_order_relaxed);
   stats.workerDecodeUs = impl_->workerDecodeUs.load(std::memory_order_relaxed);
   stats.workerCpuUs = impl_->workerCpuUs.load(std::memory_order_relaxed);
+  stats.workerPasses = impl_->workerPasses.load(std::memory_order_relaxed);
   return stats;
 }
 void MediaService::setPreparedAudioPolicyForTesting(PreparedAudioPolicy policy) {
@@ -487,6 +510,8 @@ bool MediaService::play(std::uint32_t handle, bool loop, double offset) {
   voice->mix.loop = loop; voice->mix.eof = !!voice->mix.asset; voice->mix.playing = impl_->device != 0;
   voice->mix.gain = 1.0F; voice->mix.targetGain = 1.0F; voice->mix.gainStep = 0.0F;
   voice->mix.stopAfterFade = false;
+  voice->refilling = true;
+  if (!voice->mix.asset) impl_->notifyWorker();
   return impl_->device != 0;
 }
 bool MediaService::setSuspended(std::uint32_t handle, bool suspended) {
