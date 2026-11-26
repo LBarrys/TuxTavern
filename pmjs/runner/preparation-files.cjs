@@ -33,6 +33,9 @@ async function preparationFiles(directory, verifyHashes = false) {
   const files = {}, known = new Map(), jsonValues = new Map(), filesystemTypes = new Map();
   const stats = { hashedFiles: 0, hashedBytes: 0, reusedFiles: 0, jsonReads: 0, jsonReuses: 0 };
   const identity = fileIdentity;
+  // One 256 KiB buffer, reused between hashes, reads a file in a quarter of a stream's calls. A
+  // concurrent hash takes its own while this one is lent out.
+  let readBuffer;
   // FUSE file systems (sshfs, rclone) may number inodes afresh on each mount; there a receipt
   // still holds when everything but the inode matches.
   function matchesReceipt(receipt, signature, file, stat) {
@@ -63,9 +66,21 @@ async function preparationFiles(directory, verifyHashes = false) {
     else {
       const hasher = crypto.createHash('sha256');
       header = Buffer.alloc(0);
-      for await (const chunk of fs.createReadStream(file)) {
-        hasher.update(chunk);
-        if (header.length < 32) header = Buffer.concat([header, chunk.subarray(0, 32 - header.length)]);
+      const buffer = readBuffer || Buffer.allocUnsafe(256 * 1024);
+      readBuffer = undefined;
+      let handle;
+      try {
+        handle = await fsp.open(file, 'r');
+        for (;;) {
+          const { bytesRead } = await handle.read(buffer, 0, buffer.length, null);
+          if (!bytesRead) break;
+          const chunk = buffer.subarray(0, bytesRead);
+          hasher.update(chunk);
+          if (header.length < 32) header = Buffer.concat([header, chunk.subarray(0, 32 - header.length)]);
+        }
+      } finally {
+        try { await handle?.close(); }
+        finally { readBuffer ||= buffer; }
       }
       checksum = hasher.digest('hex');
       ++stats.hashedFiles; stats.hashedBytes += Number(before.size);
