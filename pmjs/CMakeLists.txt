@@ -235,6 +235,9 @@ if(BUILD_TESTING)
     PMJS_NATIVE_ADDON=$<TARGET_FILE:pmjs_native>
     ${NODE_EXECUTABLE} --test ${CMAKE_CURRENT_SOURCE_DIR}/test/node-async-loading.cjs)
   pmjs_add_cpp_test(pmjs-checked-bounds-test native-checked-bounds test/checked-bounds.cpp)
+  add_test(NAME node-prepared-page-encoding COMMAND ${XVFB_RUN} -a ${NODE_EXECUTABLE}
+    "${CMAKE_CURRENT_SOURCE_DIR}/test/node-prepared-page-encoding.cjs" $<TARGET_FILE:pmjs_native>)
+  set_tests_properties(node-prepared-page-encoding PROPERTIES ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;SDL_AUDIODRIVER=dummy")
   add_test(NAME node-prepared-wide-image COMMAND ${XVFB_RUN} -a ${NODE_EXECUTABLE}
     "${CMAKE_CURRENT_SOURCE_DIR}/test/node-prepared-wide-image.cjs" $<TARGET_FILE:pmjs_native>)
   set_tests_properties(node-prepared-wide-image PROPERTIES ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;SDL_AUDIODRIVER=dummy")

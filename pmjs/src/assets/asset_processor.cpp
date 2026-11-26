@@ -387,6 +387,8 @@ void writePng(const std::filesystem::path& path, int width, int height,
   }
   png_image image{};
   image.version = PNG_IMAGE_VERSION;
+  // Pages are read back at once: unfiltered rows at a low compression level are much faster to write.
+  image.flags |= PNG_IMAGE_FLAG_FAST;
   image.width = static_cast<png_uint_32>(width);
   image.height = static_cast<png_uint_32>(height);
   image.format = indexed ? PNG_FORMAT_RGBA_COLORMAP : PNG_FORMAT_RGBA;
