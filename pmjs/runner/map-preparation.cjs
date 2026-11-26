@@ -79,14 +79,19 @@ async function validateEntry(directory, key, files) {
   } catch (_) { return null; }
 }
 
-function gameInputs(native, virtualFiles) {
+function gameInputs(native, virtualFiles, verifyHashes = false) {
+  // A Tiled tileset shared by many maps is parsed once per phase while its source is unchanged;
+  // strict verification rereads it for each map (upstream ef9f41a).
+  const parsedInputs = new Map();
   if (!native.fs || typeof native.fs.readBytes !== 'function' || typeof native.fs.readDirectory !== 'function')
     throw new Error('game filesystem unavailable for map preparation');
   function resolve(logical) {
     return resolveFileOverride(logical, virtualFiles.overrides || {}, source => native.fs.exists(source)) || logical;
   }
   function read(logical) {
-    logical = resolve(logical);
+    return readResolved(resolve(logical));
+  }
+  function readResolved(logical) {
     const file = native.assets.sourcePath(logical), sourceIdentity = native.assets.sourceIdentity(logical);
     const contents = native.fs.readBytes(logical);
     if (!file || contents === null) throw new Error('missing game input '+logical);
@@ -96,7 +101,27 @@ function gameInputs(native, virtualFiles) {
       throw new Error('game input changed while reading '+logical);
     return { bytes, dependency: { logical, file, sourceIdentity: capturedIdentity, hash: hash(bytes) } };
   }
-  return { read, exists: logical => native.fs.exists(resolve(logical)),
+  function readJson(logical) {
+    logical = resolve(logical);
+    const file = native.assets.sourcePath(logical), sourceIdentity = native.assets.sourceIdentity(logical);
+    const cached = parsedInputs.get(file);
+    if (!verifyHashes && sourceIdentity && cached && cached.dependency.sourceIdentity === sourceIdentity)
+      return { value: cached.value, dependency: { ...cached.dependency, logical } };
+    const { bytes, dependency } = readResolved(logical), value = JSON.parse(bytes);
+    if (!verifyHashes) {
+      // Shared between maps, so frozen: one map's merge must not change the next one's tileset.
+      const pending = [value];
+      while (pending.length) {
+        const item = pending.pop();
+        if (!item || typeof item !== 'object') continue;
+        for (const child of Object.values(item)) if (child && typeof child === 'object') pending.push(child);
+        Object.freeze(item);
+      }
+      parsedInputs.set(dependency.file, { value, dependency });
+    }
+    return { value, dependency: { ...dependency } };
+  }
+  return { read, readJson, exists: logical => native.fs.exists(resolve(logical)),
     directory: logical => native.fs.readDirectory(logical) || [] };
 }
 async function engineContract(game, mz) {
@@ -116,13 +141,13 @@ async function engineContract(game, mz) {
   return { Tilemap: engineTilemap(source, mz), dependencies, identity: { engine: hash(source), plugins } };
 }
 async function resolveTiled(game, map) {
-  const clone = structuredClone(map), dependencies = [];
-  for (const tileset of clone.tilesets || []) if (tileset.source) {
-    const { bytes, dependency } = game.read('maps/'+path.posix.basename(tileset.source.replaceAll('\\', '/')));
+  const dependencies = [];
+  for (const tileset of map.tilesets || []) if (tileset.source) {
+    const { value, dependency } = game.readJson('maps/'+path.posix.basename(tileset.source.replaceAll('\\', '/')));
     dependencies.push(dependency);
-    Object.assign(tileset, JSON.parse(bytes));
+    Object.assign(tileset, value);
   }
-  return { map: clone, dependencies };
+  return { map, dependencies };
 }
 async function ordinaryUpperBound(inputs, renderer, files) {
   if (renderer === 'mz') return inputs.length * 1024 * 1024 * 4;
@@ -236,7 +261,7 @@ async function prepareMaps({ gameRoot, cacheRoot, native, width = 816, height = 
       if (shouldCancel()) { result.cancelled = true; return result; }
     }
     report('discover', '', 0, 0);
-    const game = gameInputs(native, virtualFiles), mz = game.exists('js/rmmz_core.js');
+    const game = gameInputs(native, virtualFiles, verifyHashes), mz = game.exists('js/rmmz_core.js');
     const systemInput = game.read('data/System.json'), sheetsInput = game.read('data/Tilesets.json');
     const system = JSON.parse(systemInput.bytes), sheets = JSON.parse(sheetsInput.bytes);
     const contract = await engineContract(game, mz);
