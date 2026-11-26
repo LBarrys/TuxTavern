@@ -23,6 +23,12 @@ const stubs = {
 case $1 in
 --print-arch) echo x86_64 ;;
 list) [ ! -f /var/lib/installed ] || echo "tuxtavern-$(cat /var/lib/installed) x86_64 {tuxtavern} (MIT) [installed]" ;;
+# An installed TuxTavern built against older libraries (Ruby 3.4) keeps the newer build packages
+# (ruby-dev 4.0) out until it is removed.
+add) case "$*" in *"--virtual .tuxtavern-build"*)
+    [ ! -f /var/lib/pinned ] || [ ! -f /var/lib/installed ] || { echo "ERROR: unable to select packages" >&2; exit 1; } ;;
+  esac ;;
+del) [ "$*" != "del -q tuxtavern" ] || rm -f /var/lib/installed ;;
 mkpkg) while [ $# -gt 0 ]; do
     case $1 in --files) cp "$2/usr/bin/tt" /var/lib/wrapper ;; --output) : > "$2" ;; esac
     shift
@@ -34,7 +40,7 @@ esac`,
 while [ $# -gt 1 ]; do [ "$1" != -out ] || echo key > "$2"; shift; done`
 };
 
-function run(root, installed) {
+function run(root, installed, pinned = false, status = 0) {
   const log = path.join(root, 'log');
   fs.writeFileSync(log, '');
   const setup = ['/etc/apk', '/root', '/var/lib', '/var/tmp']
@@ -42,11 +48,12 @@ function run(root, installed) {
   const state = path.join(root, 'state');
   const result = spawnSync('unshare', ['-m', 'sh', '-c', `mount --make-rprivate / && ${setup} &&
     mkdir -p /etc/apk/keys && cp -a ${state}/. / 2>/dev/null; ${installed ? `echo ${installed} > /var/lib/installed;` : ''}
+    ${pinned ? 'touch /var/lib/pinned;' : ''}
     sh ${script}; status=$?; rm -rf ${state}; mkdir -p ${state}/etc ${state}/root ${state}/var;
     cp -a /etc/apk ${state}/etc/; cp -a /root/. ${state}/root/; cp -a /var/lib /var/tmp ${state}/var/; exit $status`],
   { env: { ...process.env, LOG: log, PATH: `${root}/bin:${process.env.PATH}` }, encoding: 'utf8' });
-  assert.equal(result.status, 0, result.stderr);
-  return { calls: fs.readFileSync(log, 'utf8').trim().split('\n'), state };
+  assert.equal(result.status, status, result.stderr);
+  return { calls: fs.readFileSync(log, 'utf8').trim().split('\n'), state, stderr: result.stderr };
 }
 
 test('apk.sh asks for SDL2 build files by what they provide, so sdl2-compat systems can build', () => {
@@ -117,3 +124,29 @@ test('apk.sh -r builds mkxp-z with Alpine\'s Ruby, and only with Alpine\'s libra
   assert.equal(bundled.status, 1);
   assert.match(bundled.stderr, /-r builds mkxp-z with Alpine's libraries, so not with -M/);
 });
+
+test('apk.sh removes an installed TuxTavern whose libraries keep the build packages out, and rebuilds it',
+  { skip: !usable && 'needs Alpine, root and unshare' }, () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tuxtavern-apk-'));
+    fs.mkdirSync(path.join(root, 'bin'));
+    fs.mkdirSync(path.join(root, 'state', 'etc', 'apk'), { recursive: true });
+    for (const [name, body] of Object.entries(stubs))
+      fs.writeFileSync(path.join(root, 'bin', name), '#!/bin/sh\n' + body + '\n', { mode: 0o755 });
+    // Alpine moved from Ruby 3.4 to 4.0; the installed package needs libruby.so.3.4.
+    const pinned = run(root, '0.1.0_git20261122-r0', true);
+    const adds = pinned.calls.filter(call => call.startsWith('apk add -q --virtual .tuxtavern-build'));
+    assert.equal(adds.length, 2, 'the build packages are asked for again');
+    const del = pinned.calls.indexOf('apk del -q tuxtavern');
+    assert.ok(del > pinned.calls.indexOf(adds[0]) && del < pinned.calls.lastIndexOf(adds[1]), 'after the first refusal');
+    assert.match(pinned.stderr, /removed tuxtavern 0\.1\.0_git20261122-r0/);
+    assert.ok(pinned.calls.includes('apk add -u tuxtavern@busylinux'), 'and the new build is installed');
+    // Without TuxTavern installed, a refusal is the system's own and stays an error.
+    fs.rmSync(path.join(root, 'state'), { recursive: true });
+    fs.mkdirSync(path.join(root, 'state', 'etc', 'apk'), { recursive: true });
+    const stub = path.join(root, 'bin', 'apk');
+    fs.writeFileSync(stub, fs.readFileSync(stub, 'utf8').replace('[ ! -f /var/lib/pinned ] || [ ! -f /var/lib/installed ] ||', ''));
+    const refused = run(root, null, false, 1);
+    assert.ok(!refused.calls.includes('apk del -q tuxtavern'));
+    assert.match(refused.stderr, /could not install/);
+    fs.rmSync(root, { recursive: true });
+  });

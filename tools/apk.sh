@@ -44,8 +44,15 @@ release=0
 case $installed in "$version"-r*) release=$((${installed##*-r} + 1)) ;; esac
 
 trap 'apk del -q .tuxtavern-build 2>/dev/null || :; rm -rf "$WORK"' EXIT
+# The installed package depends on the libraries it was built with (libruby.so.3.4). When Alpine
+# moves on (Ruby 4.0), those keep the new build packages out, so it goes and is rebuilt here.
 # shellcheck disable=SC2086
-apk add -q --virtual .tuxtavern-build $makedepends || die "could not install $makedepends"
+if ! apk add -q --virtual .tuxtavern-build $makedepends; then
+	if [ -z "$installed" ] || ! apk del -q tuxtavern || ! apk add -q --virtual .tuxtavern-build $makedepends; then
+		die "could not install $makedepends"
+	fi
+	printf 'apk.sh: removed tuxtavern %s, built against libraries Alpine has replaced; if this build fails, run apk.sh again\n' "$installed" >&2
+fi
 if [ ! -f "$KEY" ]; then
 	mkdir -p "${KEY%/*}"
 	openssl genrsa -out "$KEY" 4096 2>/dev/null
