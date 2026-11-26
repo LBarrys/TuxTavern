@@ -16,9 +16,11 @@
     ]);
     var predecessor = rounded && globalThis.Yanfly && Yanfly.Core && Yanfly.Core.Bitmap_blt;
     var baseBlt = rounded ? predecessor : blt;
-    var engineBlt = typeof _Bitmap_blt === 'function' ? _Bitmap_blt : null;
-    var nativeBlt = PMJS.methods.matchesSource(baseBlt,
-      '68ab7f2fcb76a7f80eb348b7e5694dcc25e986fab28e373a05710b1c27a74f58') &&
+    // PMJS's own blt wrapper is known by identity, not by a hash of its source, so editing
+    // bitmap.js cannot quietly turn native frames off (upstream 1b1671b).
+    var ownedBlt = PMJS.mv && PMJS.mv.bitmap && PMJS.mv.bitmap.blt;
+    var engineBlt = ownedBlt && ownedBlt.predecessor;
+    var nativeBlt = ownedBlt && baseBlt === ownedBlt.installed &&
       PMJS.methods.matchesSource(engineBlt, stockBlt);
     if (!PMJS.methods.matchesSource(original, [
       '304170bef387f46d3bdf26c7955162f6ef3270d5fed52ad5b0011d02ca1f9026',
@@ -37,7 +39,8 @@
     Window.prototype._refreshFrame = function() {
       var w = this._width, h = this._height, skin = this._windowskin;
       if (!Number.isFinite(w) || !Number.isFinite(h) || w < 48 || h < 48 ||
-          !skin || skin.width < 192 || skin.height < 96 || Bitmap.prototype.blt !== blt || nativeBlt && _Bitmap_blt !== engineBlt ||
+          !skin || skin.width < 192 || skin.height < 96 || Bitmap.prototype.blt !== blt ||
+          nativeBlt && (PMJS.mv.bitmap.blt !== ownedBlt || ownedBlt.predecessor !== engineBlt || _Bitmap_blt !== engineBlt) ||
           rounded && (!globalThis.Yanfly || !Yanfly.Core || Yanfly.Core.Bitmap_blt !== predecessor)) {
         counters.fallbacks++; return original.apply(this, arguments);
       }
