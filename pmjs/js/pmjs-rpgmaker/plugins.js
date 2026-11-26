@@ -11,6 +11,7 @@
   var interceptors = Object.create(null);
   var finished = false;
   var bootError = null;
+  var bootFailed = false;
   var optimizationRequirements = [];
 
   // By file name: MZ loads js/plugins/MOD/X.js as X, while the manifest says MOD/X.
@@ -108,7 +109,8 @@
   }
 
   function boot(installManagerHooks, afterPlugins) {
-    if (bootError) throw bootError;
+    // Rethrown whatever was thrown, a falsy value too (upstream 1b1671b).
+    if (bootFailed) throw bootError;
     try {
       installManagerHooks();
       PMJS.phases.emit('beforePlugins');
@@ -126,6 +128,7 @@
       if (typeof nativeBootPhase === 'function') nativeBootPhase('plugins-loaded');
     } catch (error) {
       bootError = error;
+      bootFailed = true;
       throw error;
     }
   }

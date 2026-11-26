@@ -11,7 +11,8 @@
       owner = 'anonymous';
     }
     if (typeof callback !== 'function') return;
-    if (failures[name]) throw failures[name];
+    // A phase that threw 0, false, null or '' stays failed with that value (upstream 1b1671b).
+    if (Object.hasOwn(failures, name)) throw failures[name];
     if (fired[name]) {
       try { callback(); } catch (error) {
         console.error('[pmjs] error running late phase ' + name +
@@ -27,7 +28,8 @@
   }
 
   function emit(name) {
-    if (failures[name]) throw failures[name];
+    // A phase that threw 0, false, null or '' stays failed with that value (upstream 1b1671b).
+    if (Object.hasOwn(failures, name)) throw failures[name];
     if (fired[name]) return false;
     fired[name] = true;
     var entries = registry[name] || [];

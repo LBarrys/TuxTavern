@@ -291,3 +291,21 @@ test('source transforms compose from the inner loader outward (upstream a4fc1cf)
   ctx.PMJS.plugins.interceptLoad('Other', 'bad', next => next('not a function'));
   assert.throws(() => ctx.PMJS.plugins.loadScript('Other', 'Other.js', () => {}), /must be a function/);
 });
+
+// A plugin that throws a falsy value (0, false, null, '') during a phase or boot leaves PMJS
+// failed with that value, as for any other error (upstream 1b1671b).
+for (const value of [0, false, null, undefined, '']) {
+  test('lifecycle and plugin boot keep a thrown ' + JSON.stringify(value === undefined ? 'undefined' : value), () => {
+    const ctx = loadPmjsRuntime({ console: { error() {} } });
+    const throwsValue = fn => assert.throws(fn, error => Object.is(error, value));
+    ctx.PMJS.phases.on('fixture', () => { throw value; });
+    throwsValue(() => ctx.PMJS.phases.emit('fixture'));
+    throwsValue(() => ctx.PMJS.phases.emit('fixture'));
+    throwsValue(() => ctx.PMJS.phases.on('fixture', () => assert.fail('late listener ran')));
+    let attempts = 0;
+    const boot = () => ctx.pmjsInitializeRpgMakerPlugins(() => { attempts++; throw value; });
+    throwsValue(boot);
+    throwsValue(boot);
+    assert.equal(attempts, 1);
+  });
+}
