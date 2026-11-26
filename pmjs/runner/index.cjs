@@ -488,7 +488,9 @@ async function prepareStartupAssets(options, native) {
     console.log(`[pmjs] preparation event=finish status=${preparationStatus} duration_ms=${(performance.now() - preparationStarted).toFixed(1)}`);
   }
   if (preparationFailed) throw preparationError;
-  return { preparation, cancelled,
+  // Counts only: run() lasts the whole game, and the entries it kept held Karryn's Prison's
+  // 19,520-image catalog (about 90 MB of heap) after the native side had installed it.
+  return { stats: summarizePreparation(preparation), cancelled: cancelled || !!preparation.cancelled,
     invalidateImages: preparation.invalidateCatalog,
     invalidateMaps: preparation.maps && preparation.maps.invalidateCatalog };
 }
@@ -564,8 +566,8 @@ async function run(input) {
       const startup = await prepareStartupAssets(options, native);
       invalidateImages = startup.invalidateImages;
       invalidateMaps = startup.invalidateMaps;
-      native.assets.preparationStats = summarizePreparation(startup.preparation);
-      if (startup.cancelled || startup.preparation.cancelled) { native.runtime.quit(); return; }
+      native.assets.preparationStats = startup.stats;
+      if (startup.cancelled) { native.runtime.quit(); return; }
       memoryReclaimer.atBoundary('startup');
     } else if (native.assets && typeof native.assets.installPrepared === 'function') {
       native.assets.installPrepared([]);

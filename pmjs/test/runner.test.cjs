@@ -193,6 +193,41 @@ test('runner logs cold and validated warm preparation before boot and includes t
   assert.ok(lines.some(line => line.includes('preparation event=finish status=failed')));
 });
 
+// run() lasts the whole game: the preparation result it kept held every catalog entry after the
+// native side had installed them (Karryn's Prison: 19,520 images, about 90 MB of heap).
+test('installed preparation entries are not kept while the game runs', () => {
+  const options = fixture('NativeHost.input.checkBoot(); globalThis.__pmjsTick=()=>{}; globalThis.__pmjsRender=()=>{};');
+  options.mapPreparation = 'off';
+  fs.mkdirSync(path.join(options.gameRoot, 'img/pictures'), { recursive: true });
+  fs.writeFileSync(path.join(options.gameRoot, 'img/pictures/test.png'),
+    Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLttAAAAABJRU5ErkJggg==', 'base64'));
+  const runner = JSON.stringify(path.resolve(__dirname, '../runner/index.cjs'));
+  const output = childProcess.execFileSync(process.execPath, ['--expose-gc', '-e', `
+    const assert = require('node:assert/strict');
+    const collect = globalThis.gc, log = console.log;
+    const { run } = require(${runner});
+    const options = ${JSON.stringify(options)};
+    const host = require(options.addon);
+    host.assets.processImage = async () => null;
+    let entries, booted = false, polls = 0, kept;
+    host.assets.installPrepared = list => { entries = new WeakRef(list); return 0; };
+    host.input.checkBoot = () => { booted = true; };
+    host.pollEvents = () => {
+      if (!booted) return true;
+      if (++polls === 2) collect();
+      if (polls < 3) return true;
+      kept = entries.deref() !== undefined;
+      return false;
+    };
+    console.log = () => {};
+    run(options).then(() => {
+      assert.ok(entries, 'preparation installed its entries');
+      assert.equal(kept, false, 'the entries outlive their installation');
+      log('released');
+    }, error => { log(String(error)); process.exitCode = 1; });
+  `], { encoding: 'utf8' });
+  assert.match(output, /released/);
+});
 test('CLI parses the documented options including --config', () => {
   const value = parse(['--addon','a','--game-root','g','--bootstrap','b','--save-root','s',
     '--config','my-config.json','--width','640','--height','480','--image-warm-cache-bytes','1024',
