@@ -748,7 +748,7 @@
     filterDepth -= encodedFilters.length;
   }
 
-  function render(stage, backgroundColor, resolution, size, renderer, skipUpdateTransform, sceneProjection, prepared) {
+  function encode(stage, backgroundColor, resolution, size, renderer, skipUpdateTransform, sceneProjection, prepared) {
     if (!skipUpdateTransform && typeof stage.updateTransform === 'function') {
       var previousParent = stage.parent;
       stage.parent = stage._tempDisplayObjectParent;
@@ -785,6 +785,39 @@
     }
     if (NativeHost.scene.submit(packetVersion, metadata, values, count) === false) {
       throw new Error('native Pixi 5 scene submission rejected');
+    }
+  }
+
+  // A render started while another is being encoded (a plugin rendering to a texture from an
+  // updateTransform or calculateVertices) gets its own packet; the outer one's records and state
+  // come back afterwards, also when the inner render throws (upstream 1b1671b).
+  var encodingDepth = 0;
+  function render() {
+    var previous = encodingDepth ? {
+      capacity: capacity, metadata: metadata, values: values, count: count, drawCount: drawCount,
+      filterDepth: filterDepth, holeGroup: holeGroup, projection: projection,
+      renderResolution: renderResolution, renderOwner: renderOwner, viewport: viewport,
+      filterTargets: filterTargets, preparedSprites: preparedSprites,
+      renderStage: renderStage, skipTransformUpdate: skipTransformUpdate
+    } : null;
+    encodingDepth++;
+    try {
+      if (previous) {
+        capacity = 512;
+        metadata = new Uint32Array(capacity * metadataStride);
+        values = new Float32Array(capacity * valueStride);
+      }
+      return encode.apply(this, arguments);
+    } finally {
+      encodingDepth--;
+      if (previous) {
+        capacity = previous.capacity; metadata = previous.metadata; values = previous.values;
+        count = previous.count; drawCount = previous.drawCount; filterDepth = previous.filterDepth;
+        holeGroup = previous.holeGroup; projection = previous.projection;
+        renderResolution = previous.renderResolution; renderOwner = previous.renderOwner; viewport = previous.viewport;
+        filterTargets = previous.filterTargets; preparedSprites = previous.preparedSprites;
+        renderStage = previous.renderStage; skipTransformUpdate = previous.skipTransformUpdate;
+      }
     }
   }
 
