@@ -7,8 +7,10 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
+#include <memory>
 #include <stdexcept>
 #include <string>
+#include <type_traits>
 #include <unordered_set>
 
 namespace pmjs {
@@ -651,6 +653,10 @@ std::uint32_t Renderer::createOrdinaryTileLayer(std::vector<TileLayerTile> tiles
   constexpr std::size_t kMaxTileCount = 65536U;
   if (tiles.empty() || tiles.size() > kMaxTileCount) return 0;
   TileLayerResource layer;
+  const auto cleanup = [this](TileLayerResource* resource) {
+    releaseTileLayerResource(*resource);
+  };
+  std::unique_ptr<TileLayerResource, decltype(cleanup)> construction(&layer, cleanup);
   layer.nearestTileGeometry = nearestTileShader_ && nearestTileGeometry(tiles);
   layer.nearestTileMapping = layer.nearestTileGeometry;
   std::unordered_map<ImageHandle, ImageInfo> imageInfo;
@@ -667,7 +673,6 @@ std::uint32_t Renderer::createOrdinaryTileLayer(std::vector<TileLayerTile> tiles
   layer.images.reserve(imageInfo.size());
   for (const auto& [image, _] : imageInfo) {
     if (!images_.retain(image)) {
-      for (const auto retained : layer.images) images_.release(retained);
       return 0;
     }
     layer.images.push_back(image);
@@ -721,9 +726,7 @@ std::uint32_t Renderer::createOrdinaryTileLayer(std::vector<TileLayerTile> tiles
                static_cast<GLsizeiptr>(vertices.size() * sizeof(float)),
                vertices.data(), GL_STATIC_DRAW);
   if (glGetError() != GL_NO_ERROR) {
-    glDeleteBuffers(1, &layer.vertexBuffer); glDeleteVertexArrays(1, &layer.vertexArray);
     glBindVertexArray(vertexArray_);
-    for (const auto image : layer.images) images_.release(image);
     return 0;
   }
   layer.vertexBytes = vertices.size()*sizeof(float);
@@ -741,7 +744,11 @@ std::uint32_t Renderer::createOrdinaryTileLayer(std::vector<TileLayerTile> tiles
   glBindVertexArray(vertexArray_);
   if (diagnostics_) ++stats_.bufferUploads;
   const std::uint32_t handle = nextTileLayer_++;
-  tileLayers_.emplace(handle, std::move(layer));
+  static_assert(std::is_nothrow_move_assignable_v<TileLayerResource>);
+  const auto [entry, inserted] = tileLayers_.try_emplace(handle);
+  if (!inserted) return 0;
+  entry->second = std::move(layer);
+  construction.release();
   return handle;
 }
 
@@ -751,11 +758,15 @@ std::uint32_t Renderer::createTileLayer(std::vector<TileLayerTile> tiles) {
   constexpr std::size_t kMaxTileCount = 65536U;
   if (tiles.empty() || tiles.size() > kMaxTileCount) return 0;
   TileLayerResource layer;
+  const auto cleanup = [this](TileLayerResource* resource) {
+    releaseTileLayerResource(*resource);
+  };
+  std::unique_ptr<TileLayerResource, decltype(cleanup)> construction(&layer, cleanup);
   layer.nearestTileGeometry = nearestTileShader_ && nearestTileGeometry(tiles);
+  layer.images.reserve(tiles.size());
   for (const auto& tile : tiles) {
     if (std::find(layer.images.begin(), layer.images.end(), tile.image) != layer.images.end()) continue;
     if (!images_.inspect(tile.image) || !images_.retain(tile.image)) {
-      for (const auto image : layer.images) images_.release(image);
       return 0;
     }
     layer.images.push_back(tile.image);
@@ -784,7 +795,11 @@ std::uint32_t Renderer::createTileLayer(std::vector<TileLayerTile> tiles) {
   glBindVertexArray(vertexArray_);
   // Sampling is chosen at submission, before ordinary lookup can materialize a full sheet.
   const auto handle = nextTileLayer_++;
-  tileLayers_.emplace(handle, std::move(layer));
+  static_assert(std::is_nothrow_move_assignable_v<TileLayerResource>);
+  const auto [entry, inserted] = tileLayers_.try_emplace(handle);
+  if (!inserted) return 0;
+  entry->second = std::move(layer);
+  construction.release();
   return handle;
 }
 
@@ -812,6 +827,10 @@ std::uint32_t Renderer::createMesh(
         bounds[3] < bounds[1] || bounds[2] >= info->width || bounds[3] >= info->height) return 0;
   }
   TileLayerResource mesh;
+  const auto cleanup = [this](TileLayerResource* resource) {
+    releaseTileLayerResource(*resource);
+  };
+  std::unique_ptr<TileLayerResource, decltype(cleanup)> construction(&mesh, cleanup);
   mesh.material = material;
   if (std::holds_alternative<TriangleBitmapMaterial>(material) && positions.size() == 8 &&
       positions[1] == positions[3] && positions[2] == positions[4] &&
@@ -827,6 +846,7 @@ std::uint32_t Renderer::createMesh(
     mesh.triangleSourceMappingEnabled = std::all_of(mesh.triangleSourceMapping.begin(),
       mesh.triangleSourceMapping.end(), [](float value) { return std::isfinite(value); });
   }
+  mesh.images.reserve(2);
   if (!images_.retain(image)) return 0;
   mesh.images.push_back(image);
   std::vector<std::uint32_t> triangles;
@@ -843,7 +863,6 @@ std::uint32_t Renderer::createMesh(
     }
   } else {
     if (indices.size() % 3 != 0) {
-      images_.release(image);
       return 0;
     }
     triangles = indices;
@@ -853,7 +872,6 @@ std::uint32_t Renderer::createMesh(
   for (const auto vertex : triangles) {
     const std::size_t offset = static_cast<std::size_t>(vertex) * 2U;
     if (offset + 1 >= positions.size()) {
-      images_.release(image);
       return 0;
     }
     vertices.insert(vertices.end(), {
@@ -881,16 +899,17 @@ std::uint32_t Renderer::createMesh(
   glBindVertexArray(vertexArray_);
   const auto meshError = glGetError();
   if (!mesh.vertexArray || !mesh.vertexBuffer || meshError != GL_NO_ERROR) {
-    if (mesh.vertexBuffer) glDeleteBuffers(1, &mesh.vertexBuffer);
-    if (mesh.vertexArray) glDeleteVertexArrays(1, &mesh.vertexArray);
-    for (const auto retained : mesh.images) images_.release(retained);
     return 0;
   }
   mesh.batches.push_back({info->texture, info->width, info->height, 0,
                           static_cast<std::int32_t>(triangles.size()), info->premultiplied, image});
   if (diagnostics_) ++stats_.bufferUploads;
   const std::uint32_t handle = nextTileLayer_++;
-  tileLayers_.emplace(handle, std::move(mesh));
+  static_assert(std::is_nothrow_move_assignable_v<TileLayerResource>);
+  const auto [entry, inserted] = tileLayers_.try_emplace(handle);
+  if (!inserted) return 0;
+  entry->second = std::move(mesh);
+  construction.release();
   return handle;
 }
 
@@ -933,12 +952,16 @@ bool Renderer::releaseTileLayer(std::uint32_t layer) {
   return true;
 }
 
+void Renderer::releaseTileLayerResource(TileLayerResource& resource) {
+  if (resource.vertexBuffer) glDeleteBuffers(1, &resource.vertexBuffer);
+  if (resource.vertexArray) glDeleteVertexArrays(1, &resource.vertexArray);
+  for (const auto image : resource.images) images_.release(image);
+}
+
 void Renderer::destroyTileLayer(std::uint32_t layer) {
   const auto found = tileLayers_.find(layer);
   if (found == tileLayers_.end()) return;
-  if (found->second.vertexBuffer) glDeleteBuffers(1, &found->second.vertexBuffer);
-  if (found->second.vertexArray) glDeleteVertexArrays(1, &found->second.vertexArray);
-  for (const auto image : found->second.images) images_.release(image);
+  releaseTileLayerResource(found->second);
   tileLayers_.erase(found);
 }
 
