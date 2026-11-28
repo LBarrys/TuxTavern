@@ -412,6 +412,16 @@ napi_value element(napi_env env, napi_value value, std::uint32_t index) {
   check(env, napi_get_element(env, value, index, &item), "cannot read tile array element");
   return item;
 }
+napi_value releaseTileCache(napi_env env, napi_callback_info) {
+  tileDecodeCache().clear();
+  return number(env, 0);
+}
+napi_value tileCacheStats(napi_env env, napi_callback_info) {
+  auto result = moduleObject(env);
+  set(env, result, "bytes", number(env, static_cast<double>(tileDecodeCache().bytes())));
+  set(env, result, "hits", number(env, static_cast<double>(tileDecodeCache().hits())));
+  return result;
+}
 napi_value processTiles(napi_env env, napi_callback_info info) try {
   auto args = arguments(env, info, 3); auto work = std::make_unique<TileWork>();
   const auto count = arrayLength(env, args.at(0), 512);
@@ -557,6 +567,8 @@ void registerAssetMethods(napi_env env, napi_value exports) {
   method(env, assets, "installImageStorage", installImageStorage);
   set(env, assets, "imageStorageVersion", number(env, 1));
   method(env, assets, "processTiles", processTiles);
+  method(env, assets, "releaseTileCache", releaseTileCache);
+  method(env, assets, "tileCacheStats", tileCacheStats);
   method(env, assets, "installTileSets", installTileSets);
   method(env, assets, "installTileSetCatalog", installTileSetCatalog);
   method(env, property(env, exports, "images"), "tileSlot", tileSlot);

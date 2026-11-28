@@ -476,3 +476,14 @@ test('switching runtime versions keeps the last other version\'s map entries (up
   assert.equal(fs.readdirSync(path.join(f.cacheRoot,'maps/entries')).filter(name=>/^[a-f0-9]{64}$/.test(name)).length,2);
   assert.equal(f.jobs,4);
 });
+test('map preparation releases the decoded tile sheets it shared between maps, also when it fails', async t => {
+  const f = fixture(t);
+  let released = 0;
+  f.native.assets.releaseTileCache = () => { released++; };
+  await prepareMaps(f);
+  assert.equal(released, 1);
+  f.native.assets.processTiles = async () => { throw new Error('tile packing failed'); };
+  fs.rmSync(path.join(f.cacheRoot, 'maps'), { recursive: true, force: true });
+  await prepareMaps(f);
+  assert.equal(released, 2);
+});

@@ -4,8 +4,59 @@
 #include <unordered_map>
 #include <numeric>
 #include <tuple>
+#include <zlib.h>
 
 namespace pmjs {
+std::shared_ptr<const ImagePixels> TileDecodeCache::decode(const ImageFileSource& source, std::size_t budget) {
+  const auto& key = source.key();
+  if (!key.empty()) {
+    std::lock_guard lock(mutex_);
+    for (auto it = entries_.begin(); it != entries_.end(); ++it) {
+      if (it->first != key) continue;
+      if (it->second->rgba.capacity() > budget) break;
+      entries_.splice(entries_.begin(), entries_, it);
+      ++hits_;
+      return it->second;
+    }
+  }
+  auto decoded = ImageStore::decodeFile(source, budget);
+  if (!decoded) return nullptr;
+  auto image = std::make_shared<const ImagePixels>(std::move(*decoded));
+  const auto size = image->rgba.capacity();
+  if (key.empty() || size > limitBytes) return image;
+  std::lock_guard lock(mutex_);
+  for (auto it = entries_.begin(); it != entries_.end(); ++it) {
+    if (it->first != key) continue;
+    bytes_ -= it->second->rgba.capacity();
+    entries_.erase(it);
+    break;
+  }
+  entries_.emplace_front(key, image);
+  bytes_ += size;
+  while (bytes_ > limitBytes) {
+    bytes_ -= entries_.back().second->rgba.capacity();
+    entries_.pop_back();
+  }
+  return image;
+}
+void TileDecodeCache::clear() {
+  std::lock_guard lock(mutex_);
+  entries_.clear();
+  bytes_ = 0;
+}
+std::size_t TileDecodeCache::bytes() {
+  std::lock_guard lock(mutex_);
+  return bytes_;
+}
+std::uint64_t TileDecodeCache::hits() {
+  std::lock_guard lock(mutex_);
+  return hits_;
+}
+TileDecodeCache& tileDecodeCache() {
+  static TileDecodeCache cache;
+  return cache;
+}
+
 namespace {
 constexpr int pageLimit = 2048;
 struct Piece {
@@ -107,7 +158,7 @@ PreparedTileAssets prepareTileAssets(const std::vector<TileAssetInput>& inputs,
       throw AssetPreparationUnsupported("tile packing exceeds the working storage budget");
     // Encoded recovery copies and high-bit-depth decoder frames need headroom.
     const auto decodeBudget = (budget-metadataReserve-uniqueBytes-3*encodedBytes)/3;
-    auto decoded = ImageStore::decodeFile(*input.source, decodeBudget);
+    auto decoded = tileDecodeCache().decode(*input.source, decodeBudget);
     if (!decoded) throw AssetPreparationUnsupported("tile source exceeds the decode budget or cannot be decoded");
     TileAssetSource source;
     source.width = decoded->width; source.height = decoded->height;
@@ -125,13 +176,17 @@ PreparedTileAssets prepareTileAssets(const std::vector<TileAssetInput>& inputs,
           decoded->rgba.capacity() > budget-metadataReserve-uniqueBytes-pieceBytes)
         throw AssetPreparationUnsupported("tile packing exceeds the working storage budget");
       piece.bytes.resize(pieceBytes);
-      for (int y = -halo; y < r[3]+halo; ++y) for (int x = -halo; x < r[2]+halo; ++x) {
-        const int sx = std::clamp(r[0]+x, 0, source.width-1), sy = std::clamp(r[1]+y, 0, source.height-1);
-        std::copy_n(decoded->rgba.data()+(static_cast<std::size_t>(sy)*source.width+sx)*4, 4,
-          piece.bytes.data()+(static_cast<std::size_t>(y+halo)*piece.width+x+halo)*4);
+      // Whole rows inside the sheet are copied at once; only edge rows clamp each pixel.
+      for (int y = -halo; y < r[3]+halo; ++y) {
+        const int sy = std::clamp(r[1]+y, 0, source.height-1), left = r[0]-halo;
+        auto* target = piece.bytes.data()+static_cast<std::size_t>(y+halo)*piece.width*4;
+        const auto* row = decoded->rgba.data()+static_cast<std::size_t>(sy)*source.width*4;
+        if (left >= 0 && piece.width <= source.width-left)
+          std::copy_n(row+static_cast<std::size_t>(left)*4, static_cast<std::size_t>(piece.width)*4, target);
+        else for (int x = 0; x < piece.width; ++x)
+          std::copy_n(row+static_cast<std::size_t>(std::clamp(left+x,0,source.width-1))*4,4,target+static_cast<std::size_t>(x)*4);
       }
-      std::uint64_t hash = 14695981039346656037ULL;
-      for (const auto byte : piece.bytes) hash = (hash ^ byte)*1099511628211ULL;
+      const std::uint64_t hash = crc32(0, piece.bytes.data(), static_cast<uInt>(piece.bytes.size()));
       const auto candidates = unique.equal_range(hash);
       auto index = pieces.size();
       for (auto entry = candidates.first; entry != candidates.second; ++entry) {

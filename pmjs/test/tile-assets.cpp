@@ -83,7 +83,28 @@ int main() try {
   rejected=false;
   try {pmjs::verifyTileAssets(demands,incomplete,root);}catch(const std::runtime_error&){rejected=true;}
   require(rejected);
+  // Maps share tile sheets: one decoded sheet serves the next map, until the file changes or the
+  // preparation releases the cache (as upstream b8e4956).
+  auto& cache=pmjs::tileDecodeCache();
+  cache.clear();
+  const auto sheet=[&]{ return std::shared_ptr<pmjs::ImageFileSource>(pmjs::ImageStore::openFile(root/"source.png")); };
+  const auto hitsBefore=cache.hits();
+  const auto first=pmjs::prepareTileAssets({{sheet(),rectangles}},root);
+  require(cache.hits()==hitsBefore && cache.bytes()>=128*128*4);
+  const auto second=pmjs::prepareTileAssets({{sheet(),rectangles}},root);
+  require(cache.hits()==hitsBefore+1);
+  require(second.sources[0].regions.size()==first.sources[0].regions.size());
+  for (std::size_t i=0;i<rectangles.size();++i) require(second.sources[0].regions[i].atlas==first.sources[0].regions[i].atlas);
+  auto changed=original; changed.rgba[0]^=1;
+  std::filesystem::remove(root/"source.png");
+  pmjs::writePreparedPng(root/"source.png",128,128,changed.rgba);
+  pmjs::prepareTileAssets({{sheet(),rectangles}},root);
+  require(cache.hits()==hitsBefore+1);
+  require(!cache.decode(*sheet(),16));
+  require(cache.hits()==hitsBefore+1);
+  cache.clear();
+  require(cache.bytes()==0);
   std::filesystem::remove_all(root);
-  std::cout<<"exact tile RGBA, overlapping demands, halos, deduplication and bounds passed\n";
+  std::cout<<"exact tile RGBA, overlapping demands, halos, deduplication, bounds and the sheet cache passed\n";
   return 0;
 } catch (const std::exception& error) {std::cerr<<error.what()<<'\n';return 1;}

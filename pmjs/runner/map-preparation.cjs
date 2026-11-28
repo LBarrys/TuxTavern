@@ -566,6 +566,8 @@ async function prepareMaps({ gameRoot, cacheRoot, native, width = 816, height = 
     result.refused += result.selected; result.selected = result.installed = 0; result.index = {};
     logger.warn('[pmjs] map preparation unavailable: '+error.message);
   } finally {
+    // The decoded tile sheets are only shared between the maps of this preparation.
+    if (typeof native.assets?.releaseTileCache === 'function') native.assets.releaseTileCache();
     if (release) await release();
     result.durationMs = performance.now()-started;
   }
