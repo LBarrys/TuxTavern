@@ -66,7 +66,17 @@ async function main() {
   assert.throws(() => native.assets.processImage(imageSource, path.join(root, 'invalid-codec'), null,
     path.join(gameRoot, imageSource), null, { pageCodec: 'lz4hc3' }), /pageCodec must be png or lz4/);
   assert.equal(native.assets.preparationVersion.processor, 'lossless-images-v13-png-gamma');
-  assert.equal(cold.decrypted, 3);
+  // MV: the .rpgmvp is prepared through its key, without a decrypted copy (as upstream dadd050).
+  const direct = engine === 'MV';
+  assert.equal(cold.decrypted, direct ? 2 : 3);
+  if (direct) {
+    assert.equal(cold.entries[0].source, imageSource);
+    assert.ok(cold.entries[0].sourceIdentity.endsWith(':png-view:' + key.toString('hex')));
+    assert.equal(native.assets.hasPreparedImage(imageSource), true);
+    assert.equal(native.assets.hasDecrypted('img/characters/!$actor.png'), false, 'no decrypted copy');
+    assert.equal(fs.readdirSync(path.join(options.cacheRoot, 'entries'))
+      .some(name => fs.readdirSync(path.join(options.cacheRoot, 'entries', name)).includes('source.png')), false, 'no image copy');
+  }
   assert.equal(cold.installed, pageCodec === 'lz4' ? 2 : 1);
   assert.equal(cold.fallback, pageCodec === 'lz4' ? 0 : 1, 'LZ4 retains standalone pages; PNG requires a layout saving');
   const directories = fs.readdirSync(path.join(options.cacheRoot, 'entries'));
@@ -82,7 +92,11 @@ async function main() {
   assert.equal(cold.entries[0].descriptor.cells.length, 12, 'all character cells retained');
   assert.deepEqual(Buffer.from(native.fs.readBytes('audio/bgm/tone.ogg')), wav);
   const original = native.images.loadBytes(imageBytes);
-  const prepared = await native.images.loadAsync('img/characters/!$actor.png');
+  const hitsBefore = native.images.memory().preparedHits;
+  const prepared = direct
+    ? await native.images.loadEncryptedAsync(imageSource, key.toString('hex'))
+    : await native.images.loadAsync('img/characters/!$actor.png');
+  assert.equal(native.images.memory().preparedHits - hitsBefore, 1, 'the image comes from its prepared pages');
   assert.deepEqual([prepared.width, prepared.height], [width, height]);
   const canvas = native.canvas.create(width, height);
   native.canvas.drawImage(canvas.handle, original.handle, 0, 0, width, height, 0, 0, width, height, 1);
@@ -101,7 +115,7 @@ async function main() {
   assert.equal(warm.generated, 0);
   assert.equal(warm.hits, 4);
   assert.equal(warm.negativeHits, pageCodec === 'lz4' ? 0 : 1);
-  assert.equal(warm.decrypted, 3);
+  assert.equal(warm.decrypted, direct ? 2 : 3);
   const drifted = warm.decryptedEntries.map(entry => {
     const drift = identity => { const parts = identity.split(':'); parts[parts.length - 6] = String(BigInt(parts[parts.length - 6]) + 1n); return parts.join(':'); };
     return { ...entry, sourceIdentity: drift(entry.sourceIdentity), settingsIdentity: drift(entry.settingsIdentity), fileIdentity: drift(entry.fileIdentity) };
@@ -127,7 +141,7 @@ async function main() {
   native.assets.consumePreparationInvalidations();
   assert.equal(native.assets.hasDecrypted('audio/bgm/tone.ogg'), false);
   assert.equal(native.assets.consumePreparationInvalidations(), 3, 'changed encryption settings invalidate both catalogs');
-  assert.equal(native.assets.hasDecrypted('img/characters/!$actor.png'), true,
+  assert.equal(direct ? native.fs.exists('img/characters/!$actor.png') : native.assets.hasDecrypted('img/characters/!$actor.png'), true,
     'explicit plaintext replacements remain readable independently of encryption settings');
   fs.rmSync(options.cacheRoot, { recursive: true, force: true });
   for (let frame = 0; frame < 605; ++frame) native.beginFrame();

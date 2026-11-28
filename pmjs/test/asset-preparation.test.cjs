@@ -1598,3 +1598,70 @@ test('encrypted media keeps JPEG and MP3 content despite PNG and OGG filename ex
     assert.deepEqual(fs.readFileSync(result.decryptedEntries.find(entry => entry.source === f.encryptedAudio).file), audio);
   }
 });
+
+// As upstream dadd050: an MV .rpgmvp is prepared through its key instead of from a decrypted
+// copy (the copies were 40-75% of each cache, Karryn's Prison 698 MB of 1.6 GB).
+function directFixture() {
+  const f = encryptedFixture('MV');
+  const key = '00112233445566778899aabbccddeeff', calls = [];
+  const assets = f.native.assets, fixtureProcess = assets.processImage;
+  assets.processImage = (source, output, recipe, file, layout, options) => {
+    if (assets.encryptedImagePreparation && source === f.encryptedImage) {
+      calls.push({ file, key: options?.encryptionKey });
+      return fixtureProcess(source, output, recipe, path.join(f.gameRoot, 'plain.png'));
+    }
+    return fixtureProcess(source, output, recipe, file);
+  };
+  fs.writeFileSync(path.join(f.gameRoot, 'plain.png'), PNG);
+  assets.preparationWorkspaceVersion = 1;
+  return { ...f, key, calls };
+}
+const imageCopies = f => fs.readdirSync(path.join(f.cacheRoot, 'entries')).filter(name => /^[a-f0-9]{64}$/.test(name))
+  .filter(name => fs.existsSync(path.join(f.cacheRoot, 'entries', name, 'source.png'))).length;
+
+test('MV images are prepared from their .rpgmvp through the key, filed under it, without a copy', async () => {
+  const f = directFixture();
+  f.native.assets.encryptedImagePreparation = true;
+  const cold = await prepareAssets(f);
+  assert.equal(cold.error, undefined);
+  assert.deepEqual(f.calls, [{ file: path.join(f.gameRoot, f.encryptedImage), key: f.key }]);
+  assert.equal(imageCopies(f), 0);
+  const entry = cold.entries.find(item => item.source === f.encryptedImage);
+  assert.ok(entry, 'filed under the .rpgmvp');
+  assert.ok(entry.sourceIdentity.endsWith(':png-view:' + f.key), 'named as the runtime opens it');
+  assert.equal(entry.decryptedFile, undefined);
+  assert.equal(cold.decryptedEntries.some(item => item.logicalSource === f.source), false);
+});
+
+test('MV images prepared with a copy keep their pages and lose the copy, without preparing again', async () => {
+  const f = directFixture();
+  f.native.assets.installPreparedCatalog = entries => entries.length;
+  f.native.assets.installDerivedCatalog = () => {};
+  const legacy = await prepareAssets(f);
+  legacy.releaseCacheLease?.();
+  assert.equal(imageCopies(f), 1);
+  const jobs = f.jobs;
+  f.native.assets.encryptedImagePreparation = true;
+  const migrated = await prepareAssets(f);
+  migrated.releaseCacheLease?.();
+  assert.equal(migrated.catalogHit, undefined, 'the catalog binding changes once');
+  assert.equal(f.jobs, jobs, 'nothing is prepared again');
+  assert.equal(migrated.copiesRemoved, 1);
+  assert.equal(imageCopies(f), 0);
+  assert.equal(migrated.entries.find(item => item.source === f.encryptedImage)?.descriptor.pages.length, 1);
+  const warm = await prepareAssets(f);
+  assert.equal(warm.catalogHit, true);
+  assert.equal(f.jobs, jobs);
+  warm.releaseCacheLease?.();
+});
+
+test('an encrypted MV tileset keeps its decrypted copy, which map preparation reads', async () => {
+  const f = directFixture();
+  fs.mkdirSync(path.join(f.gameRoot, 'img/tilesets'), { recursive: true });
+  fs.renameSync(path.join(f.gameRoot, f.encryptedImage), path.join(f.gameRoot, 'img/tilesets/Outside.rpgmvp'));
+  f.native.assets.encryptedImagePreparation = true;
+  const cold = await prepareAssets(f);
+  assert.equal(f.calls.length, 0);
+  assert.equal(imageCopies(f), 1);
+  assert.ok(cold.decryptedEntries.some(item => item.logicalSource === 'img/tilesets/Outside.png'));
+});

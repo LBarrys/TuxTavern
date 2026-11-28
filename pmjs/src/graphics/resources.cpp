@@ -2105,9 +2105,14 @@ bool ImageStore::installPrepared(const std::filesystem::path& sourcePath,
   if (descriptor.version != 1 || descriptor.halo < 1 || descriptor.halo > 32 || !checkedImageExtent(descriptor.width, descriptor.height,
       16384, 1024U * 1024U * 1024U)) return false;
   auto original = pageIdentities ? nullptr : openFile(sourcePath);
+  // An MV .rpgmvp prepared without a copy is named as it is opened with its key (":png-view:" and
+  // the key); the file itself is compared without it.
+  auto fileIdentity = expectedSourceIdentity;
+  if (const auto view = fileIdentity.rfind(":png-view:"); view != std::string::npos &&
+      fileIdentity.size() - view == 10 + 32) fileIdentity.resize(view);
   if (pageIdentities ? (expectedSourceIdentity.empty() || pageIdentities->size() != descriptor.pages.size()) :
-      (!original || (!expectedSourceIdentity.empty() && original->key() != expectedSourceIdentity &&
-        !(validContentHash(backingHash) && inodeOnlyChange(expectedSourceIdentity, original->key()))))) return false;
+      (!original || (!fileIdentity.empty() && original->key() != fileIdentity &&
+        !(validContentHash(backingHash) && inodeOnlyChange(fileIdentity, original->key()))))) return false;
   if ((!backingHash.empty() && !validContentHash(backingHash)) ||
       (pageHashes && (pageHashes->size() != descriptor.pages.size() ||
         !std::all_of(pageHashes->begin(), pageHashes->end(), validContentHash)))) return false;

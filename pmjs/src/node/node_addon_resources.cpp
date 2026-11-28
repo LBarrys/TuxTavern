@@ -922,7 +922,15 @@ napi_value hasDecryptedAsset(napi_env env, napi_callback_info info) try {
   return boolean(env, host(env).vfs.resolveDerived(asString(env, args.at(0))).has_value());
 } catch (const std::exception& error) { napi_throw_error(env, nullptr, error.what()); return nullptr; }
 
+napi_value hasPreparedImage(napi_env env, napi_callback_info info) try {
+  const auto args = arguments(env, info, 1);
+  auto& value = host(env);
+  const auto path = value.vfs.resolve(asString(env, args.at(0)), false);
+  return boolean(env, path && value.images.hasPrepared(*path));
+} catch (const std::exception& error) { napi_throw_error(env, nullptr, error.what()); return nullptr; }
+
 void registerPreparedAssetBindings(napi_env env, napi_value exports) {
+  method(env, property(env, exports, "assets"), "hasPreparedImage", hasPreparedImage);
   method(env, property(env, exports, "assets"), "installPrepared", installPreparedAssets);
   method(env, property(env, exports, "assets"), "installPreparedCatalog", installPreparedCatalog);
   method(env, property(env, exports, "assets"), "installDerivedCatalog", installDerivedCatalog);

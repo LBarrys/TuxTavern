@@ -127,6 +127,17 @@ async function decryptFile(file, output, key, extension, files, sourceSize) {
   }
   await files.writeVerified(output, chunks(), { expectedSize: sourceSize - 16 });
 }
+// The first 24 bytes of the PNG inside an MV .rpgmvp (its size is at 16), or null.
+async function encryptedPngHeader(file, key) {
+  const handle = await fsp.open(file, 'r');
+  const prefix = Buffer.alloc(40);
+  try { if ((await handle.read(prefix, 0, 40, 0)).bytesRead !== 40) return null; }
+  finally { await handle.close(); }
+  if (!prefix.subarray(0, 16).equals(ENCRYPTED_HEADER)) return null;
+  const header = prefix.subarray(16);
+  for (let i = 0; i < 16; ++i) header[i] ^= key[i];
+  return header.subarray(0, 8).equals(PNG) ? header : null;
+}
 async function automaticRecipe(file, source, sourceHash, header, frames = new Map()) {
   let grid;
   const filenameGrid = path.basename(source).match(/\[([1-9]\d*)x([1-9]\d*)\]\.png$/i);
@@ -359,7 +370,7 @@ async function prepareAssets({ gameRoot, cacheRoot, recipes = [], native, onProg
   const audioViewSupport = !offline && typeof native?.media?.installAudioViews === 'function';
   let audioSettings;
   const started = performance.now();
-  const result = { enabled: true, total: 0, completed: 0, generated: 0, hits: 0, negativeHits: 0,
+  const result = { enabled: true, total: 0, completed: 0, generated: 0, hits: 0, negativeHits: 0, copiesRemoved: 0,
     fallback: 0, failedFiles: 0, installFailures: 0, prepared: 0, installed: 0, decrypted: 0, sourceBytes: 0, cacheBytes: 0,
     cancelled: false, entries: [], decryptedEntries: [], audioViewEntries: [], audioViews: 0, decisions: [], durationMs: 0 };
   const catalogFile = path.join(cacheRoot, 'catalog-'+identity(path.resolve(gameRoot))+'.json');
@@ -413,7 +424,7 @@ async function prepareAssets({ gameRoot, cacheRoot, recipes = [], native, onProg
     }, logger);
     const automaticRecipes = { version: 1, sideview: [...frames].sort(([a], [b]) => a.localeCompare(b)) };
     const binding = { gameRoot: path.resolve(gameRoot), cacheRoot: path.resolve(cacheRoot), processorIdentity, recipes, automaticRecipes,
-      imageFormat: CACHE_VERSION, contentIdentity: 1, failureRecords: 1, ...(audioViewSupport ? { audioViewVersion: 1, audioSettingsHash: audioSettings.hash || null } : {}) };
+      imageFormat: CACHE_VERSION, contentIdentity: 1, failureRecords: 1, directEncryptedImages: native.assets.encryptedImagePreparation === true ? 1 : 0, ...(audioViewSupport ? { audioViewVersion: 1, audioSettingsHash: audioSettings.hash || null } : {}) };
     const catalogCapable = typeof native.assets.installPreparedCatalog === 'function' &&
       typeof native.assets.installDerivedCatalog === 'function';
     result.catalogStatus = offline ? 'offline' : verifyHashes ? 'verify-hashes' :
@@ -535,14 +546,36 @@ async function prepareAssets({ gameRoot, cacheRoot, recipes = [], native, onProg
         if (sourceIdentity !== undefined && native.assets.sourceIdentity(source) !== sourceIdentity) throw new Error('source changed while hashing');
         result.sourceBytes += checkedSource.size;
         let recipe = recipeMap.get(logicalSource);
-        if (!recipe && !encrypted) recipe = await automaticRecipe(file, logicalSource, sourceHash, checkedSource.header, frames);
+        // An MV .rpgmvp holding a PNG is prepared from the file itself, read through its key, instead
+        // of from a decrypted copy (as upstream dadd050): the copies were 40-75% of each cache. A
+        // tileset keeps its copy, which map preparation reads and keeps as the map's tile source.
+        const directHeader = encrypted && extension === '.png' && source.toLowerCase().endsWith('.rpgmvp') &&
+          !logicalSource.toLowerCase().startsWith('img/tilesets/') && native.assets.encryptedImagePreparation === true
+          ? await encryptedPngHeader(file, settings.key) : null;
+        const direct = directHeader !== null;
+        if (!recipe && (!encrypted || direct))
+          recipe = await automaticRecipe(file, logicalSource, sourceHash, direct ? directHeader : checkedSource.header, frames);
         if (recipe && recipe.sourceHash !== sourceHash) throw new Error('recipe source hash changed');
         const key = identity({ version: CACHE_VERSION, processorIdentity, sourceHash, source, recipe: recipe || null,
           automaticRecipes: { version: automaticRecipes.version, frame: frames.get(logicalSource) },
           ...(encrypted ? { encryption: { version: 1, settingsHash: settings.hash }, characterLayout: 'mz-standard-v1' } : {}) });
         const directory = path.join(cacheRoot, 'entries', key);
         let manifest = await cachedEntry(directory, key, sourceHash, files);
-        if (manifest && encrypted && manifest.decrypted !== 'source' + extension) manifest = null;
+        if (manifest && encrypted && !direct && manifest.decrypted !== 'source' + extension) manifest = null;
+        if (manifest && direct && manifest.decrypted) {
+          // Prepared with a copy before: the pages stay, the copy goes.
+          const { decrypted, ...kept } = manifest;
+          const outputs = { ...manifest.outputs };
+          delete outputs[decrypted];
+          manifest = { ...kept, outputs };
+          const next = path.join(directory, 'manifest.json.next-' + process.pid);
+          await fsp.rm(next, { force: true });
+          await writeJson(next, manifest, false);
+          await fsp.rename(next, path.join(directory, 'manifest.json'));
+          await fsp.rm(path.join(directory, decrypted), { force: true });
+          if (!await cachedEntry(directory, key, sourceHash, files)) manifest = null;
+          else ++result.copiesRemoved;
+        }
         if (manifest) {
           result.hits += 1;
           if (!manifest.descriptor && !manifest.decrypted) result.negativeHits += 1;
@@ -551,7 +584,7 @@ async function prepareAssets({ gameRoot, cacheRoot, recipes = [], native, onProg
           report('prepare', source);
           if (cancelled()) break;
           stage = await fsp.mkdtemp(path.join(cacheRoot, 'entries', '.stage-'));
-          const decrypted = encrypted ? 'source' + extension : undefined;
+          const decrypted = encrypted && !direct ? 'source' + extension : undefined;
           let input = file;
           if (decrypted) {
             input = path.join(stage, decrypted);
@@ -563,7 +596,8 @@ async function prepareAssets({ gameRoot, cacheRoot, recipes = [], native, onProg
           if (extension === '.png') {
             descriptor = await native.assets.processImage(source, stage, recipe || null,
               input, ...(native.assets.preparationWorkspaceVersion === 1
-                ? [null, { workspaceBytes, ...(pageCodec === 'lz4' ? { pageCodec } : {}) }]
+                ? [null, { workspaceBytes, ...(pageCodec === 'lz4' ? { pageCodec } : {}),
+                  ...(direct ? { encryptionKey: settings.key.toString('hex') } : {}) }]
                 : []));
           }
           if (cancelled()) break;
@@ -601,10 +635,12 @@ async function prepareAssets({ gameRoot, cacheRoot, recipes = [], native, onProg
         }
         if (manifest.descriptor) {
           for (const page of manifest.descriptor.pages) result.cacheBytes += (await fsp.stat(path.join(directory, page.path))).size;
-          result.entries.push({ source: logicalSource, directory, descriptor: manifest.descriptor, sourceHash, sourceIdentity,
+          // A direct image is filed under its .rpgmvp, named as the runtime opens it: with its key.
+          result.entries.push({ source: direct ? source : logicalSource, directory, descriptor: manifest.descriptor, sourceHash,
+            sourceIdentity: direct && sourceIdentity !== undefined ? sourceIdentity + ':png-view:' + settings.key.toString('hex') : sourceIdentity,
             backingHash: manifest.decrypted ? manifest.outputs[manifest.decrypted] : sourceHash,
             pageHashes: manifest.descriptor.pages.map(page => manifest.outputs[page.path]),
-            ...(encrypted ? { decryptedFile: path.join(directory, manifest.decrypted) } : {}) });
+            ...(manifest.decrypted ? { decryptedFile: path.join(directory, manifest.decrypted) } : {}) });
         } else if (!manifest.decrypted) { result.fallback += 1; ++catalogNegativeHits; }
             } catch (error) {
         result.fallback += 1;

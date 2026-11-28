@@ -162,6 +162,10 @@ PMJS.mv.bitmap.requestImageFile = pmjsBitmapRequestImageWrap()(Bitmap.prototype.
         cryptoMethods[name] = dataValue(decrypter, name);
         return methods.matchesSource(cryptoMethods[name], cryptoSources[name]);
       });
+      function systemKey() {
+        var property = globalThis.$dataSystem && Object.getOwnPropertyDescriptor($dataSystem, 'encryptionKey');
+        return property && typeof property.value === 'string' && /^[a-f0-9]{32}$/i.test(property.value) ? property.value : null;
+      }
       function nativeKey(target) {
         if (!supported || target !== decrypter || target !== globalThis.Decrypter || !globalThis.$dataSystem) return null;
         var header = ['SIGNATURE','VER','REMAIN'].map(function(name) { return dataValue(target, name); });
@@ -178,7 +182,15 @@ PMJS.mv.bitmap.requestImageFile = pmjsBitmapRequestImageWrap()(Bitmap.prototype.
           .replace(/^file:\/\/\/game\//, '').replace(/^\.\//, '');
         var prepared = NativeHost.assets && typeof NativeHost.assets.hasDecrypted === 'function' &&
           NativeHost.assets.hasDecrypted(path);
-        var key = !prepared && typeof url === 'string' && /\.png$/.test(url) && nativeKey(this);
+        // Prepared from its .rpgmvp without a copy: loaded natively with the game's key, whatever
+        // Decrypter does, as a prepared copy is.
+        var preparedEncrypted = !prepared && /\.png$/.test(path) && typeof NativeHost.assets.hasPreparedImage === 'function' &&
+          NativeHost.assets.hasPreparedImage(path.replace(/\.png$/, '.rpgmvp')) && systemKey();
+        // A plaintext replacement at its .png path wins, as it does over a decrypted copy.
+        if (preparedEncrypted && NativeHost.fs && typeof NativeHost.fs.exists === 'function' && NativeHost.fs.exists(path)) {
+          prepared = true; preparedEncrypted = null;
+        }
+        var key = !prepared && typeof url === 'string' && /\.png$/.test(url) && (nativeKey(this) || preparedEncrypted);
         if (!prepared && (!key || !PMJS.images.loadEncrypted ||
             !(bitmap._image instanceof NativeImage) || typeof NativeHost.images.loadEncryptedAsync !== 'function'))
           return guestDecrypt.apply(this, arguments);
@@ -193,7 +205,7 @@ PMJS.mv.bitmap.requestImageFile = pmjsBitmapRequestImageWrap()(Bitmap.prototype.
         function onLoad() {
           detach();
           if (bitmap._image !== image) return;
-          if (key) {
+          if (key && nativeKey(decrypter)) {
             if (nativeKey(decrypter) !== key) return guestDecrypt.apply(decrypter, args);
             decrypter.readEncryptionkey();
           }
@@ -206,7 +218,7 @@ PMJS.mv.bitmap.requestImageFile = pmjsBitmapRequestImageWrap()(Bitmap.prototype.
         image.addEventListener('load', bitmap._loadListener = onLoad);
         image.addEventListener('error', bitmap._errorListener = onError);
         if (key) {
-          if (!PMJS.images.loadEncrypted(image, decrypter.extToEncryptExt(url), key, path)) {
+          if (!PMJS.images.loadEncrypted(image, url.replace(/\.png$/, '.rpgmvp'), key, path)) {
             detach();
             return guestDecrypt.apply(this, arguments);
           }

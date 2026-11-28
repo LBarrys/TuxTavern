@@ -292,3 +292,35 @@ test('reviewed MV encrypted images use native files and preserve retries, curren
   decrypter.decryptImg('img/key-provider.png',bitmap());assert.equal(requests.length,5);assert.equal(keyReads,0);
   decrypter.decryptImg('',bitmap());assert.equal(requests.length,6);
 });
+
+test('MV images prepared from their .rpgmvp load natively with the game key, whatever Decrypter does (upstream dadd050)', () => {
+  const {decryptImg,imageDecryption}=require('./helpers/mv-reviewed-methods.cjs');
+  const requests=[],loads=[];function Bitmap(){};let context;
+  function NativeImage(){context.EventTarget.call(this);}
+  Bitmap.prototype._onLoad=function(){this.completed=true;};Bitmap.prototype._onError=function(){this.failed=true;};
+  const decrypter={_headerlength:16,_xhrOk:400,SIGNATURE:'5250474d56',VER:'000000',REMAIN:'0003010000000000'};
+  const prepared=new Set(['img/p.rpgmvp','img/q.rpgmvp']),plaintext=new Set(['img/q.png']);
+  context=loadPmjsRuntime({__pmjsBuiltinRequire:require,Bitmap,NativeImage,Decrypter:decrypter,
+    $dataSystem:{encryptionKey:'01'.repeat(16)},
+    NativeHost:{assets:{hasDecrypted:()=>false,hasPreparedImage:source=>prepared.has(source)},
+      fs:{exists:source=>plaintext.has(source)},images:{loadEncryptedAsync(){}}},
+    XMLHttpRequest:function(){this.open=()=>{};this.send=()=>requests.push(this);}});
+  vm.runInContext(fs.readFileSync(path.join(root,'js/pmjs-web/events.js'),'utf8'),context);
+  NativeImage.prototype=Object.create(context.EventTarget.prototype);
+  vm.runInContext(fs.readFileSync(path.join(root,'js/pmjs-web/filesystem.js'),'utf8'),context);
+  for(const [name,method] of Object.entries({...imageDecryption,decryptImg}))decrypter[name]=vm.runInContext('('+method.toString()+')',context);
+  context.PMJS.images.loadEncrypted=function(image,url,key,logical){loads.push({image,url,key,logical});return true;};
+  vm.runInContext(slice(fs.readFileSync(path.join(root,'js/pmjs-mv/images.js'),'utf8'),
+    'function pmjsBitmapRequestImageWrap','\nPMJS.methods.wrap({'),context);context.PMJS.methods.install();
+  // A plugin's own decryption: an image without prepared pages still goes through it.
+  const original=decrypter.decryptArrayBuffer;decrypter.decryptArrayBuffer=function(value){return original.call(this,value);};
+  const bitmap=()=>{const b=new Bitmap();b._image=new NativeImage();return b;};
+  const direct=bitmap();decrypter.decryptImg('img/p.png',direct);
+  assert.deepEqual(loads.map(({url,key,logical})=>({url,key,logical})),[{url:'img/p.rpgmvp',key:'01'.repeat(16),logical:'img/p.png'}]);
+  direct._image.dispatchEvent({type:'load'});
+  assert.equal(direct.completed,true);assert.equal(requests.length,0,'the plugin decryption is not run');
+  const replaced=bitmap();decrypter.decryptImg('img/q.png',replaced);
+  assert.equal(loads.length,1,'a plaintext replacement wins');assert.equal(replaced._image.src,'img/q.png');
+  decrypter.decryptImg('img/r.png',bitmap());
+  assert.equal(loads.length,1);assert.equal(requests.length,1,'an unprepared image keeps the plugin decryption');
+});

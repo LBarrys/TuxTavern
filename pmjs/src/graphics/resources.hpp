@@ -235,6 +235,8 @@ class ImageStore {
   void noteTileLoadFallback() { if (tileDiagnostics_) ++tileFallbacks_["page-validation"]; }
   unsigned consumePreparationInvalidations() { return preparationInvalidations_->exchange(0, std::memory_order_relaxed); }
   void clearPreparedIndex() { preparedSources_.clear(); }
+  // Whether prepared pages are installed for this source (an MV .rpgmvp prepared without a copy).
+  bool hasPrepared(const std::filesystem::path& sourcePath) const { return preparedSources_.contains(sourcePath.string()); }
   bool installPrepared(const std::filesystem::path& sourcePath,
                        const std::filesystem::path& directory,
                        PreparedImageDescriptor descriptor,
