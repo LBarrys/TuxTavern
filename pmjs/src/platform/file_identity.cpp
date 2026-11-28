@@ -4,9 +4,11 @@
 #include <array>
 #include <cerrno>
 #include <fcntl.h>
+#include <mutex>
 #include <optional>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <unordered_map>
 extern "C" {
 #include <libavutil/mem.h>
 #include <libavutil/sha.h>
@@ -19,7 +21,58 @@ std::string fileIdentity(const std::filesystem::path& path, const struct stat& i
     std::to_string(info.st_mtim.tv_sec) + ':' + std::to_string(info.st_mtim.tv_nsec) + ':' +
     std::to_string(info.st_ctim.tv_sec) + ':' + std::to_string(info.st_ctim.tv_nsec);
 }
+namespace {
+// Directories seen before keep their canonical path; std::filesystem::canonical takes one lstat per
+// path component, and a prepared image's identity checks three files (Karryn's Prison: 19,514
+// images, about 450 ms of each start). The cache only names directories: each file is still
+// lstat()ed, so a replaced or changed file still changes its identity.
+std::mutex directoryMutex;
+std::unordered_map<std::string, std::string> canonicalDirectories;
+std::uint64_t directoryCanonicalizations = 0;
+std::optional<std::string> canonicalDirectory(const std::filesystem::path& directory) {
+  const auto& key = directory.native();
+  {
+    std::lock_guard lock(directoryMutex);
+    if (const auto found = canonicalDirectories.find(key); found != canonicalDirectories.end()) return found->second;
+  }
+  // A directory that is not a link is its parent's canonical path and its own name; prepared images
+  // each have their own directory, so most are one lstat from a cached parent.
+  std::optional<std::string> resolved;
+  struct stat info{};
+  if (directory.has_filename() && directory.has_parent_path() && directory.parent_path() != directory &&
+      ::lstat(directory.c_str(), &info) == 0 && S_ISDIR(info.st_mode)) {
+    if (const auto parent = canonicalDirectory(directory.parent_path()))
+      resolved = (std::filesystem::path(*parent) / directory.filename()).generic_string();
+  } else {
+    std::error_code error;
+    const auto canonical = std::filesystem::canonical(directory, error);
+    if (error) return std::nullopt;
+    resolved = canonical.generic_string();
+  }
+  if (!resolved) return std::nullopt;
+  std::lock_guard lock(directoryMutex);
+  ++directoryCanonicalizations;
+  // Bounded: once full, directories are resolved as above without being kept.
+  if (canonicalDirectories.size() < 4096) canonicalDirectories.emplace(key, *resolved);
+  return resolved;
+}
+}  // namespace
+
+std::uint64_t fileIdentityDirectoryCanonicalizations() {
+  std::lock_guard lock(directoryMutex);
+  return directoryCanonicalizations;
+}
+
 std::string fileIdentity(const std::filesystem::path& path) {
+  // A regular file, not a link, is named by its directory's canonical path and its own name.
+  struct stat linkInfo{};
+  if (path.is_absolute() && path.has_filename() && path == path.lexically_normal() &&
+      ::lstat(path.c_str(), &linkInfo) == 0 && !S_ISLNK(linkInfo.st_mode)) {
+    if (!S_ISREG(linkInfo.st_mode)) return {};
+    const auto directory = canonicalDirectory(path.parent_path());
+    if (!directory) return {};
+    return fileIdentity(std::filesystem::path(*directory) / path.filename(), linkInfo);
+  }
   std::error_code error;
   const auto resolved = std::filesystem::canonical(path, error);
   struct stat info{};

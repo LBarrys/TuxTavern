@@ -9,6 +9,8 @@
 namespace pmjs {
 std::string fileIdentity(const std::filesystem::path& canonicalPath, const struct stat& info);
 std::string fileIdentity(const std::filesystem::path& path);
+// How often fileIdentity resolved a directory it had not seen (for tests).
+std::uint64_t fileIdentityDirectoryCanonicalizations();
 bool validContentHash(const std::string& hash);
 bool inodeOnlyChange(const std::string& expected, const std::string& actual);
 bool contentDigestMatches(std::span<const std::uint8_t, 32> digest, const std::string& expected);
