@@ -452,6 +452,10 @@ async function prepareAssets({ gameRoot, cacheRoot, recipes = [], native, onProg
           const previous = installedLeases.get(native.assets);
           installedLeases.set(native.assets, lease);
           if (previous) previous();
+          if (catalog.storedVersion < 4) {
+            try { await publishCatalog(catalogFile, binding, cacheRoot, catalog); }
+            catch (error) { logger.warn('[pmjs] cannot rewrite the image catalog: '+error.message); }
+          }
           Object.assign(result, catalog.summary, { entries: catalog.entries, decryptedEntries: catalog.decryptedEntries,
             audioViewEntries: catalog.audioViewEntries || [],
             generated: 0, failedFiles: 0, installFailures: 0, catalogHit: true, catalogStatus: 'hit', releaseCacheLease: lease });

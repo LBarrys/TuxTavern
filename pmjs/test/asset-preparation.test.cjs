@@ -1387,9 +1387,11 @@ test('legacy catalogs acquire content hashes without regenerating prepared asset
   const hash = value => crypto.createHash('sha256').update(value).digest('hex');
   catalog.binding = hash(JSON.stringify({ gameRoot: f.gameRoot, cacheRoot: f.cacheRoot,
     processorIdentity: { processor: 'lossless-images-v13-png-gamma', decoder: 'png-rgba-gamma-v2', pageSize: 2048 }, recipes: [] }));
-  const payload = JSON.parse(catalog.payload);
+  // Published as version 4 (payload as JSON); the legacy catalog is version 3 (payload as a string).
+  const payload = catalog.payload;
   delete payload.entries[0].backingHash;
   delete payload.entries[0].pageHashes;
+  catalog.version = 3;
   catalog.payload = JSON.stringify(payload);
   catalog.checksum = hash(catalog.payload);
   fs.writeFileSync(file, JSON.stringify(catalog));
@@ -1404,6 +1406,31 @@ test('legacy catalogs acquire content hashes without regenerating prepared asset
   const warm = await prepareAssets(f);
   assert.equal(warm.catalogHit, true);
   assert.equal(warm.entries[0].backingHash, hash(PNG));
+  warm.releaseCacheLease();
+});
+
+test('a version 3 catalog still hits, and is rewritten as version 4 (parsed once: Karryn\'s Prison)', async () => {
+  const f = fixture();
+  f.native.assets.installPrepared = entries => {
+    for (const entry of entries) entry.pageIdentities = ['page-identity'];
+    return entries.length;
+  };
+  f.native.assets.installPreparedCatalog = entries => entries.length;
+  f.native.assets.installDerivedCatalog = () => {};
+  (await prepareAssets(f)).releaseCacheLease();
+  const file = path.join(f.cacheRoot, fs.readdirSync(f.cacheRoot).find(name => name.startsWith('catalog-')));
+  const catalog = JSON.parse(fs.readFileSync(file));
+  assert.equal(catalog.version, 4);
+  catalog.version = 3;
+  catalog.payload = JSON.stringify(catalog.payload);
+  fs.writeFileSync(file, JSON.stringify(catalog));
+  const legacy = await prepareAssets(f);
+  assert.equal(legacy.catalogHit, true);
+  legacy.releaseCacheLease();
+  assert.equal(JSON.parse(fs.readFileSync(file)).version, 4);
+  const warm = await prepareAssets(f);
+  assert.equal(warm.catalogHit, true);
+  assert.equal(f.jobs, 1);
   warm.releaseCacheLease();
 });
 

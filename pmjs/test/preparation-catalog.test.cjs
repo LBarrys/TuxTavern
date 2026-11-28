@@ -24,6 +24,10 @@ function mutatePayloadString(stored, mutate) {
   mutate(payload);
   return JSON.stringify(payload);
 }
+// A version 4 file as the publisher writes it: the header, then the payload's JSON text.
+function v4Text({ payload, ...header }, payloadText = JSON.stringify(payload)) {
+  return JSON.stringify(header).slice(0, -1) + ',"payload":' + payloadText + '}';
+}
 
 test('catalog diagnostics distinguish first launch, changed binding and damaged cache', async () => {
   const root = temporaryDirectory('pmjs-catalog-diagnostics-');
@@ -39,7 +43,7 @@ test('catalog diagnostics distinguish first launch, changed binding and damaged 
   assert.deepEqual(reasons.splice(0), ['binding-mismatch']);
   const stored = JSON.parse(await fs.readFile(file));
   stored.checksum = 'damaged';
-  await fs.writeFile(file, JSON.stringify(stored));
+  await fs.writeFile(file, v4Text(stored));
   assert.equal(await read(binding), null);
   assert.deepEqual(reasons.splice(0), ['integrity-mismatch']);
   await fs.writeFile(file, '{interrupted');
@@ -52,17 +56,20 @@ test('catalog publication validates integrity, version, binding and cache paths'
   const { binding, payload } = fixture(root);
   const file = path.join(root, 'catalog.json');
   await publishCatalog(file, binding, root, payload);
-  assert.equal(JSON.parse(await fs.readFile(file)).version, 3);
+  assert.equal(JSON.parse(await fs.readFile(file)).version, 4);
   assert.deepEqual(await readCatalog(file, binding, root), payload);
   assert.equal(await readCatalog(file, { processor: 'v2' }, root), null);
   const original = JSON.parse(await fs.readFile(file));
+  const text = JSON.stringify(original.payload);
   for (const mutate of [c => { c.version++; }, c => { c.checksum = 'bad'; },
-    c => { c.payload = mutatePayloadString(c.payload, p => { p.entries[0].directory = '../outside'; });
-      c.checksum = rawChecksum(c.payload); },
-    c => { c.payload = mutatePayloadString(c.payload, p => { p.entries[0].descriptor.sources[0].snapshot = '/tmp/page.png'; });
-      c.checksum = rawChecksum(c.payload); }]) {
-    const changed = structuredClone(original); mutate(changed);
-    await fs.writeFile(file, JSON.stringify(changed));
+    c => { c.text = mutatePayloadString(c.text, p => { p.entries[0].directory = '../outside'; });
+      c.checksum = rawChecksum(c.text); },
+    c => { c.text = mutatePayloadString(c.text, p => { p.entries[0].descriptor.sources[0].snapshot = '/tmp/page.png'; });
+      c.checksum = rawChecksum(c.text); },
+    c => { c.text = text.replace('"keys"', ' "keys"'); }]) {
+    const changed = { ...structuredClone(original), text }; mutate(changed);
+    const { text: payloadText, ...stored } = changed;
+    await fs.writeFile(file, v4Text(stored, payloadText));
     assert.equal(await readCatalog(file, binding, root), null);
   }
   await fs.writeFile(file+'.stage-'+process.pid, 'interrupted');
@@ -89,6 +96,51 @@ test('version 2 catalogs keep their fast path across the upgrade', async () => {
   changed.checksum = checksum(changed.payload);
   await fs.writeFile(file, JSON.stringify(changed));
   assert.equal(await readCatalog(file, binding, root), null);
+});
+
+test('version 4 is parsed once, stays JSON for older readers, and version 3 still reads', async () => {
+  const root = temporaryDirectory('pmjs-catalog-v4-');
+  const { key, binding, payload } = fixture(root);
+  const file = path.join(root, 'catalog.json');
+  await publishCatalog(file, binding, root, payload);
+  // An older TuxTavern parses the whole file, misses on the version, and its cache cleanup still
+  // keeps every key the catalog names.
+  const whole = JSON.parse(await fs.readFile(file, 'utf8'));
+  assert.equal(typeof whole.payload, 'object');
+  assert.deepEqual(retainedCatalogKeys(whole), [key]);
+  const stored = structuredClone(payload);
+  stored.entries[0].directory = 'entries/' + key;
+  stored.entries[0].descriptor.sources[0].snapshot = 'maps/sources/' + key + '.png';
+  assert.deepEqual(whole.payload, stored, 'paths are stored relative to the cache');
+  const v3 = JSON.stringify(stored);
+  await fs.writeFile(file, JSON.stringify({ version: 3, binding: whole.binding, fields: whole.fields, checksum: rawChecksum(v3), payload: v3 }));
+  const legacy = await readCatalog(file, binding, root);
+  assert.deepEqual(legacy, payload);
+  assert.equal(legacy.storedVersion, 3, 'the caller learns it is an older version, to rewrite it');
+  await publishCatalog(file, binding, root, legacy);
+  const rewritten = await readCatalog(file, binding, root);
+  assert.deepEqual(rewritten, payload);
+  assert.equal(rewritten.storedVersion, 4);
+  await fs.rm(root, { recursive: true, force: true });
+});
+
+test('a path that is not in stored form is still resolved and checked', async () => {
+  const root = temporaryDirectory('pmjs-catalog-forms-');
+  const { key, binding, payload } = fixture(root);
+  const file = path.join(root, 'catalog.json');
+  await publishCatalog(file, binding, root, payload);
+  const whole = JSON.parse(await fs.readFile(file, 'utf8'));
+  for (const [directory, accepted] of [['entries/' + key + '/../' + key, true], ['./entries/' + key, true],
+    ['entries/' + key + '/..', false], ['entries/' + key + '/.', true], ['maps/../entries/' + key, true]]) {
+    const changed = structuredClone(whole);
+    changed.payload.entries[0].directory = directory;
+    const text = JSON.stringify(changed.payload);
+    changed.checksum = rawChecksum(text);
+    await fs.writeFile(file, v4Text(changed, text));
+    const read = await readCatalog(file, binding, root);
+    assert.equal(read ? read.entries[0].directory : null, accepted ? path.join(root, 'entries', key) : null, directory);
+  }
+  await fs.rm(root, { recursive: true, force: true });
 });
 
 test('retention understands version 2, version 3 and legacy index records', async () => {
