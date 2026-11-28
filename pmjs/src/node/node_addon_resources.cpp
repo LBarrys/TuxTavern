@@ -746,7 +746,8 @@ napi_value installPreparedAssetsImpl(napi_env env, napi_callback_info info, bool
     napi_value entry; check(env, napi_get_element(env, args[0], i, &entry), "invalid prepared entry");
     const auto sourceName = asString(env, property(env, entry, "source"));
     try {
-    const auto path = value.vfs.resolve(sourceName);
+    // A catalog is installed without source checks: each load of the image checks them.
+    const auto path = value.vfs.resolve(sourceName, !catalog);
     if (!path) { ++missingSource; continue; }
     const auto directory = std::filesystem::path(asString(env, property(env, entry, "directory")));
     if (!directory.is_absolute()) throw std::runtime_error("prepared directory must be absolute");

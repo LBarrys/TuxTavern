@@ -281,7 +281,7 @@ std::string Vfs::derivedIdentity(const std::string& path) const {
   return entry->second.fileIdentity;
 }
 
-std::optional<std::filesystem::path> Vfs::resolveDerived(const std::string& path) const {
+std::optional<std::filesystem::path> Vfs::resolveDerived(const std::string& path, bool verify) const {
   const auto key = normalize(path);
   const auto index = snapshot(derived_);
   if (!key || !index) return std::nullopt;
@@ -299,6 +299,7 @@ std::optional<std::filesystem::path> Vfs::resolveDerived(const std::string& path
     }
   }
   const auto& entry = found->second;
+  if (!verify) return entry.file;
   std::lock_guard lock(*entry.identityMutex);
   const auto source = resolveOriginal(entry.source), settings = resolveOriginal(entry.settings);
   if (!source || !settings || !matchesDependency(*source, entry.sourceIdentity, entry.sourceHash) ||
@@ -310,9 +311,9 @@ std::optional<std::filesystem::path> Vfs::resolveDerived(const std::string& path
   return entry.file;
 }
 
-std::optional<std::filesystem::path> Vfs::resolve(const std::string& path) const {
+std::optional<std::filesystem::path> Vfs::resolve(const std::string& path, bool verify) const {
   if (auto original = resolveOriginal(path)) return original;
-  return resolveDerived(path);
+  return resolveDerived(path, verify);
 }
 
 std::optional<std::filesystem::path> Vfs::resolvePath(const std::string& path) const {

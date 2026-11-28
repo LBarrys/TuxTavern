@@ -195,7 +195,12 @@ int main() try {
   entry.fileIdentity = media.derivedIdentity(entry.logical);
   write(mediaRoot / "img/a.png_", "changed ciphertext");
   media.installDerivedFiles({entry}, true);
+  // A catalog install names the copy without checking it; the next resolve still refuses it.
+  media.consumeDerivedInvalidation();
+  require(media.resolve("img/a.png", false) == cache, "an unchecked resolve names the derived copy");
+  require(!media.consumeDerivedInvalidation(), "an unchecked resolve does not judge the copy");
   require(!media.resolve("img/a.png"), "changed ciphertext reused stale plaintext");
+  require(media.consumeDerivedInvalidation(), "the checked resolve invalidates the catalog");
   entry.sourceIdentity = pmjs::Vfs::fileIdentity(mediaRoot / "img/a.png_");
   media.installDerivedFiles({entry});
   const auto mediaOverlay = derivedFixture.path() / "overlay";

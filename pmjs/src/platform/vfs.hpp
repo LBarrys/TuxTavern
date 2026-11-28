@@ -40,7 +40,10 @@ class Vfs {
   static std::string fileIdentity(const std::filesystem::path& path);
   void installDerivedFiles(const std::vector<DerivedFile>& files, bool catalog = false);
   std::string derivedIdentity(const std::string& path) const;
-  std::optional<std::filesystem::path> resolveDerived(const std::string& path) const;
+  // verify = false skips checking the derived file's source, settings and copy: only for a
+  // catalog install, whose every later resolve() checks them (Karryn's Prison: 19,514 images,
+  // about 450 ms of each start).
+  std::optional<std::filesystem::path> resolveDerived(const std::string& path, bool verify = true) const;
 
   bool consumeDerivedInvalidation() { return derivedInvalidated_->exchange(false, std::memory_order_relaxed); }
 
@@ -48,7 +51,7 @@ class Vfs {
   void updateWritableOverlay(const std::vector<std::string>& paths,
                              const std::vector<std::string>& deletionMarkers);
 
-  std::optional<std::filesystem::path> resolve(const std::string& path) const;
+  std::optional<std::filesystem::path> resolve(const std::string& path, bool verify = true) const;
   std::optional<std::filesystem::path> resolvePath(const std::string& path) const;
   std::optional<std::string> readText(const std::string& path) const;
   std::optional<std::vector<std::uint8_t>> readBytes(const std::string& path) const;
