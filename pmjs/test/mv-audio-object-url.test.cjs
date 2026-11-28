@@ -796,3 +796,23 @@ test('MV stop callbacks appended during dispatch run in the same stop', () => {
   assert.deepEqual(events, ['first', 'second', 'appended']);
   audio.clear();
 });
+
+// As upstream 5532cbf: a plugin's own AudioManager.createBuffer (YEP_X_CoreUpdatesOpt) builds
+// WebAudio without an intent, so its sound effects were never cached.
+test('direct MV audio construction infers recognized folders and preserves explicit intent', () => {
+  const context = contextFor({ hasEncryptedAudio: false });
+  const intents = [];
+  context.NativeHost.media.loadAudio = (_path, options) => {
+    intents.push(options.intent);
+    return { handle: intents.length, duration: 1 };
+  };
+  for (const url of ['audio/se/tone.ogg', './audio/bgm/tone.ogg',
+    'file:///game/audio/bgs/tone.ogg', 'audio/me/tone.ogg', 'custom/se/tone.ogg']) {
+    new context.WebAudio(url);
+  }
+  new context.WebAudio('audio/se/tone.ogg', 'music');
+  new context.WebAudio('audio/se/tone.ogg', 'unknown');
+  context.AudioManager._path = 'custom/';
+  new context.WebAudio('custom/se/tone.ogg');
+  assert.deepEqual(intents, ['effect', 'music', 'ambient', 'jingle', 'unknown', 'music', 'unknown', 'effect']);
+});
