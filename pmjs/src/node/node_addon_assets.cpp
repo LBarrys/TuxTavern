@@ -265,6 +265,8 @@ napi_value processImage(napi_env env, napi_callback_info info) try {
     if (codec != "png" && codec != "lz4") throw std::runtime_error("pageCodec must be png or lz4");
     work->options.lz4Pages = codec == "lz4";
   }
+  if (args.size() > 5 && hasProperty(env, args[5], "encryptionKey"))
+    work->options.encryptionKey = imageEncryptionKey(asString(env, property(env, args[5], "encryptionKey")));
   napi_value promise;
   check(env, napi_create_promise(env, &work->deferred, &promise), "cannot create asset preparation promise");
   const auto name = string(env, "pmjs-asset-preparation");
@@ -566,6 +568,7 @@ void registerAssetMethods(napi_env env, napi_value exports) {
   method(env, assets, "classifyImageStorage", classifyImageStorage);
   method(env, assets, "installImageStorage", installImageStorage);
   set(env, assets, "imageStorageVersion", number(env, 1));
+  set(env, assets, "encryptedImagePreparation", boolean(env, true));
   method(env, assets, "processTiles", processTiles);
   method(env, assets, "releaseTileCache", releaseTileCache);
   method(env, assets, "tileCacheStats", tileCacheStats);

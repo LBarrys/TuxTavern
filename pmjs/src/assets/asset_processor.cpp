@@ -50,12 +50,27 @@ bool optionalPreparation(Work&& work) {
 
 class PngRows {
  public:
-  explicit PngRows(const std::filesystem::path& path) {
+  explicit PngRows(const std::filesystem::path& path,
+                   const std::optional<std::array<std::uint8_t, 16>>& encryptionKey = std::nullopt) {
     file_ = std::fopen(path.c_str(), "rb");
     if (!file_) throw std::runtime_error("cannot open preparation source");
     // Games ship WebP and JPEG under .png names; those load at run time without preparation.
     png_byte signature[8];
-    if (std::fread(signature, 1, 8, file_) != 8 || png_sig_cmp(signature, 0, 8)) {
+    if (encryptionKey) {
+      // RPG Maker MV: a 16-byte header, then the PNG with its first 16 bytes XORed with the key.
+      static constexpr std::array<std::uint8_t, 16> encryptedHeader{
+        0x52, 0x50, 0x47, 0x4d, 0x56, 0x00, 0x00, 0x00, 0x00, 0x03, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00};
+      std::array<std::uint8_t, 32> prefix{};
+      if (std::fread(prefix.data(), 1, prefix.size(), file_) != prefix.size() ||
+          !std::equal(encryptedHeader.begin(), encryptedHeader.end(), prefix.begin())) {
+        std::fclose(file_); file_ = nullptr;
+        throw AssetPreparationUnsupported("source is not an encrypted PNG");
+      }
+      for (std::size_t i = 0; i < 16; ++i) decrypted_[i] = prefix[16 + i] ^ (*encryptionKey)[i];
+      std::copy_n(decrypted_.begin(), 8, signature);
+      decryptedOffset_ = 8;
+    } else if (std::fread(signature, 1, 8, file_) != 8) signature[0] = 0;
+    if (png_sig_cmp(signature, 0, 8)) {
       std::fclose(file_); file_ = nullptr;
       throw AssetPreparationUnsupported("source is not a PNG");
     }
@@ -64,7 +79,8 @@ class PngRows {
     if (!info_) { close(); throw std::runtime_error("cannot create PNG reader"); }
     if (setjmp(png_jmpbuf(png_))) { close(); throw AssetPreparationDecodeError("invalid preparation PNG"); }
     png_set_chunk_malloc_max(png_, 1024U * 1024U);
-    png_init_io(png_, file_);
+    if (encryptionKey) png_set_read_fn(png_, this, readDecrypted);
+    else png_init_io(png_, file_);
     png_set_sig_bytes(png_, 8);
     png_read_info(png_, info_);
     const auto w = png_get_image_width(png_, info_);
@@ -82,6 +98,18 @@ class PngRows {
     row.resize(static_cast<std::size_t>(width) * 4);
   }
   ~PngRows() { close(); }
+  // Serves the rest of the decrypted first 16 bytes, then the file as it is.
+  static void readDecrypted(png_structp png, png_bytep out, png_size_t count) {
+    auto* self = static_cast<PngRows*>(png_get_io_ptr(png));
+    std::size_t done = 0;
+    if (self->decryptedOffset_ < self->decrypted_.size()) {
+      done = std::min<std::size_t>(count, self->decrypted_.size() - self->decryptedOffset_);
+      std::memcpy(out, self->decrypted_.data() + self->decryptedOffset_, done);
+      self->decryptedOffset_ += done;
+    }
+    if (done < count) done += std::fread(out + done, 1, count - done, self->file_);
+    if (done != count) png_error(png, "unexpected end of encrypted PNG");
+  }
   PngRows(const PngRows&) = delete;
   PngRows& operator=(const PngRows&) = delete;
   void read() {
@@ -100,6 +128,8 @@ class PngRows {
     if (file_) std::fclose(file_);
     png_ = nullptr; info_ = nullptr; file_ = nullptr;
   }
+  std::array<std::uint8_t, 16> decrypted_{};
+  std::size_t decryptedOffset_ = 16;
   FILE* file_ = nullptr;
   png_structp png_ = nullptr;
   png_infop info_ = nullptr;
@@ -372,8 +402,9 @@ class PreparationSource {
     int next_ = 0;
     bool filling_ = false;
   };
-  PreparationSource(const std::filesystem::path& path, Workspace& sourceWorkspace)
-      : workspace(sourceWorkspace), path_(path) {
+  PreparationSource(const std::filesystem::path& path, Workspace& sourceWorkspace,
+                    std::optional<std::array<std::uint8_t, 16>> encryptionKey = std::nullopt)
+      : workspace(sourceWorkspace), path_(path), encryptionKey_(encryptionKey) {
     initial_ = open(); width = initial_->width; height = initial_->height;
     const auto size = static_cast<std::uint64_t>(width) * height * 4;
     if (size <= SIZE_MAX) {
@@ -396,9 +427,10 @@ class PreparationSource {
  private:
   std::unique_ptr<PngRows> open() {
     ++workspace.stats.sourceDecodes;
-    return std::make_unique<PngRows>(path_);
+    return std::make_unique<PngRows>(path_, encryptionKey_);
   }
   std::filesystem::path path_;
+  std::optional<std::array<std::uint8_t, 16>> encryptionKey_;
   std::unique_ptr<PngRows> initial_;
   std::shared_ptr<Workspace::Buffer> cache_;
   std::shared_ptr<const CompressedCache> compressedCache_;
@@ -1342,7 +1374,7 @@ PreparedAsset prepareAssetImage(const std::filesystem::path& path,
   auto& stats = options.statistics ? *options.statistics : localStats;
   stats = {};
   Workspace workspace(options.workspaceBytes, stats);
-  PreparationSource source(path, workspace);
+  PreparationSource source(path, workspace, options.encryptionKey);
   if (layout) {
     try {
       validateLayout(source, recipe, *layout);

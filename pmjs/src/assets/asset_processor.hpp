@@ -59,6 +59,8 @@ struct AssetPreparationOptions {
   std::size_t workspaceBytes = 256U * 1024U * 1024U;
   AssetPreparationStats* statistics = nullptr;
   bool lz4Pages = false;
+  // An MV .rpgmvp is read through its key instead of from a decrypted copy (as upstream dadd050).
+  std::optional<std::array<std::uint8_t, 16>> encryptionKey = std::nullopt;
 };
 void writePreparedPng(const std::filesystem::path& path, int width, int height,
                       const std::vector<std::uint8_t>& bytes);

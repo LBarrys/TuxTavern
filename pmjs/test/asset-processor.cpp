@@ -1,3 +1,4 @@
+#include <array>
 #include "assets/asset_processor.hpp"
 #include "assets/prepared_page.hpp"
 
@@ -147,6 +148,19 @@ void verify(const std::filesystem::path& source, const std::filesystem::path& ou
   }
 }
 }
+const std::array<std::uint8_t, 16> mvKey{0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77,
+  0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff};
+std::filesystem::path encryptMv(const std::filesystem::path& from, const std::filesystem::path& to) {
+  std::ifstream in(from, std::ios::binary);
+  std::vector<char> bytes((std::istreambuf_iterator<char>(in)), {});
+  for (std::size_t i = 0; i < 16 && i < bytes.size(); ++i) bytes[i] = static_cast<char>(bytes[i] ^ mvKey[i]);
+  std::ofstream out(to, std::ios::binary);
+  const char header[] = "\x52\x50\x47\x4d\x56\x00\x00\x00\x00\x03\x01\x00\x00\x00\x00\x00";
+  out.write(header, 16);
+  out.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
+  return to;
+}
+
 int main() {
   const auto root = std::filesystem::temp_directory_path() / ("pmjs-asset-test-" + std::to_string(::getpid()));
   std::filesystem::create_directories(root);
@@ -172,6 +186,16 @@ int main() {
         require(fast.cells.size() == result.cells.size() && fast.pages.size() == result.pages.size());
         for (std::size_t i = 0; i < result.pages.size(); ++i)
           require(decode(root / "output" / result.pages[i].path) == decode(root / "lz4" / fast.pages[i].path));
+        // The same image in an MV .rpgmvp, read through its key, prepares to the same pages.
+        const auto encrypted = encryptMv(source, root / "source.rpgmvp");
+        pmjs::AssetPreparationOptions keyed;
+        keyed.encryptionKey = mvKey;
+        std::filesystem::remove_all(root / "keyed");
+        const auto direct = pmjs::prepareAssetImage(encrypted, root / "keyed", effective, nullptr, keyed);
+        require(direct.cells.size() == result.cells.size() && direct.pages.size() == result.pages.size());
+        for (std::size_t i = 0; i < result.pages.size(); ++i)
+          require(direct.cells[i].atlas == result.cells[i].atlas &&
+                  decode(root / "output" / result.pages[i].path) == decode(root / "keyed" / direct.pages[i].path));
         const auto replayed = pmjs::prepareAssetImage(source, root / "lz4-replay", effective, &result, options);
         verify(source, root / "lz4-replay", replayed);
         const auto pngReplay = pmjs::prepareAssetImage(source, root / "png-replay", effective, &replayed);
@@ -739,6 +763,13 @@ int main() {
     verify(source, root / "compressed-noise", noisePrepared);
     require(noiseStats.sourceDecodes > 1);
     require(noiseStats.peakWorkspaceBytes <= 2U * 1024U * 1024U && noiseStats.liveWorkspaceBytes == 0);
+    bool wrongKeyRefused = false;
+    try {
+      pmjs::AssetPreparationOptions wrong;
+      wrong.encryptionKey = std::array<std::uint8_t, 16>{};
+      pmjs::prepareAssetImage(root / "source.rpgmvp", root / "wrong-key", {}, nullptr, wrong);
+    } catch (const pmjs::AssetPreparationUnsupported&) { wrongKeyRefused = true; }
+    require(wrongKeyRefused);
     std::filesystem::remove_all(root);
     std::cout << "asset processor: exact RGBA, padding, dedup, halo, decoder parity and oversized streaming passed\n";
   } catch (...) { std::filesystem::remove_all(root); throw; }
