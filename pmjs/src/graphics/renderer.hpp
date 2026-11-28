@@ -168,6 +168,10 @@ struct RendererStats {
   std::uint64_t rendererTargetCacheHits = 0;
   std::uint64_t rendererTargetCacheEvictions = 0;
   std::uint64_t filterTargetClears = 0;
+  // Sprites drawn with the sprite-colour-only program, and displacement filters with their own program.
+  std::uint64_t directSpriteColorDrawCalls = 0;
+  std::uint64_t displacementProgramApplications = 0;
+  std::uint64_t clearRectsSkipped = 0;
 
   std::uint64_t filterBoundedApplications = 0;
   std::uint64_t framebufferChecks = 0;
@@ -516,6 +520,11 @@ class Renderer {
   std::vector<FilterContentBounds> filterBounds_;
   bool filterBoundsEnabled_ = true;
   std::uint32_t program_ = 0;
+  struct {
+    std::uint32_t program = 0;
+    int targetYDown = -1, imageYDown = -1, textureSize = -1;
+    int displacementImage = -1, bounds = -1, scale = -1;
+  } displacement_;
   std::uint32_t simpleProgram_ = 0;
   struct CompactSpriteProgram {
     std::uint32_t program = 0;
@@ -577,7 +586,7 @@ class Renderer {
     int matrix = -1;
     int matrixAlpha = -1;
   };
-  SpriteEffectProgram spriteEffect_, bitmapRegion_, directSprite_;
+  SpriteEffectProgram spriteEffect_, bitmapRegion_, directSprite_, directSpriteColor_;
   std::uint32_t clearTriangleProgram_ = 0;
   int clearTrianglePointsUniform_ = -1;
   int clearTriangleNormalsUniform_ = -1;

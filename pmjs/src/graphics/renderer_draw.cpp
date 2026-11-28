@@ -1267,10 +1267,15 @@ void Renderer::renderScene() {
       filterRegions{};
   applyBlendMode(activeBlend);
   bool reuseFilterContent = false;
+  bool emptyRootIsolation = false;
   for (const auto& operation : operations) {
     if (reuseFilterContent && operation.action == RenderCommand::Action::draw) continue;
     if (operation.action == RenderCommand::Action::clearRect) {
       if (filterDepth == 0) throw std::logic_error("rectangle clear requires an isolated target");
+      if (filterDepth == 1 && emptyRootIsolation) {
+        if (diagnostics_) ++stats_.clearRectsSkipped;
+        continue;
+      }
       const auto& rectangle = operation.command->clearRectangle;
       const float left = std::max(0.0F, rectangle[0] - rasterFrame[0]);
       const float top = std::max(0.0F, rectangle[1] - rasterFrame[1]);
@@ -1293,6 +1298,7 @@ void Renderer::renderScene() {
       continue;
     }
     if (operation.action == RenderCommand::Action::filterBegin) {
+      emptyRootIsolation = false;
       const auto cacheKey = filterIntermediateKey(*operation.command);
       reuseFilterContent = !cacheKey.empty() && filterIntermediateTarget_.texture &&
         filterIntermediateSignature_ == cacheKey;
@@ -1345,16 +1351,38 @@ void Renderer::renderScene() {
         glDisable(GL_SCISSOR_TEST);
         scissorActive = false;
       }
+      bool fullSurfaceCleared = false;
       if (!reuseFilterContent) {
         glClear(GL_COLOR_BUFFER_BIT);
+        fullSurfaceCleared = true;
         if (diagnostics_) ++stats_.filterTargetClears;
       }
+      const bool identityProjection =
+        sceneProjection_ == std::array<float, 6>{1, 0, 0, 1, 0, 0};
+      const bool sceneSizedFrame =
+        rasterFrame == std::array<float, 4>{0, 0, static_cast<float>(width_), static_cast<float>(height_)};
+      emptyRootIsolation =
+        fullSurfaceCleared &&
+        filterDepth == 0 &&
+        !offscreenRender_ &&
+        identityProjection &&
+        !operation.command->customFilterPlan &&
+        operation.command->filterKind == scene_packet::FilterKind::alpha &&
+        operation.command->filterParameters[0] == 1.0F &&
+        operation.command->blendMode == BlendMode::normal &&
+        operation.command->filterResolution == 1.0F &&
+        rasterResolution == 1.0F &&
+        sceneSizedFrame &&
+        !reuseFilterContent &&
+        !bounded &&
+        !scissorActive;
       activeBlend = BlendMode::normal;
       applyBlendMode(activeBlend);
       ++filterDepth;
       continue;
     }
     if (operation.action == RenderCommand::Action::filterEnd) {
+      emptyRootIsolation = false;
       reuseFilterContent = false;
       --filterDepth;
       targetYDown = offscreenRender_ || filterDepth > 0;
@@ -1374,29 +1402,43 @@ void Renderer::renderScene() {
       }
       glViewport(0, 0, static_cast<int>(rasterFrame[2] * rasterResolution), static_cast<int>(rasterFrame[3] * rasterResolution));
       ensurePixiPrograms();
-      glUseProgram(program_);
-      projectTarget(program_);
-      activeProgram = program_;
-      glUniform1i(filterTargetYDownUniform_, 0);
+      const bool displacementFilter =
+        filter.filterKind == scene_packet::FilterKind::displacement &&
+        displacement_.program != 0;
+      if (displacementFilter && diagnostics_) ++stats_.displacementProgramApplications;
+      const auto ensureLinearFilter = [&](std::uint32_t texture) {
+        if (const auto nearest = textureNearestState_.find(texture);
+            nearest == textureNearestState_.end() || nearest->second) {
+          glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+          glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+          textureNearestState_[texture] = false;
+        }
+      };
+      const std::uint32_t compositeProgram =
+        displacementFilter ? displacement_.program : program_;
+      glUseProgram(compositeProgram);
+      projectTarget(compositeProgram);
+      activeProgram = compositeProgram;
+      glUniform1i(displacementFilter ? displacement_.targetYDown : filterTargetYDownUniform_, 0);
       // Authored filter content projects downward; internal passes project upward.
       bool sourceYDown = true;
-      glUniform1i(filterImageYDownUniform_, sourceYDown);
+      glUniform1i(displacementFilter ? displacement_.imageYDown : filterImageYDownUniform_, sourceYDown);
       glBindVertexArray(vertexArray_);
       glActiveTexture(GL_TEXTURE0);
       glBindTexture(GL_TEXTURE_2D, groupTargets_[filterDepth].texture);
-      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-      textureNearestState_[groupTargets_[filterDepth].texture] = false;
-      glUniform2f(textureSizeUniform_,
+      ensureLinearFilter(groupTargets_[filterDepth].texture);
+      glUniform2f(displacementFilter ? displacement_.textureSize : textureSizeUniform_,
                   static_cast<float>(width_) / filter.filterResolution,
                   static_cast<float>(height_) / filter.filterResolution);
-      glUniform1i(maskEnabledUniform_, 0);
-      glUniform1i(colorMatrixEnabledUniform_, 0);
-      glUniform1i(spriteColorEnabledUniform_, 0);
-      glUniform1i(displacementEnabledUniform_, 0);
-      glUniform1i(noiseGlitchEnabledUniform_, 0);
-      glUniform1i(pixiFilterKindUniform_, 0);
-      glUniform1i(premultipliedInputUniform_, 1);
+      if (!displacementFilter) {
+        glUniform1i(maskEnabledUniform_, 0);
+        glUniform1i(colorMatrixEnabledUniform_, 0);
+        glUniform1i(spriteColorEnabledUniform_, 0);
+        glUniform1i(displacementEnabledUniform_, 0);
+        glUniform1i(noiseGlitchEnabledUniform_, 0);
+        glUniform1i(pixiFilterKindUniform_, 0);
+        glUniform1i(premultipliedInputUniform_, 1);
+      }
 
       const bool pictureBlend =
         filter.filterKind == scene_packet::FilterKind::pictureBlend;
@@ -1489,24 +1531,27 @@ void Renderer::renderScene() {
         }
         compositeTexture = sourceTexture;
       } else if (filter.filterKind == scene_packet::FilterKind::displacement) {
-        glUniform1f(blurUniform_, 0);
-        glUniform2f(blurDirectionUniform_, 0, 0);
         const auto displacement = images_.lookup(filter.image);
         if (!displacement) continue;
         glActiveTexture(GL_TEXTURE2);
         glBindTexture(GL_TEXTURE_2D, displacement->texture);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-        textureNearestState_[displacement->texture] = false;
-        textureRepeatState_[displacement->texture] = true;
-        glUniform1i(displacementImageUniform_, 2);
-        glUniform4fv(displacementBoundsUniform_, 1,
+        ensureLinearFilter(displacement->texture);
+        if (const auto repeat = textureRepeatState_.find(displacement->texture);
+            repeat == textureRepeatState_.end() || !repeat->second) {
+          glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+          glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+          textureRepeatState_[displacement->texture] = true;
+        }
+        if (!displacementFilter) {
+          glUniform1f(blurUniform_, 0);
+          glUniform2f(blurDirectionUniform_, 0, 0);
+          glUniform1i(displacementImageUniform_, 2);
+          glUniform1i(displacementEnabledUniform_, 1);
+        }
+        glUniform4fv(displacementFilter ? displacement_.bounds : displacementBoundsUniform_, 1,
                      filter.filterParameters.data());
-        glUniform2fv(displacementScaleUniform_, 1,
+        glUniform2fv(displacementFilter ? displacement_.scale : displacementScaleUniform_, 1,
                      filter.filterParameters.data() + 4);
-        glUniform1i(displacementEnabledUniform_, 1);
         glActiveTexture(GL_TEXTURE0);
       } else if (filter.filterKind == scene_packet::FilterKind::alphaMask) {
         glUniform1f(blurUniform_, 0);
@@ -1807,14 +1852,12 @@ void Renderer::renderScene() {
         continue;
       }
 
-      glUniform1i(filterTargetYDownUniform_, targetYDown);
-      glUniform1i(filterImageYDownUniform_, sourceYDown);
+      glUniform1i(displacementFilter ? displacement_.targetYDown : filterTargetYDownUniform_, targetYDown);
+      glUniform1i(displacementFilter ? displacement_.imageYDown : filterImageYDownUniform_, sourceYDown);
       glBindFramebuffer(GL_FRAMEBUFFER, filterDepth == 0 ? rootFramebuffer :
                         groupTargets_[filterDepth - 1].framebuffer);
       glBindTexture(GL_TEXTURE_2D, compositeTexture);
-      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-      textureNearestState_[compositeTexture] = false;
+      ensureLinearFilter(compositeTexture);
       if (filter.filterKind == scene_packet::FilterKind::blur) {
         glUniform2f(blurDirectionUniform_, 0, 1);
       }
@@ -1861,16 +1904,19 @@ void Renderer::renderScene() {
         }
       }
       if (pictureBlend) glEnable(GL_BLEND);
-      glUniform1i(displacementEnabledUniform_, 0);
-      glUniform1i(noiseGlitchEnabledUniform_, 0);
-      glUniform1i(pixiFilterKindUniform_, 0);
-      glUniform1i(premultipliedInputUniform_, 1);
-      glUniform1i(maskEnabledUniform_, 0);
-      glUniform1i(colorMatrixEnabledUniform_, 0);
-      glUniform1i(spriteColorEnabledUniform_, 0);
+      if (!displacementFilter) {
+        glUniform1i(displacementEnabledUniform_, 0);
+        glUniform1i(noiseGlitchEnabledUniform_, 0);
+        glUniform1i(pixiFilterKindUniform_, 0);
+        glUniform1i(premultipliedInputUniform_, 1);
+        glUniform1i(maskEnabledUniform_, 0);
+        glUniform1i(colorMatrixEnabledUniform_, 0);
+        glUniform1i(spriteColorEnabledUniform_, 0);
+      }
       applyBlendMode(activeBlend);
       continue;
     }
+    emptyRootIsolation = false;
     // Tone target swaps and effect blits can write beyond a group's raster viewport.
     if (operation.matrixCommand || operation.primitive == RenderCommand::Primitive::effect) {
       std::fill_n(groupPaddingKnownZero.begin(), filterDepth, false);
@@ -2207,8 +2253,12 @@ void Renderer::renderScene() {
       !operation.appliesSpriteColor && !operation.standaloneBitmapRegion &&
       operation.inlineMatrix == nullptr;
     // Keep ordinary sampling separate from the larger decoding programs.
-    const bool directSprite = unfilteredSprite && !operation.derivedImage && !operation.block &&
+    const bool directEligible = operation.blur <= 0 && operation.maskImage == 0 &&
+      !operation.standaloneBitmapRegion && operation.inlineMatrix == nullptr &&
+      !operation.derivedImage && !operation.block &&
       (!operation.paletteTable || (operation.nearest && !operation.paletteBlocks));
+    const bool directSprite = directEligible && !operation.appliesSpriteColor;
+    const bool directSpriteColor = directEligible && !operation.paletteTable && operation.appliesSpriteColor;
     const bool simpleSprite = unfilteredSprite && !directSprite;
     if (operation.multiTextureSprite && operation.textureCount > 1) {
       ensurePixiPrograms();
@@ -2254,6 +2304,7 @@ void Renderer::renderScene() {
       continue;
     }
     const auto& spriteEffect = directSprite ? directSprite_ :
+      directSpriteColor ? directSpriteColor_ :
       operation.standaloneBitmapRegion && operation.blur <= 0 &&
         !operation.appliesSpriteColor ? bitmapRegion_ : spriteEffect_;
     if (simpleSprite) ensurePixiPrograms();
@@ -2395,6 +2446,7 @@ void Renderer::renderScene() {
       else ++stats_.spriteDrawCalls;
       if (simpleSprite || directSprite) ++stats_.baseSpriteDrawCalls;
       else ++stats_.effectSpriteDrawCalls;
+      if (directSpriteColor) ++stats_.directSpriteColorDrawCalls;
     }
   }
   if (scissorActive) glDisable(GL_SCISSOR_TEST);

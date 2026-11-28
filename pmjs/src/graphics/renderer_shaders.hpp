@@ -961,6 +961,25 @@ constexpr const char* fragmentSource = R"(#version 300 es
     if (!premultipliedInput) outputColor.rgb *= outputColor.a;
   }
 )";
+constexpr const char* displacementFragmentSource = R"(#version 300 es
+  precision mediump float;
+  uniform sampler2D image, displacementImage;
+  uniform bool imageYDown;
+  uniform vec2 imageDimensions, displacementScale;
+  uniform vec4 displacementBounds;
+  in vec2 vertexUv;
+  in vec4 vertexColor, vertexUvClamp;
+  out vec4 outputColor;
+  void main() {
+    vec2 maskUv = (vertexUv * imageDimensions - displacementBounds.xy) /
+      displacementBounds.zw;
+    vec2 displacement = texture(displacementImage, maskUv).rg - vec2(0.5);
+    vec2 sampleUv = clamp(vertexUv + displacement * displacementScale /
+      imageDimensions, vertexUvClamp.xy, vertexUvClamp.zw);
+    outputColor = texture(image, vec2(sampleUv.x,
+      imageYDown ? 1.0 - sampleUv.y : sampleUv.y)) * vertexColor;
+  }
+)";
 
 inline std::string pixiFragmentSourceWithPrecision(const char* base,
                                                   const std::string& precision) {
@@ -1955,6 +1974,24 @@ inline std::string bitmapRegionFragmentSource() {
   std::string source(spriteEffectFragmentSource);
   source.replace(source.find("uniform highp vec4 spriteFrame;"),
     std::string("uniform highp vec4 spriteFrame;").size(), "flat in highp vec4 spriteFrame;");
+  return source;
+}
+inline std::string directSpriteColorFragmentSource() {
+  std::string source(spriteEffectFragmentSource);
+  source.replace(source.find("highp vec4 sampleBlockImage(highp vec2 coordinate);"),
+    std::string("highp vec4 sampleBlockImage(highp vec2 coordinate);").size(),
+    "highp vec4 sampleBlockImage(highp vec2 coordinate) { return vec4(0.0); }");
+  for (const auto& replacement : {
+      std::pair{"uniform int paletteImage;", "const int paletteImage = 0;"},
+      std::pair{"uniform bool standaloneBitmapRegion;", "const bool standaloneBitmapRegion = false;"},
+      std::pair{"uniform bool derivedImage;", "const bool derivedImage = false;"},
+      std::pair{"uniform float blurRadius;", "const float blurRadius = 0.0;"},
+      std::pair{"uniform bool maskEnabled;", "const bool maskEnabled = false;"},
+      std::pair{"uniform bool spriteColorEnabled;", "const bool spriteColorEnabled = true;"},
+      std::pair{"uniform bool colorMatrixEnabled;", "const bool colorMatrixEnabled = false;"}}) {
+    source.replace(source.find(replacement.first), std::string(replacement.first).size(), replacement.second);
+  }
+  source.insert(source.find("uniform bool nearestSampling;"), "const bool blockImage = false;\n");
   return source;
 }
 }  // namespace pmjs::renderer_shaders
